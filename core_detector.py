@@ -375,6 +375,7 @@ class SOPStateMachine:
         self.cycle_started_at = 0.0
         self.end_hold_sec = 0.0
         self.end_seen = False                    # 清單模式 object_absent：這一輪有沒有真的看到過那個物件（看到過才有「拿走」可言）
+        self.end_seen_sec = 0.0                  # 清單模式 object_absent：本輪該物件連續出現秒數（滿 dwell_time_sec 才算放上桌，排除單格誤閃）
         self.alert_active = False
         self.alert_message = ""
         self.alert_type = ""
@@ -542,7 +543,11 @@ class SOPStateMachine:
                 end_now = False
             else:
                 if not end_now:
-                    self.end_seen = True
+                    self.end_seen_sec += dt
+                    if self.end_seen_sec >= end.dwell_time_sec:
+                        self.end_seen = True
+                else:
+                    self.end_seen_sec = 0.0
                 end_now = end_now and self.end_seen
         if self.alert_active:
             self._check_reset_zone(ctx.hand_points, dt)
@@ -580,10 +585,13 @@ class SOPStateMachine:
                 self.cycle_active = True
                 self.cycle_started_at = t_now
                 if gated:
-                    self.end_seen = bool(ctx.anchors.get(end.object or "", [])) or ctx.box_seen
+                    self.end_seen_sec = dt if (bool(ctx.anchors.get(end.object or "", [])) or ctx.box_seen) else 0.0
+                    self.end_seen = self.end_seen_sec >= end.dwell_time_sec
             if not s.continuous:
                 self.acc_sec[i] = self.acc_sec.get(i, 0.0) + dt
             if i not in self.observed and self.acc_sec.get(i, 0.0) >= s.dwell_time_sec:
+                if not self.observed and (t_now - self.cycle_started_at) > s.dwell_time_sec + 2.0:
+                    self.cycle_started_at = max(0.0, t_now - s.dwell_time_sec)
                 self.observed.add(i)
                 self._log("step_done", s, s.step_name)
         self.end_hold_sec = self.end_hold_sec + dt if end_now else 0.0
@@ -592,11 +600,11 @@ class SOPStateMachine:
         if self.end_hold_sec >= end.dwell_time_sec:
             missing = [s for s in self.steps if s.required and s.step_index not in self.observed]
             cycle_len = t_now - self.cycle_started_at
-            if cycle_len < self.project.cycle_min_sec:
-                # 太短不算一輪（例如只是把鞋拿出畫面）：不計數、不報，直接重新等下一輪
+            if cycle_len < self.project.cycle_min_sec or not self.observed:
+                # 太短不算一輪（例如只是把鞋拿出畫面），或根本沒完成任何一步（空檔誤閃）：不計數、不報，直接重新等下一輪
                 self._log("cycle_discarded", None, f"只持續 {cycle_len:.1f} 秒")
                 self.observed = set(); self.acc_sec = {}; self.streak_sec = {}; self.gap_sec = {}; self.cycle_active = False; self.end_hold_sec = 0.0
-                self.armed = False; self.clear_sec = 0.0; self.end_seen = False
+                self.armed = False; self.clear_sec = 0.0; self.end_seen = False; self.end_seen_sec = 0.0
                 return
             if missing:
                 self.bad_cycle_count += 1
@@ -605,7 +613,7 @@ class SOPStateMachine:
                 self.cycle_count += 1
                 self._log("cycle_done", None, f"#{self.cycle_count}")
             self.observed = set(); self.acc_sec = {}; self.streak_sec = {}; self.gap_sec = {}; self.cycle_active = False; self.end_hold_sec = 0.0
-            self.armed = False; self.clear_sec = 0.0; self.end_seen = False
+            self.armed = False; self.clear_sec = 0.0; self.end_seen = False; self.end_seen_sec = 0.0
             return
         if self.project.cycle_timeout_sec and (t_now - self.cycle_started_at) > self.project.cycle_timeout_sec:
             missing = [s for s in self.steps if s.required and s.step_index not in self.observed]
@@ -682,7 +690,7 @@ class SOPStateMachine:
 
     def reset(self) -> None:
         self._reset_cycle_state(self._t_now)
-        self.observed = set(); self.acc_sec = {}; self.streak_sec = {}; self.gap_sec = {}; self.cycle_active = False; self.end_hold_sec = 0.0; self.end_seen = False
+        self.observed = set(); self.acc_sec = {}; self.streak_sec = {}; self.gap_sec = {}; self.cycle_active = False; self.end_hold_sec = 0.0; self.end_seen = False; self.end_seen_sec = 0.0
         self.alert_active = False
         self.alert_message = ""
         self.alert_type = ""
