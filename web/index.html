@@ -137,6 +137,7 @@
       <img id="stream" alt="監控畫面" style="display:none">
       <div class="hint" id="hint">選好專案與來源，按「啟動監控」。<br>第一次載入約 10～30 秒。</div>
       <div class="alarm" id="alert"><b id="alertMsg"></b><button id="btnReset">解除警告</button></div>
+      <div id="fpsBadge" style="display:none;position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.65);color:#fff;padding:3px 8px;border-radius:4px;font-size:12px;font-family:monospace;pointer-events:none"></div>
     </div>
   </div>
 
@@ -223,6 +224,18 @@
     const m = s.model;
     $("modelName").textContent = m ? m.project : "–"; $("modelName").title = m ? m.project : "";
     $("modelInfo").textContent = !m ? "" : m.file ? `模型 ${m.trained_at}` : "沒有物品辨識模型";
+
+    const fpsB = $("fpsBadge");
+    if (fpsB) {
+      if (running && s.fps != null && s.fps > 0) {
+        fpsB.style.display = "block";
+        const srcTxt = (s.source_kind === "camera" ? "相機即時" : "示範影片");
+        const fpsVal = (s.display_fps && s.display_fps > 0 ? s.display_fps : s.fps).toFixed(1);
+        fpsB.textContent = `${srcTxt} ${fpsVal} FPS`;
+      } else {
+        fpsB.style.display = "none";
+      }
+    }
 
     const c = s.cycle || {}, inCycle = running && c.elapsed != null;
     $("timerVal").innerHTML = ""; $("timerVal").append(inCycle ? sec(c.elapsed) : "–");

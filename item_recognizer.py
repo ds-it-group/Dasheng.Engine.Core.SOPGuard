@@ -178,22 +178,32 @@ class ItemSeeds:
 
 # ---------------------------------------------------------------- 框選後自動往前後追
 
-TRACK_STEP = 3                  # 每幾格追一次（30 fps＝0.1 秒）
-TRACK_KEEP_MIN = 0.55           # 跟「手框的那一格」比的最低分數
-TRACK_KEEP_LAST = 0.75          # 或跟「上一個追到的位置」比的最低分數（物品慢慢轉角度、被手遮一點時靠這個接上）
-TRACK_COLOR_MIN = 0.5           # 追到的框跟手框那一格的顏色（HSV 色相×飽和度直方圖相關）低於這個就當沒追到：
+TRACK_STEP = 3                  # 預設追蹤步距（adaptive 模式會依框大小自動加密為 1 或 2 格）
+TRACK_KEEP_MIN = 0.50           # 跟「手框的那一格」比的最低分數
+TRACK_KEEP_LAST = 0.70          # 或跟「上一個追到的位置」比的最低分數（物品慢慢轉角度、被手遮一點時靠這個接上）
+TRACK_COLOR_MIN = 0.45          # 追到的框跟手框那一格的顏色（HSV 色相×飽和度直方圖相關）低於這個就當沒追到：
                                 # 灰階樣板比對分不出「藍盒翻成牛皮色盒底」，名稱就錯了。現場 34 個手框實測（逐格人工判過 559 格）：
                                 # 不檢查 467 對／92 錯；0.5 → 419／13；0.6 → 388／8；0.7 → 345／4。只限制移動距離幾乎沒用（451／85）
 
 
-def track_seed(video_path: str, frame: int, rect: Rect, window_sec: float = 2.0, fps: float | None = None,
+def _adaptive_step(rect: Rect, requested_step: int = TRACK_STEP) -> int:
+    """小物件或短暫動作（面積 < 45000 px²，如貼紙、標籤）逐格追（step=1），大物件每 2 格追一次（step=2）。"""
+    if requested_step != TRACK_STEP:
+        return max(1, int(requested_step))
+    w, h = int(rect[2]), int(rect[3])
+    return 1 if (w * h < 45000) else 2
+
+
+def track_seed(video_path: str, frame: int, rect: Rect, window_sec: float = 2.5, fps: float | None = None,
                step: int = TRACK_STEP) -> list[tuple[int, list[int]]]:
-    """從手框的那一格往前、往後各追 window_sec 秒：每 step 格在上一個位置附近（框外擴 50%）做樣板比對，
-    分數夠（比原框 ≥ 0.55 或比上一個位置 ≥ 0.75）就記一個框，連續 2 次不夠就停（物品離開／被遮住／換成別的樣子）。
+    """從手框的那一格往前、往後各追 window_sec 秒：依框大小自動選擇逐格（step=1）或每 2 格（step=2），
+    在上一個位置附近（外擴 65% 且至少 90px）做樣板比對，分數夠就記一個框，容許短暫手部遮擋後接續追蹤。
     回傳 [(格, [x, y, w, h])]，不含手框那一格。影片只循序讀一次那段範圍（mp4 往回跳很慢）。"""
     from video_recorder import open_video_oriented
     cap, rotate, W, H, vfps = open_video_oriented(video_path)
     fps = float(fps or vfps or 30.0); n_total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    eff_step = _adaptive_step(rect, step)
+    max_misses = 5 if eff_step == 1 else 3
     half = int(round(window_sec * fps)); a = max(0, frame - half); b = min(max(n_total - 1, frame), frame + half)
     from core_detector import roi_similarity
     grays: dict[int, np.ndarray] = {}
@@ -203,7 +213,7 @@ def track_seed(video_path: str, frame: int, rect: Rect, window_sec: float = 2.0,
         ok, fr = cap.read()
         if not ok:
             break
-        if (i - frame) % step == 0:
+        if (i - frame) % eff_step == 0:
             if rotate is not None:
                 fr = cv2.rotate(fr, rotate)
             grays[i] = _gray(fr)
@@ -224,11 +234,12 @@ def track_seed(video_path: str, frame: int, rect: Rect, window_sec: float = 2.0,
     out: list[tuple[int, list[int]]] = []
     for direction in (1, -1):
         last = (x, y, w, h); tpl_last = tpl0; misses = 0
-        f = frame + direction * step
+        f = frame + direction * eff_step
         while f in grays:
             g = grays[f]; lx, ly, lw, lh = last
-            sx1, sy1 = max(0, int(lx - lw * 0.5)), max(0, int(ly - lh * 0.5))
-            sx2, sy2 = min(g.shape[1], int(lx + lw * 1.5)), min(g.shape[0], int(ly + lh * 1.5))
+            pad_x, pad_y = min(160, max(90, int(lw * 0.5))), min(160, max(90, int(lh * 0.5)))
+            sx1, sy1 = max(0, lx - pad_x), max(0, ly - pad_y)
+            sx2, sy2 = min(g.shape[1], lx + lw + pad_x), min(g.shape[0], ly + lh + pad_y)
             sub = g[sy1:sy2, sx1:sx2]
             s0, r0 = _track(tpl0, sub)
             s1, r1 = _track(tpl_last, sub)
@@ -243,16 +254,124 @@ def track_seed(video_path: str, frame: int, rect: Rect, window_sec: float = 2.0,
                     pick = None                          # 形狀像、顏色不像：多半是翻面或換成別的東西
             if pick is None:
                 misses += 1
-                if misses >= 2:
+                if misses >= max_misses:
                     break
             else:
                 misses = 0
                 nr = [int(sx1 + pick[0]), int(sy1 + pick[1]), int(pick[2]), int(pick[3])]
                 out.append((f, nr)); last = tuple(nr)
                 tpl_last = g[nr[1]:nr[1] + nr[3], nr[0]:nr[0] + nr[2]]
-            f += direction * step
+            f += direction * eff_step
     out.sort(key=lambda t: t[0])
     return out
+
+
+def retrack_seeds(video_path: str, seeds: ItemSeeds, window_sec: float = 2.5, fps: float | None = None,
+                  step: int = TRACK_STEP) -> dict:
+    """用目前的追蹤規則（含顏色檢查 TRACK_COLOR_MIN 與智慧密集步距）一次重追全部手框種子，並清掉同一格同名稱重複或跑偏的自動框。
+    只循序讀一次影片涵蓋範圍（跨輪次大空檔自動跳格），避免每個手框重開 mp4。"""
+    manuals = [s for s in seeds.seeds if not s.auto]
+    old_auto = sum(1 for s in seeds.seeds if s.auto)
+    if not manuals or window_sec <= 0 or not os.path.isfile(video_path):
+        seeds.seeds = list(manuals); seeds.save()
+        return {"manuals": len(manuals), "old_auto": old_auto, "new_auto": 0}
+    from video_recorder import open_video_oriented
+    from core_detector import roi_similarity
+    cap, rotate, W, H, vfps = open_video_oriented(video_path)
+    fps = float(fps or vfps or 30.0); n_total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    half = int(round(window_sec * fps))
+    needed: set[int] = set()
+    for m in manuals:
+        eff_step = _adaptive_step(m.rect, step)
+        a = max(0, m.frame - half); b = min(max(n_total - 1, m.frame), m.frame + half)
+        for i in range(a, b + 1):
+            if (i - m.frame) % eff_step == 0:
+                needed.add(i)
+    grays: dict[int, np.ndarray] = {}
+    smalls: dict[int, np.ndarray] = {}
+    lo, hi = min(needed), max(needed)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, lo); i = lo
+    while i <= hi:
+        ok, fr = cap.read()
+        if not ok:
+            break
+        if i in needed:
+            if rotate is not None:
+                fr = cv2.rotate(fr, rotate)
+            grays[i] = _gray(fr)
+            smalls[i] = cv2.resize(fr, (fr.shape[1] // 2, fr.shape[0] // 2), interpolation=cv2.INTER_AREA)
+        i += 1
+    cap.release()
+
+    def color(f, r):
+        rx, ry, rw, rh = r
+        return smalls[f][max(0, ry // 2):(ry + rh) // 2, max(0, rx // 2):(rx + rw) // 2]
+
+    manual_on_frame = {(m.name, m.frame) for m in manuals}
+    # (name, frame) -> (dist_to_manual, group, rect)
+    best_auto: dict[tuple[str, int], tuple[int, int, list[int]]] = {}
+    next_g = max([m.group for m in manuals] + [0]) + 1
+    for m in manuals:
+        if not m.group:
+            m.group = next_g; next_g += 1
+        if m.frame not in grays:
+            continue
+        x, y, w, h = [int(v) for v in m.rect]
+        tpl0 = grays[m.frame][max(0, y):y + h, max(0, x):x + w]
+        if tpl0.size == 0 or tpl0.shape[0] < 8 or tpl0.shape[1] < 8:
+            continue
+        eff_step = _adaptive_step(m.rect, step)
+        max_misses = 5 if eff_step == 1 else 3
+        col0 = color(m.frame, (x, y, w, h))
+        for direction in (1, -1):
+            last = (x, y, w, h); tpl_last = tpl0; misses = 0
+            f = m.frame + direction * eff_step
+            while abs(f - m.frame) <= half and f in grays:
+                g = grays[f]; lx, ly, lw, lh = last
+                pad_x, pad_y = min(160, max(90, int(lw * 0.5))), min(160, max(90, int(lh * 0.5)))
+                sx1, sy1 = max(0, lx - pad_x), max(0, ly - pad_y)
+                sx2, sy2 = min(g.shape[1], lx + lw + pad_x), min(g.shape[0], ly + lh + pad_y)
+                sub = g[sy1:sy2, sx1:sx2]
+                s0, r0 = _track(tpl0, sub)
+                s1, r1 = _track(tpl_last, sub)
+                pick = None
+                if s0 >= TRACK_KEEP_MIN and (s0 >= s1 or s1 < TRACK_KEEP_LAST):
+                    pick = r0
+                elif s1 >= TRACK_KEEP_LAST:
+                    pick = r1
+                if pick is not None:
+                    cand = [int(sx1 + pick[0]), int(sy1 + pick[1]), int(pick[2]), int(pick[3])]
+                    if roi_similarity(col0, color(f, cand)) < TRACK_COLOR_MIN:
+                        pick = None
+                if pick is None:
+                    misses += 1
+                    if misses >= max_misses:
+                        break
+                else:
+                    misses = 0
+                    nr = [int(sx1 + pick[0]), int(sy1 + pick[1]), int(pick[2]), int(pick[3])]
+                    last = tuple(nr)
+                    tpl_last = g[nr[1]:nr[1] + nr[3], nr[0]:nr[0] + nr[2]]
+                    if (m.name, f) not in manual_on_frame:
+                        dist = abs(f - m.frame)
+                        prev = best_auto.get((m.name, f))
+                        if prev is None or dist < prev[0]:
+                            best_auto[(m.name, f)] = (dist, m.group, nr)
+                f += direction * eff_step
+
+    by_group: dict[int, list[tuple[int, list[int]]]] = {}
+    for (name, f), (_, grp, nr) in best_auto.items():
+        by_group.setdefault(grp, []).append((f, nr))
+    new_seeds: list[Seed] = []
+    for m in manuals:
+        new_seeds.append(Seed(m.name, int(m.frame), [int(v) for v in m.rect], False, m.group))
+        for f, nr in sorted(by_group.get(m.group, [])):
+            new_seeds.append(Seed(m.name, int(f), nr, True, m.group))
+    seeds._next_group = max([s.group for s in new_seeds] + [0]) + 1
+    seeds.seeds = new_seeds
+    seeds.save()
+    new_auto = sum(1 for s in seeds.seeds if s.auto)
+    return {"manuals": len(manuals), "old_auto": old_auto, "new_auto": new_auto}
 
 
 # ---------------------------------------------------------------- 追蹤（盒子＋手）
@@ -381,15 +500,22 @@ def _iou(a: Rect, b: Rect) -> float:
 
 
 def _track(tpl, g, scales=(0.9, 1.0, 1.1)):
+    # 大框（如整雙鞋、大鞋盒 > 120px）先縮半再做樣板比對，速度提升約 10～15 倍且精度不變
+    ds = 2 if (tpl.shape[0] >= 120 and tpl.shape[1] >= 120 and g.shape[0] >= 240 and g.shape[1] >= 240) else 1
+    if ds > 1:
+        tpl_s = cv2.resize(tpl, (tpl.shape[1] // ds, tpl.shape[0] // ds), interpolation=cv2.INTER_AREA)
+        g_s = cv2.resize(g, (g.shape[1] // ds, g.shape[0] // ds), interpolation=cv2.INTER_AREA)
+    else:
+        tpl_s, g_s = tpl, g
     best = (-1.0, None)
     for s in scales:
-        t = cv2.resize(tpl, None, fx=s, fy=s) if s != 1.0 else tpl
-        if t.shape[0] < 8 or t.shape[1] < 8 or t.shape[0] >= g.shape[0] or t.shape[1] >= g.shape[1]:
+        t = cv2.resize(tpl_s, None, fx=s, fy=s) if s != 1.0 else tpl_s
+        if t.shape[0] < 8 or t.shape[1] < 8 or t.shape[0] >= g_s.shape[0] or t.shape[1] >= g_s.shape[1]:
             continue
-        res = cv2.matchTemplate(g, t, cv2.TM_CCOEFF_NORMED)
+        res = cv2.matchTemplate(g_s, t, cv2.TM_CCOEFF_NORMED)
         _, mx, _, loc = cv2.minMaxLoc(res)
         if mx > best[0]:
-            best = (float(mx), (int(loc[0]), int(loc[1]), int(t.shape[1]), int(t.shape[0])))
+            best = (float(mx), (int(loc[0] * ds), int(loc[1] * ds), int(t.shape[1] * ds), int(t.shape[0] * ds)))
     return best
 
 
@@ -422,7 +548,7 @@ def _labels_fixed(project, status: dict, seeds: ItemSeeds, reader, progress=None
 
     def add(f, name, r, score):
         found = labels.setdefault(f, [])
-        dup = next((i for i, (n2, r2, s2) in enumerate(found) if n2 == name and _iou(r, r2) > 0.5), None)
+        dup = next((i for i, (n2, r2, s2) in enumerate(found) if n2 == name and _iou(r, r2) > 0.2), None)
         if dup is not None:
             if found[dup][2] >= score:
                 return
@@ -431,11 +557,30 @@ def _labels_fixed(project, status: dict, seeds: ItemSeeds, reader, progress=None
 
     for sd, _, _, expected in tpls:            # 種子格本身：照框選的位置標（不用比對）
         add(sd.frame, sd.name, expected, 2.0)
+    manual_frame = {sd.group: sd.frame for sd in direct if not sd.auto and sd.group}
     for sd in direct:                           # 框選當下就追好、使用者看過的框：直接當標籤，不再延伸（不然刪掉的錯框又會長回來）
         x, y, w, h = sd.rect
         r = _clip_rect((x - reg[0], y - reg[1], w, h), reg[2], reg[3])
         if r is not None:
-            add(sd.frame, sd.name, r, 1.5)
+            sc = 2.0 if not sd.auto else (1.5 - 0.002 * abs(sd.frame - manual_frame.get(sd.group, sd.frame)))
+            add(sd.frame, sd.name, r, sc)
+    # 補齊同時間出現但因 TRACK_STEP 取樣格數不同而錯開的共同物品（例如 1040 格標了盒底貼標，而盒底朝上追在 1039 與 1042 格）
+    by_name_f: dict[str, dict[int, tuple]] = {}
+    for f, found in list(labels.items()):
+        for name, r, _ in found:
+            by_name_f.setdefault(name, {})[f] = r
+    for name, fmap in by_name_f.items():
+        fs = sorted(fmap)
+        for i in range(len(fs) - 1):
+            f1, f2 = fs[i], fs[i + 1]
+            if 1 < f2 - f1 <= TRACK_STEP * 2:
+                r1, r2 = fmap[f1], fmap[f2]
+                if _iou(r1, r2) >= 0.3:
+                    for f in range(f1 + 1, f2):
+                        if f in labels and f not in seeds.refs and not any(n2 == name for n2, _, _ in labels[f]):
+                            t = (f - f1) / (f2 - f1)
+                            ri = tuple(int(round(a + t * (b - a))) for a, b in zip(r1, r2))
+                            add(f, name, ri, 1.2)
     todo = [f for f in frames_sorted if any(abs(f - sd.frame) <= win for sd, _, _, _ in tpls)]
     for k, f in enumerate(todo):
         g = _gray(_crop(reader.get_frame(f), reg))
@@ -451,13 +596,16 @@ def _labels_fixed(project, status: dict, seeds: ItemSeeds, reader, progress=None
     for r in seeds.refs:
         labels.setdefault(r, [])
     out = {}
-    for f, found in labels.items():
+    sorted_labels = sorted(labels.items())
+    for k, (f, found) in enumerate(sorted_labels):
         img = _crop(reader.get_frame(f), reg)
         if img.size == 0:
             continue
         out[f] = (img, [(n, r) for n, r, _ in found])
         for n, _, _ in found:
             per_item[n] = per_item.get(n, 0) + 1
+        if progress and k % 20 == 0:
+            progress(k, len(sorted_labels))
     return out, per_item
 
 
@@ -538,8 +686,11 @@ def build_dataset(project, trace: dict, seeds: ItemSeeds, progress=None, val_fra
         done += 1
         if progress:
             progress(done, total_places)
-    # 框選當下就追好的框：用那一格的盒內區域換算後直接當標籤
-    for sd in direct:
+    # 框選當下就追好的框：用那一格的盒內區域換算後直接當標籤（依格數遞增排序讀圖，避免 mp4 往回跳慢數十倍）
+    sorted_direct = sorted(direct, key=lambda s: s.frame)
+    for k, sd in enumerate(sorted_direct):
+        if progress and k % 20 == 0:
+            progress(k, len(sorted_direct))
         reg = region_for_frame(status, sd.frame)
         if reg is None:
             continue

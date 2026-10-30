@@ -240,27 +240,40 @@ class FrameReader:
         self._cap, self._rotate, w, h, self.fps = open_video_oriented(path)
         self.resolution = (w, h)
         self.frame_count = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-        self._cache_index = None
-        self._cache_frame = None
+        self._cache: dict[int, np.ndarray] = {}
+        self._max_cache = 64
+        self._cur_pos = -1
 
     def get_frame(self, n: int):
-        if self._cache_index == n and self._cache_frame is not None:
-            return self._cache_frame
+        if n in self._cache:
+            return self._cache[n]
         n = max(0, n)
-        self._cap.set(cv2.CAP_PROP_POS_FRAMES, n)
+        did_set = False
+        if 0 <= self._cur_pos < n and (n - self._cur_pos) <= 2000:
+            while self._cur_pos < n:
+                if not self._cap.grab():
+                    break
+                self._cur_pos += 1
+        elif self._cur_pos != n:
+            self._cap.set(cv2.CAP_PROP_POS_FRAMES, n)
+            did_set = True
         ok, frame = self._cap.read()
-        if not ok or int(self._cap.get(cv2.CAP_PROP_POS_FRAMES)) != n + 1:
+        self._cur_pos = n + 1 if ok else -1
+        if not ok or (did_set and int(self._cap.get(cv2.CAP_PROP_POS_FRAMES)) != n + 1):
             self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             frame = None
             for _ in range(n + 1):
                 ok, frame = self._cap.read()
                 if not ok:
                     break
+            self._cur_pos = n + 1 if ok else -1
             if frame is None:
                 raise IOError(f"讀不到第 {n} 格：{self.path}")
         if self._rotate is not None:
             frame = cv2.rotate(frame, self._rotate)
-        self._cache_index, self._cache_frame = n, frame
+        if len(self._cache) >= self._max_cache:
+            self._cache.pop(next(iter(self._cache)))
+        self._cache[n] = frame
         return frame
 
     def release(self) -> None:

@@ -162,6 +162,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(self.label.record.state())
             elif self.label is not None and path == "/api/record/stream.mjpg":
                 self._stream(self.label.record)
+            elif self.label is not None and path == "/api/play_stream":
+                self._stream_playback()
             else:
                 self._json({"error": "沒有這個路徑"}, 404)
         except ValueError as e:
@@ -246,6 +248,49 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(jpeg); self.wfile.write(b"\r\n"); self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
             pass
+
+    def _stream_playback(self):
+        q = self._query()
+        proj_name = q.get("project", "")
+        start_frame = int(q.get("from", 0) or 0)
+        speed = float(q.get("speed", 1.0) or 1.0)
+        p = load_project(proj_name)
+        if not os.path.isfile(p.video_path):
+            self._json({"error": "沒有示範影片"}, 404); return
+        import cv2
+        from video_recorder import open_video_oriented
+        cap, rotate, W, H, fps = open_video_oriented(p.video_path)
+        fps = float(fps or p.fps or 30.0)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, start_frame))
+        self.send_response(200)
+        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        interval = 1.0 / max(1.0, fps * speed)
+        try:
+            while True:
+                t0 = time.perf_counter()
+                ok, fr = cap.read()
+                if not ok or fr is None:
+                    break
+                if rotate is not None:
+                    fr = cv2.rotate(fr, rotate)
+                if fr.shape[1] > 1280:
+                    fr = cv2.resize(fr, (1280, int(1280 * fr.shape[0] / fr.shape[1])), interpolation=cv2.INTER_AREA)
+                ok_enc, buf = cv2.imencode(".jpg", fr, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                if not ok_enc:
+                    break
+                jpeg = buf.tobytes()
+                self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(jpeg)).encode() + b"\r\n\r\n")
+                self.wfile.write(jpeg); self.wfile.write(b"\r\n"); self.wfile.flush()
+                dt = time.perf_counter() - t0
+                if dt < interval:
+                    time.sleep(interval - dt)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            pass
+        finally:
+            cap.release()
 
 
 def make_server(service, host: str = "0.0.0.0", port: int = 8765, password: str | None = None, label=None) -> ThreadingHTTPServer:

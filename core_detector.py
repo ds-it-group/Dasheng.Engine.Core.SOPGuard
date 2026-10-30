@@ -232,7 +232,7 @@ class BoxStateRunner:
                 return self.stream.current
             self.item_hits = self.items.detect(crop_roi(frame_bgr, self.region))
             self.items_present = {h.name: h.conf for h in self.item_hits}
-            self.box_seen = any(h.name in self.box_labels for h in self.item_hits)
+            self.box_seen = any(h.name in self.box_labels for h in self.item_hits) if self.box_labels else bool(self.item_hits)
             self.debug = {"why": "judged", "items": "|".join(sorted(self.items_present)), "box_seen": self.box_seen}
             return self.stream.current
         new = state_region(self.project, anchors)

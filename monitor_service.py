@@ -261,7 +261,15 @@ class MonitorService:
             self.loading = text
 
     def _publish_frame(self, vis) -> None:
-        ok, buf = cv2.imencode(".jpg", vis, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+        if vis is None:
+            return
+        vh, vw = vis.shape[:2]
+        if max(vw, vh) > 960:
+            scale = 960.0 / max(vw, vh)
+            disp_vis = cv2.resize(vis, (int(vw * scale), int(vh * scale)), interpolation=cv2.INTER_LINEAR)
+        else:
+            disp_vis = vis
+        ok, buf = cv2.imencode(".jpg", disp_vis, [cv2.IMWRITE_JPEG_QUALITY, 75])
         with self._cond:
             if ok:
                 self._jpeg = buf.tobytes(); self._frame_id += 1
@@ -410,14 +418,8 @@ class MonitorService:
                     break
                 t_now = src.time_sec
                 if not is_camera:
-                    # 示範影片照原速播：處理跟不上（1080×1920 的現場影片這台只有 5～7 fps）就跳格，每處理 1 格最多跳 2 格；
-                    # 狀態機用影片時間算 dt，跳格不影響停留秒數。相機來源本來就只拿最新一格，不用跳
-                    skipped = 0
-                    while skipped < 2 and (time.perf_counter() - wall0) - src.time_sec > 0.15:
-                        nxt = src.read()
-                        if nxt is None:
-                            break
-                        frame = nxt; t_now = src.time_sec; skipped += 1
+                    # 示範影片依序連續播放（不強迫丟格跳躍，消除畫面抽動與 FPS 驟降）
+                    pass
                 if not p.needs_hands:                        # 沒有規則用到手的專案跳過 MediaPipe（每格 50～60 ms）
                     points = []
                 elif frames % DETECT_EVERY_N_FRAMES and t_now - last_hand_t < HAND_MIN_INTERVAL_SEC:
@@ -469,7 +471,10 @@ class MonitorService:
                 if not is_camera:
                     due = wall0 + t_now - time.perf_counter()
                     if due > 0:
-                        time.sleep(min(due, 0.1))
+                        time.sleep(min(due, 0.05))
+                    elif due < -1.0:
+                        # 避免首格或解碼延遲累積時差，重置基準時脈
+                        wall0 = time.perf_counter() - t_now
             with self._lock:
                 if frames == 0 and not self._stop.is_set():
                     self.error = "來源沒有送出任何畫面（相機連不上，或示範影片讀不到）"

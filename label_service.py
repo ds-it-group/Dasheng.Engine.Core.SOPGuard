@@ -220,8 +220,22 @@ class RecordJob:
 class LabelService:
     def __init__(self):
         self._readers: dict[str, FrameReader] = {}
+        self._detectors: dict[str, tuple[float, items.ItemDetector]] = {}
         self._lock = threading.Lock()
         self.train = TrainJob(); self.record = RecordJob()
+
+    def _detector(self, project) -> items.ItemDetector:
+        mp = items.model_path(project)
+        if not os.path.isfile(mp):
+            raise ValueError("這個專案還沒有訓練好的模型，請先手動框幾個樣本並訓練一次")
+        mtime = os.path.getmtime(mp)
+        with self._lock:
+            cached = self._detectors.get(mp)
+            if cached is None or cached[0] != mtime:
+                det = items.ItemDetector(mp)
+                self._detectors[mp] = (mtime, det)
+                return det
+            return cached[1]
 
     # ---- 影格
 
@@ -288,7 +302,7 @@ class LabelService:
                 raise ValueError("請輸入物品名稱")
             if not (isinstance(rect, list) and len(rect) == 4 and rect[2] >= 12 and rect[3] >= 12):
                 raise ValueError("請先在畫面上拖拉框住物品")
-            sec = float(body.get("track_sec", 2.0) or 0.0)
+            sec = float(body.get("track_sec", 2.5) or 0.0)
             r = tuple(int(v) for v in rect)
             auto = items.track_seed(p.video_path, frame, r, window_sec=sec, fps=p.fps) if sec > 0 else []
             g = seeds.add_seed(name, frame, r, auto)
@@ -316,6 +330,70 @@ class LabelService:
             seeds.add_hand_step(name, prompt, float(body.get("dwell", 0.7) or 0.7))
         elif act == "remove_hand_step":
             seeds.remove_hand_step(str(body.get("name", "")))
+        elif act == "predict_frame":
+            r = self._reader(p)
+            if r is None:
+                raise ValueError("找不到示範影片")
+            det = self._detector(p)
+            with self._lock:
+                fr = r.get_frame(max(0, min(frame, max(r.frame_count - 1, 0))))
+            reg = tuple(seeds.region) if seeds.region else None
+            crop = items._crop(fr, reg) if reg else fr
+            rx, ry = (reg[0], reg[1]) if reg else (0, 0)
+            fh, fw = fr.shape[:2]
+            max_x = rx + reg[2] if reg else fw
+            max_y = ry + reg[3] if reg else fh
+            desk_area = (reg[2] * reg[3]) if reg else (fw * fh)
+            hits = det.detect(crop)
+            existing = [s for s in seeds.seeds if s.frame == frame]
+            preds = []
+            for h in hits:
+                if h.conf < 0.40:
+                    continue
+                bx1 = max(rx, int(rx + h.rect[0]))
+                by1 = max(ry, int(ry + h.rect[1]))
+                bx2 = min(max_x, int(rx + h.rect[0] + h.rect[2]))
+                by2 = min(max_y, int(ry + h.rect[1] + h.rect[3]))
+                bw, bh = bx2 - bx1, by2 - by1
+                if bw < 16 or bh < 16 or (bw * bh > 0.85 * desk_area):
+                    continue
+                rect = [bx1, by1, bw, bh]
+                if any(s.name == h.name and items._iou(tuple(rect), tuple(s.rect)) > 0.4 for s in existing):
+                    continue
+                preds.append({"name": h.name, "conf": round(float(h.conf), 2), "rect": rect})
+            d = self._seeds_dict(seeds)
+            d["predictions"] = preds
+            return d
+        elif act == "add_batch":
+            boxes = body.get("boxes") or []
+            if not isinstance(boxes, list) or not boxes:
+                raise ValueError("沒有要加入的預框")
+            sec = float(body.get("track_sec", 2.5) or 0.0)
+            added = 0; auto_total = 0; last_g = 0
+            for b in boxes:
+                name = str(b.get("name", "")).strip(); rect = b.get("rect")
+                if not name or not (isinstance(rect, list) and len(rect) == 4 and rect[2] >= 12 and rect[3] >= 12):
+                    continue
+                r = tuple(int(v) for v in rect)
+                auto = items.track_seed(p.video_path, frame, r, window_sec=sec, fps=p.fps) if sec > 0 else []
+                last_g = seeds.add_seed(name, frame, r, auto)
+                added += 1; auto_total += len(auto)
+            d = self._seeds_dict(seeds)
+            d["batch_result"] = {"added": added, "auto": auto_total, "group": last_g}
+            return d
+        elif act == "retrack_all":
+            sec = float(body.get("track_sec", 2.5) or 0.0)
+            stat = items.retrack_seeds(p.video_path, seeds, window_sec=sec, fps=p.fps)
+            d = self._seeds_dict(seeds)
+            d["retrack"] = stat
+            return d
+        elif act == "propagate_rounds":
+            sec = float(body.get("track_sec", 2.5) or 0.0)
+            from tools.propagate_seeds import propagate_project
+            stat = propagate_project(p.project_name, track_sec=sec)
+            d = self._seeds_dict(items.ItemSeeds(p.dir_path))
+            d["propagate"] = stat
+            return d
         else:
             raise ValueError(f"不認得的動作：{act}")
         return self._seeds_dict(seeds)
