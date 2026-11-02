@@ -65,7 +65,129 @@ class TrainJob:
         with self._lock:
             return {"running": self.running, "project": self.project_name, "stage": self.stage, "done": self.done_n, "total": self.total_n,
                     "lines": self.lines[-8:], "error": self.error, "finished": self.finished, "stats": self.stats,
+                    "validation": getattr(self, "validation", None), "installed": getattr(self, "installed", None),
                     "elapsed": round(time.perf_counter() - self.started_at) if self.started_at and self.running else None}
+
+    # ---- 挑素材訓練（可以跨型體地區、留片段驗證）
+
+    def start_material(self, target: str, selection: list[dict], epochs: int = 30) -> dict:
+        """selection：[{project, start, end}]（片段的起訖格）。回傳這次的計畫（訓練片段、驗證片段）。"""
+        import training_material as tm
+        if self.running:
+            raise ValueError("已經在訓練中，請等它跑完")
+        if not selection:
+            raise ValueError("請至少勾一段訓練素材")
+        if not os.path.isfile(YOLO_WEIGHTS):
+            raise ValueError(f"找不到 {YOLO_WEIGHTS}，無法找盒子")
+        tgt = load_project(target)
+        colors = {}
+        plan = []
+        for s in selection:
+            name = str(s.get("project", ""))
+            if name not in colors:
+                colors[name] = tm.video_color(load_project(name))
+            plan.append({"project": name, "start": int(s["start"]), "end": int(s["end"]), "color": colors[name]})
+        hold = tm.pick_holdout(plan)
+        train = [s for s in plan if s not in hold]
+        with self._lock:
+            self.project_name = target; self.stage = "準備中"; self.done_n = self.total_n = 0; self.validation = None; self.installed = None
+            self.lines = []; self.error = None; self.finished = False; self.stats = None; self.started_at = time.perf_counter()
+        self._thread = threading.Thread(target=self._run_material, args=(tgt.project_name, train, hold, epochs), daemon=True); self._thread.start()
+        return {"train": train, "holdout": hold}
+
+    def _run_material(self, target: str, train: list[dict], hold: list[dict], epochs: int) -> None:
+        import shutil
+        from datetime import datetime
+        import packing_methods as pkg
+        import training_material as tm
+        try:
+            tgt = load_project(target)
+            names: list[str] = list(items.ItemSeeds(tgt.dir_path).order)
+            parts = []
+            by_proj: dict[str, list] = {}
+            for s in train:
+                by_proj.setdefault(s["project"], []).append((s["start"], s["end"]))
+            hold_by: dict[str, list] = {}
+            for s in hold:
+                hold_by.setdefault(s["project"], []).append((s["start"], s["end"]))
+            for k, (name, ranges) in enumerate(by_proj.items()):
+                sp = load_project(name)
+                training.sync_item_region(sp); training.ensure_state_anchor(sp); sp = load_project(name)
+                seeds = tm.filtered_seeds(items.ItemSeeds(sp.dir_path), ranges, hold_by.get(name, []))
+                if not seeds.seeds:
+                    continue
+                tag = f"（{k + 1}/{len(by_proj)} {name}）"
+                trace = items.build_trace(sp, HAND_MODEL, YOLO_WEIGHTS, progress=lambda a, b, t=tag: self._set(f"找盒子與手{t}：{a}/{b} 格", a, b))
+                st = items.build_dataset(sp, trace, seeds, progress=lambda a, b, t=tag: self._set(f"延伸框選{t}：{a}/{b}", a, b))
+                parts.append((items.dataset_dir(sp), list(seeds.order)))
+                for n in seeds.order:
+                    if n not in names:
+                        names.append(n)
+            if not parts:
+                raise ValueError("勾選的片段裡沒有任何框")
+            mix = items.dataset_dir(tgt) + "_mix"
+            stats = tm.merge_datasets(parts, mix, names)
+            with self._lock:
+                self.stats = {**stats, "train_segments": len(train), "holdout_segments": len(hold)}
+            if stats["train"] == 0:
+                raise ValueError("延伸不出任何訓練圖")
+            tmp_model = os.path.join(tgt.dir_path, items.MODEL_DIR, "candidate.pt")
+            os.makedirs(os.path.dirname(tmp_model), exist_ok=True)
+            if os.path.isfile(tmp_model):
+                os.remove(tmp_model)
+            self._set("訓練模型中（約 20～60 分鐘）…")
+            cmd = items.train_command(tgt, epochs=epochs, data_yaml=os.path.join(mix, "data.yaml"), copy_to=tmp_model)
+            env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+            self._proc = subprocess.Popen(cmd, cwd=app_base_dir(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                          encoding="utf-8", errors="replace", env=env)
+            for line in self._proc.stdout:
+                line = line.strip()
+                if line and ("epoch" in line or "訓練" in line or "device" in line or "Error" in line or "錯誤" in line):
+                    with self._lock:
+                        self.lines.append(line)
+                    if line.startswith("epoch"):
+                        self._set(line)
+            code = self._proc.wait()
+            if code != 0 or not os.path.isfile(tmp_model):
+                raise RuntimeError(f"訓練失敗（結束碼 {code}）：" + " / ".join(self.lines[-3:]))
+            # 離線驗證：每個配色保留的那一段
+            results = []
+            for name, ranges in hold_by.items():
+                sp = load_project(name)
+                segs = [dict(s, color=next(h["color"] for h in hold if h["project"] == name and h["start"] == s["start"]))
+                        for s in tm.segments(sp) if (s["start"], s["end"]) in [tuple(r) for r in ranges]]
+                self._set(f"離線驗證（{name}）…")
+                for r in tm.validate_holdout(sp, tmp_model, segs):
+                    results.append({"project": name, **r})
+            passed = all(r["ok"] is not False for r in results)
+            with self._lock:
+                self.validation = results
+            tgt = load_project(target)
+            own = items.own_model_path(tgt)
+            if passed:
+                if os.path.isfile(own):
+                    shutil.copyfile(own, os.path.join(os.path.dirname(own), f"best_prev_{datetime.now():%Y%m%d_%H%M}.pt"))
+                os.replace(tmp_model, own)
+                if tgt.packaging is not None and tgt.packaging.model_source:
+                    tgt.packaging.model_source = None
+                    _save_config(tgt)
+            if tgt.packaging is not None:
+                for r in results:
+                    if r["ok"] is None or not r["color"]:
+                        continue
+                    note = "" if r["ok"] else "驗證漏看：" + "、".join(r["missing"])
+                    pkg.set_color(target, r["color"], "verified" if r["ok"] else "failed", note)
+            with self._lock:
+                self.installed = passed
+                self.finished = True
+                self.stage = ("訓練完成，驗證通過，已換上新模型" if results else "訓練完成（沒有保留片段可驗證），已換上新模型") if passed \
+                    else "訓練完成但驗證沒過，保留舊模型（新模型存成 candidate.pt）"
+        except Exception as e:
+            with self._lock:
+                self.error = f"{type(e).__name__}: {e}" if not isinstance(e, (ValueError, RuntimeError)) else str(e)
+                self.stage = "失敗"
+        finally:
+            self._proc = None
 
     def _set(self, stage: str, a: int = 0, b: int = 0) -> None:
         with self._lock:
@@ -83,6 +205,7 @@ class TrainJob:
         with self._lock:
             self.project_name = project_name; self.stage = "準備中"; self.done_n = self.total_n = 0
             self.lines = []; self.error = None; self.finished = False; self.stats = None; self.started_at = time.perf_counter()
+            self.validation = None; self.installed = None
         self._thread = threading.Thread(target=self._run, args=(project_name,), daemon=True); self._thread.start()
 
     def _run(self, project_name: str) -> None:
@@ -111,9 +234,13 @@ class TrainJob:
                     if line.startswith("epoch"):
                         self._set(line)
             code = self._proc.wait()
-            mp = items.model_path(project)
+            mp = items.own_model_path(project)
             if code != 0 or not os.path.isfile(mp):
                 raise RuntimeError(f"訓練失敗（結束碼 {code}）：" + " / ".join(self.lines[-3:]))
+            project = load_project(project_name)
+            if project.packaging is not None and project.packaging.model_source:
+                project.packaging.model_source = None          # 自己訓練好了 → 改用自己的模型
+                _save_config(project)
             with self._lock:
                 self.finished = True; self.stage = "訓練完成"
         except Exception as e:
@@ -257,15 +384,28 @@ class LabelService:
                 except Exception:
                     pass
 
-    def frame_jpeg(self, project_name: str, n: int, max_w: int | None = None) -> bytes | None:
+    def frame_jpeg(self, project_name: str, n: int, max_w: int | None = None, region: bool = False, box=None, zoom: bool = False) -> bytes | None:
+        """影格 JPEG。region：裁到桌面範圍；box=[x,y,w,h]：畫框；zoom：以框為中心放大（框外留一倍，10:9）。"""
         p = load_project(project_name); r = self._reader(p)
         if r is None:
             return None
         with self._lock:
-            fr = r.get_frame(max(0, min(n, max(r.frame_count - 1, 0))))
-            if max_w and fr.shape[1] > max_w:
-                fr = cv2.resize(fr, (max_w, int(max_w * fr.shape[0] / fr.shape[1])))
-            return _jpeg(fr)
+            fr = r.get_frame(max(0, min(n, max(r.frame_count - 1, 0)))).copy()
+        if box is not None:
+            x, y, w, h = [int(v) for v in box]
+            cv2.rectangle(fr, (x, y), (x + w, y + h), (255, 140, 0), max(3, fr.shape[1] // 270))
+        if zoom and box is not None:
+            x, y, w, h = [int(v) for v in box]
+            sw = max(w, h * 10 / 9) * 2.0; sh = sw * 0.9; H, W = fr.shape[:2]
+            x0 = int(max(0, min(W - sw, x + w / 2 - sw / 2))); y0 = int(max(0, min(H - sh, y + h / 2 - sh / 2)))
+            fr = fr[y0:int(y0 + sh), x0:int(x0 + sw)]
+        elif region:
+            reg = p.state_fixed or items.ItemSeeds(p.dir_path).region
+            if reg:
+                fr = items._crop(fr, tuple(reg))
+        if max_w and fr.shape[1] > max_w:
+            fr = cv2.resize(fr, (max_w, int(max_w * fr.shape[0] / fr.shape[1])))
+        return _jpeg(fr, 80)
 
     # ---- 專案資訊
 
@@ -311,6 +451,12 @@ class LabelService:
             return d
         elif act == "remove_seed":
             seeds.remove_seed(int(body.get("index", -1)))
+        elif act == "remove_indices":
+            # 訓練素材預覽：把標成「待刪」的框一次刪掉（只刪那幾格本身，不連帶刪同組的自動框）
+            drop = {int(i) for i in body.get("indices") or []}
+            if any(i < 0 or i >= len(seeds.seeds) for i in drop):
+                raise ValueError("要刪的框不存在，請重新整理後再試")
+            seeds.seeds = [s for i, s in enumerate(seeds.seeds) if i not in drop]; seeds.save()
         elif act == "remove_auto_group":
             g = int(body.get("group", 0))
             seeds.seeds = [s for s in seeds.seeds if not (s.auto and s.group == g)]; seeds.save()

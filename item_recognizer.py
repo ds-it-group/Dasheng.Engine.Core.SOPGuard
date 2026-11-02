@@ -799,14 +799,15 @@ class OpenClosedClassifier:
         return bool(self.labels[int(d.argmin())])
 
 
-def train_command(project, epochs: int = 30, imgsz: int | None = None) -> list[str]:
-    """給介面用子程序跑的指令（在 UI 行程裡訓練會把記憶體與 Qt 攪在一起）。imgsz 不給就依模式：盒內 640、固定桌面 960。"""
+def train_command(project, epochs: int = 30, imgsz: int | None = None, data_yaml: str | None = None, copy_to: str | None = None) -> list[str]:
+    """給介面用子程序跑的指令（在 UI 行程裡訓練會把記憶體與 Qt 攪在一起）。imgsz 不給就依模式：盒內 640、固定桌面 960。
+    data_yaml／copy_to：挑素材訓練時用合併後的資料集、先寫到暫存檔（驗證通過才換上）。"""
     import sys
     root = os.path.dirname(os.path.abspath(__file__))
     if imgsz is None:
         imgsz = FIXED_IMGSZ if is_fixed(project) else 640
-    return [sys.executable, os.path.join(root, "tools", "train_items.py"), os.path.join(dataset_dir(project), "data.yaml"),
-            train_dir(project), "--epochs", str(epochs), "--imgsz", str(imgsz), "--copy-to", os.path.join(project.dir_path, MODEL_FILE)]
+    return [sys.executable, os.path.join(root, "tools", "train_items.py"), data_yaml or os.path.join(dataset_dir(project), "data.yaml"),
+            train_dir(project), "--epochs", str(epochs), "--imgsz", str(imgsz), "--copy-to", copy_to or os.path.join(project.dir_path, MODEL_FILE)]
 
 
 # ---------------------------------------------------------------- 監控用偵測器
@@ -868,8 +869,19 @@ class ItemDetector:
         return out
 
 
-def model_path(project) -> str:
+def own_model_path(project) -> str:
+    """本專案自己訓練的模型（訓練一律寫這裡）。"""
     return os.path.join(project.dir_path, MODEL_FILE)
+
+
+def model_path(project) -> str:
+    """監控／預框實際要用的模型：包裝方式設了「參考指定型體地區的模型」就用那個專案自己的模型，否則用自己的。
+    只參考一層（被參考的專案若也在參考別人，仍只取它自己訓練的檔），避免循環。"""
+    src = getattr(getattr(project, "packaging", None), "model_source", None)
+    if src:
+        base = os.path.dirname(project.dir_path) if project.dir_path else ""
+        return os.path.join(base, src, MODEL_FILE)
+    return own_model_path(project)
 
 
 def openvino_model(pt_path: str, imgsz: int) -> str | None:

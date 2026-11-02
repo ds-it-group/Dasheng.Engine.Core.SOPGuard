@@ -153,6 +153,10 @@ class MonitorService:
         self._live = None            # 辨識執行緒最近一次的 (ctx, fsm, state_runner, 辨識 fps)，顯示執行緒拿來疊字
         self._disp_fps = 0.0
         self.project: Project | None = None
+        self.line_id: str | None = None
+        self.line_name: str | None = None
+        self.color = ""
+        self.trial = False               # 配色沒驗證過：照樣判、照樣顯示，但不計入錯誤率、不響警報
         self.model_info: dict | None = None
         self.started_at: str | None = None
         self.source_kind = "demo"
@@ -166,9 +170,22 @@ class MonitorService:
     def running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
 
-    def start(self, project_name: str, source_kind: str = "demo", source: str | None = None) -> None:
+    def start(self, project_name: str, source_kind: str = "demo", source: str | None = None, line_id: str | None = None) -> None:
+        """line_id 有給：用那條產線目前的包裝方式、相機、桌面範圍與配色（project_name 忽略）。"""
         if self.running:
             raise ValueError("監控已在執行中，請先停止")
+        line = None
+        if line_id:
+            import lines as line_store
+            line = line_store.get_line(line_id)
+            pub = line_store.line_public(line)
+            if not pub["can_run"]:
+                raise ValueError(f"{line.name}：{pub['problem']}")
+            project_name = line.project
+            if source_kind == "camera" and not source:
+                if not line.camera.strip():
+                    raise ValueError(f"{line.name} 還沒設定相機，請到「產線設定」填相機來源")
+                source = line.camera
         if not project_name or not project_name.strip():
             from project_store import list_projects
             for n in list_projects():
@@ -184,6 +201,12 @@ class MonitorService:
             raise ValueError(f"載入專案失敗：{e}")
         if not project.steps:
             raise ValueError("這個專案還沒有步驟，請先在桌面程式的「② 標記物品」產生步驟")
+        if line is not None and line.table_region is not None and source_kind == "camera":
+            import dataclasses
+            project = dataclasses.replace(project, state_fixed=list(line.table_region))   # 桌面範圍跟著相機（產線）走
+        import packing_methods as pkg
+        color = line.color if line is not None else ""
+        trial = pkg.is_trial(project, color) if line is not None else False
         if source_kind == "demo":
             src = project.video_path
             if not os.path.isfile(src):
@@ -194,6 +217,8 @@ class MonitorService:
             raise ValueError("source_kind 只能是 demo 或 camera")
         with self._lock:
             self.project = project; self.source_kind = source_kind; self.model_info = self._model_info(project)
+            self.line_id = line.id if line is not None else None; self.line_name = line.name if line is not None else None
+            self.color = color; self.trial = trial
             self.started_at = datetime.now().isoformat(timespec="seconds")
             self.loading = "載入中（第一次約 10～30 秒，請等畫面出現）…"; self.error = None; self.finished = None
             self._snap = {}; self._jpeg = None; self._last_vis = None
@@ -204,11 +229,15 @@ class MonitorService:
     @staticmethod
     def _model_info(project: Project) -> dict:
         """網頁顯示「目前型體（專案）＋物品辨識模型」：模型檔名與最後修改時間（＝訓練好拷進來的時間）。"""
-        path = os.path.join(project.dir_path, "items", "model", "best.pt")
-        info = {"project": project.project_name, "file": None, "trained_at": None}
+        from item_recognizer import model_path
+        path = model_path(project)
+        pk = project.packaging
+        info = {"project": project.project_name, "file": None, "trained_at": None,
+                "model_source": pk.model_source if pk else None,
+                "packaging": None if pk is None else {"style": pk.style, "region": pk.region, "style_name": pk.style_name, "customer": pk.customer}}
         if os.path.isfile(path):
             info["file"] = os.path.relpath(path, project.dir_path).replace("\\", "/")
-            info["trained_at"] = datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M")
+            info["trained_at"] = datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y/%m/%d %H:%M")
         return info
 
     def stop(self, timeout: float = 5.0) -> None:
@@ -240,7 +269,9 @@ class MonitorService:
         with self._lock:
             d = {"running": self.running, "loading": self.loading, "error": self.error, "finished": self.finished,
                  "project": self.project.project_name if self.project else None, "source_kind": self.source_kind,
-                 "frame_id": self._frame_id, "started_at": self.started_at}
+                 "frame_id": self._frame_id, "started_at": self.started_at,
+                 "line": {"id": self.line_id, "name": self.line_name} if self.line_id else None,
+                 "color": self.color, "trial": self.trial}
             d.update(self._snap)
         return d
 

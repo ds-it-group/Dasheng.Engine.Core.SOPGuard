@@ -25,10 +25,10 @@ class _StubService:
                 "armed": True, "mode": "checklist", "steps": [{"index": 0, "name": "標籤", "state": "pending", "required": True, "acc": 0.2, "dwell": 0.5}],
                 "events": [{"t": 1.0, "type": "alert_missing", "message": "漏做：標籤", "step_index": ""}], "frames": 10, "fps": 12.0, "n_events": 1}
 
-    def start(self, project, source_kind="demo", source=None):
+    def start(self, project, source_kind="demo", source=None, line_id=None):
         if project == "bad":
             raise ValueError("這個專案還沒有步驟")
-        self.running = True; self.started.append((project, source_kind))
+        self.running = True; self.started.append((line_id or project, source_kind))
 
     def stop(self, timeout=5.0):
         self.running = False; self.stops += 1

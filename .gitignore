@@ -1,6 +1,9 @@
 # 本機設定（含相機帳密、網頁密碼）
 camera_source.txt
 web_password.txt
+lines.json
+lines.json.tmp
+logs/
 
 # 影片、專案資料、快取、訓練輸出
 sop_projects/

@@ -327,6 +327,43 @@ $env:PYTHONUTF8='1'
   步驟按鈕都是「切換」：同一格再按一次「空盒」就取消。這一格的框選列在影格下方，可逐個 ✕。
 - 測試 `tests/test_web.py` 7 個（含合成影片的種子操作、建專案＋上傳、multipart 解析）。
 
+### 產線與包裝方式（2026-11-02）：這條線現在做哪個型體、哪個地區
+
+現場一條線一天會換做不同型體、不同出貨地區，包裝步驟跟著變。三個網頁畫面比照達聲 EIP 前端規範（egret-blue：靛藍主色、
+30 px 表格列、「操作 ▾」收所有動作、燈箱無標題列且取消在左／確認在右），共用 `web/eip.css`，字型不外連。
+
+- **包裝方式＝專案**：`config.json` 多一段 `packaging`：`style`（型體，不含配色）＋`region`（地區）是主鍵，全部專案不可重複；
+  `style_name`、`customer` 只是顯示；`model_source`＝參考哪個型體地區的模型（null＝用自己的）；`colors`＝模型驗證過哪些配色
+  （verified／unverified／failed）；`enabled`。舊專案沒有 `packaging` 照常可用，畫面標「還沒設定型體地區」。
+- **步驟清單永遠用自己的；模型可以參考別人的**：`item_recognizer.model_path()` 遇到 `model_source` 就回傳那個專案自己訓練的
+  `best.pt`（只參考一層）；訓練一律寫 `own_model_path()`，自己訓練完會清掉 `model_source`。
+- **產線**：`lines.json`（gitignore，相機網址含密碼只留這台）：相機、桌面範圍（跟著相機走，相機來源時覆蓋包裝方式的
+  `state_fixed`）、目前包裝方式、配色、換線時間。第一次用會把舊的 `camera_source.txt` 當「包裝 1 線」。換線紀錄寫
+  `logs/line_switch.csv`（時間、產線、原／新包裝方式、配色、是否試跑）。
+- **配色不進主鍵**：換線時選配色；沒驗證過或模型沒看過的配色照樣監控，但算**試跑**——畫面黃條提示、錯誤率顯示「試跑」、
+  警報不響。第一次做的配色自動記進 `colors`（未驗證）。
+- 畫面：`/` 監控（選產線、「目前包裝方式」卡、操作 ▾ → 換包裝方式燈箱：型體 → 地區 → 配色，列出新步驟與跟目前不同的步驟；
+  監控中換線會自動重新載入）、`/lines` 產線設定、`/methods` 包裝方式設定（左：型體地區清單，可設定／編輯／複製到多個型體／
+  停用；右：步驟清單可直接改名稱、辨識物品、停留秒數、必要、順序；辨識模型分頁設模型來源與配色驗證）。
+- 程式：`packing_methods.py`（目錄、主鍵檢查、複製、改步驟、配色）、`lines.py`（產線、換線、遮密碼）、
+  `MonitorService.start(..., line_id=)`、`web_server.py` 的 `/api/lines*`、`/api/methods`、`/api/method*`。
+  模組不能叫 `packaging.py`：會蓋掉 pip 的 `packaging` 套件（ultralytics 用得到）。
+
+### 挑素材訓練、預覽、離線驗證（2026-11-02）
+
+包裝方式設定 → 操作 ▾ → 訓練辨識模型（大燈箱）：
+
+- **片段**＝同一支影片裡時間相鄰的一群框（間隔超過 3 秒就切開，大致一輪；`training_material.segments`）。預設只勾本型體地區的
+  片段；選「加入指定型體地區的素材」才能用型體／地區／配色篩別的專案一起訓練。影片配色記在 `items/material.json`，表格裡直接改。
+- **預覽**（第二層燈箱）：左邊逐段列出每樣物品的代表框（放大到框的附近）與手框／自動格數；右邊逐格畫面（桌面範圍、每 0.5 秒）
+  與「標記框」分頁，框錯的按 ✕ 標待刪（再按 ↺ 復原），按「套用」才用 `remove_indices` 刪掉。
+- **驗證**：每個配色留最後一段不參與訓練（某配色只有一段就不留）。多個專案的資料集各自建好後合併（類別編號換成合併名單），
+  訓練結果先寫 `items/model/candidate.pt`；用它掃保留段，標記過的每樣物品至少看到 2 次才算通過 → 換上新模型（舊的備份成
+  `best_prev_<時間>.pt`）並把該配色標成已驗證；沒過就保留舊模型、配色標「驗證判錯」並寫出漏看的物品。只支援固定桌面範圍。
+- 沙盒實測（現場影片 3 段）：保留第 3 段、310／489 框訓練、延伸出 206 張訓練圖＋38 張驗證圖；用現有模型驗證第 3 段 5 樣全看到（30.7 秒）。
+- 測試：`tests/test_packing_lines.py`（主鍵、模型參考、配色、複製、改步驟、產線、換線紀錄）、`tests/test_training_material.py`
+  （分段、篩框、留驗證段、合併資料集、驗證、刪框、網頁路由）。
+
 
 ## 手勢特徵版本 2（2026-10-22）
 
@@ -432,6 +469,10 @@ $W="models\yolov8s-worldv2.pt"
 | `tools/` | `anchor_probe`（調 prompt）、`new_project`（從相機建專案）、`record_clips`（錄手勢片段）、`train_gesture_clips`（片段訓練）、`extract_features`、`train_gesture`（逐格標籤版）、`run_cached` |
 | `main_ui.py` | PySide6 操作介面（錄製／分段說明／監控），背景工作用 QThread |
 | `training.py` | 「示範影片＋分段 → 模型 → 步驟」服務層，介面與命令列共用 |
+| `packing_methods.py` | 包裝方式目錄：型體＋地區主鍵、模型參考、配色驗證、複製、改步驟 |
+| `lines.py` | 產線設定（lines.json）、換線與換線紀錄 |
+| `training_material.py` | 訓練素材分段、跨專案合併資料集、留片段離線驗證 |
+| `web/` | `index.html` 監控、`lines.html` 產線設定、`methods.html` 包裝方式設定＋訓練、`label.html` 標記、`eip.css` 共用樣式 |
 | `tests/` | 39 條（v1 14、v2 14、live 3、gesture_data 4、training 3、ui 1） |
 | `sop_projects/` | `範例_外盒`（schema 1）、`_v2a`／`_v2`（依序）、`_v3a`／`_v3`（清單）、`範例_內盒`（schema 1）、`_v2`（依序）、`_v3`／`_v3b`（清單） |
 | `cache/` | `outer.npz`、`inner.npz`、`outer_labels.csv`、各次執行 log |

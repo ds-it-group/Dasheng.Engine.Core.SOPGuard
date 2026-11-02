@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOP-Guard 包裝方式設定</title>
+<link rel="stylesheet" href="/eip.css">
+<style>
+  /* SFTT05 左右主從：左＝型體地區清單、右＝步驟清單／辨識模型 */
+  .split { flex: 1; min-height: 0; display: flex; gap: 8px; padding-top: 8px; }
+  .split > .left { flex: 0 0 40%; min-width: 0; display: flex; flex-direction: column; }
+  .split > .right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .sub { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--card); border: 1px solid var(--line); border-bottom: 0; font-size: 13px; color: var(--ink-2); flex-wrap: wrap; }
+  .sub h4 { margin: 0; color: var(--primary); font-size: 15px; font-weight: 700; }
+  .sub .meta { display: inline-flex; gap: 14px; flex-wrap: wrap; }
+  .pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .mcard { flex: none; background: var(--card); border: 1px solid var(--line); border-top: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .mline { font-size: 13px; color: var(--ink-2); display: flex; gap: 16px; flex-wrap: wrap; }
+  .mline b { color: var(--ink); font-weight: 500; }
+  .sechead { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--card); border: 1px solid var(--line); border-top: 0; border-bottom: 0; flex-wrap: wrap; }
+  .sechead h4 { margin: 0; color: var(--primary); font-size: 15px; font-weight: 700; }
+  .sechead .sum { margin-left: auto; font-size: 12px; color: var(--ink-2); }
+  .addcolor { display: inline-flex; gap: 8px; align-items: flex-end; }
+  .placeholder { flex: 1; display: grid; place-items: center; color: var(--ink-3); background: var(--card); border: 1px solid var(--line); }
+  .tgt td.ed input { min-width: 90px; }
+  @media (max-width: 1100px) { .split { flex-direction: column; } .split > .left { flex: none; } .gridwrap { max-height: 60vh; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><span class="logo">S</span><span class="txt">SOP-Guard</span></div>
+    <nav>
+      <div class="grp">現場</div>
+      <a href="/"><span class="ico">▶</span><span class="txt">監控畫面</span></a>
+      <div class="grp">設定</div>
+      <a href="/lines"><span class="ico">≡</span><span class="txt">產線設定</span></a>
+      <a href="/methods" class="on"><span class="ico">▦</span><span class="txt">包裝方式設定</span></a>
+      <a href="/label"><span class="ico">▣</span><span class="txt">標記物品</span></a>
+    </nav>
+  </aside>
+  <div class="main">
+    <header class="topbar"><h1>包裝方式設定</h1></header>
+    <div class="crumb"><b>SOP-Guard</b><span>/</span><span>包裝方式設定</span></div>
+    <section class="view">
+      <div class="query">
+        <div class="fld w180"><label for="qKey">型體（代碼／名稱）</label><input id="qKey"></div>
+        <div class="fld w100"><label for="qRegion">地區</label><select id="qRegion"></select></div>
+        <div class="fld w100"><label for="qCust">客戶</label><select id="qCust"></select></div>
+        <button class="btn btn-primary raised icon" id="btnSearch" aria-label="查詢">查詢</button>
+        <span class="spacer"></span>
+        <div class="menuwrap">
+          <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 ▾</button>
+          <div class="menu" id="opMenu" hidden>
+            <button id="mCopy">複製到其他型體（可多筆）</button>
+            <button id="mAddStep">新增步驟</button>
+            <button id="mSave">儲存步驟清單</button>
+            <hr>
+            <button id="mTrain">訓練辨識模型</button>
+            <a id="mLabel" href="/label">標記物品（框選、錄影）</a>
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--st-danger)"></i>停用</span>
+        <span><i style="background:var(--st-warn)"></i>辨識模型還沒訓練，或還沒設定型體地區</span>
+        <span><i style="background:var(--st-edit)"></i>步驟清單有修改，尚未儲存</span>
+        <span><i style="background:var(--ed-bg); box-shadow: inset 0 0 0 1px var(--ed-line)"></i>可編輯欄位</span>
+      </div>
+      <div class="split">
+        <div class="left"><div class="gridwrap"><table class="grid" id="mGrid"></table></div></div>
+        <div class="right">
+          <div class="sub"><h4 id="mTitle">請在左邊選一個包裝方式</h4><span class="meta n" id="mMeta"></span></div>
+          <div class="tabs" role="tablist"><button data-tab="steps" class="on">步驟清單</button><button data-tab="model">辨識模型</button></div>
+          <div class="pane" id="tab-steps"><div class="gridwrap"><table class="grid" id="sGrid"></table></div></div>
+          <div class="pane" id="tab-model" hidden>
+            <div class="mcard">
+              <div class="radios" role="radiogroup" aria-label="模型來源">
+                <label><input type="radio" name="msrc" value="self" id="srcSelf">用本型體地區自己的模型</label>
+                <label><input type="radio" name="msrc" value="ref" id="srcRef">參考指定型體地區的模型</label>
+                <div class="fld w200"><label for="srcPick">參考來源（型體／地區）</label><select id="srcPick"></select></div>
+              </div>
+              <div class="mline n" id="modelLine"></div>
+            </div>
+            <div class="sechead">
+              <h4>配色驗證</h4>
+              <span class="addcolor"><span class="fld w120"><label for="newColor">新增配色</label><input id="newColor" placeholder="例如 全白"></span><button class="btn btn-cancel" id="btnAddColor">加入</button></span>
+              <span class="sum n" id="colorSum"></span>
+            </div>
+            <div class="gridwrap"><table class="grid" id="cGrid"></table></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- 型體地區（openSmall） -->
+<div class="scrim" id="pkDlg" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pkTitle">
+    <div class="dt"><span class="mark">▍</span><h4 id="pkTitle">型體地區</h4></div>
+    <div class="dc">
+      <div class="note info">主鍵＝型體（不含配色）＋地區，兩個合起來不能重複。客戶只是顯示用。</div>
+      <div class="frow">
+        <div class="fld w140"><label for="pStyle">型體</label><input id="pStyle"></div>
+        <div class="fld w140"><label for="pRegion">地區</label><input id="pRegion" list="regionList"></div>
+        <datalist id="regionList"></datalist>
+      </div>
+      <div class="frow">
+        <div class="fld w200"><label for="pStyleName">型體名稱</label><input id="pStyleName"></div>
+        <div class="fld w140"><label for="pCustomer">客戶</label><input id="pCustomer" list="custList"></div>
+        <datalist id="custList"></datalist>
+        <label style="display:inline-flex;gap:6px;align-items:center;padding-top:14px"><input type="checkbox" id="pEnabled"> 啟用</label>
+      </div>
+      <div class="frow"><div class="fld w320"><label>專案資料夾（不能改）</label><div class="ro" id="pProject"></div></div></div>
+      <div class="note danger" id="pErr" hidden></div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="pCancel">取消</button><button class="btn btn-primary raised" id="pSave">儲存</button></div>
+  </div>
+</div>
+
+<!-- 複製到其他型體（openSmall） -->
+<div class="scrim" id="cpDlg" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="cpTitle">
+    <div class="dt"><span class="mark">▍</span><h4 id="cpTitle">複製到其他型體</h4><span class="sum" id="cpSum"></span></div>
+    <div class="dc">
+      <div class="note info" id="cpInfo"></div>
+      <div class="gridwrap tgt" style="min-height:180px"><table class="grid" id="cpGrid"></table></div>
+      <div><button class="btn btn-cancel" id="cpAdd">＋ 再加一筆</button></div>
+      <div class="note danger" id="cpErr" hidden></div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="cpCancel">取消</button><button class="btn btn-primary raised" id="cpOk">複製</button></div>
+  </div>
+</div>
+
+<!-- 離開提醒（380） -->
+<div class="scrim" id="leave" hidden>
+  <div class="dialog xs" role="dialog" aria-modal="true" aria-labelledby="lvTitle">
+    <div class="dt"><span class="mark">▍</span><h4 id="lvTitle">步驟清單還沒儲存</h4></div>
+    <div class="dc"><div>切換包裝方式會丟掉剛剛的修改。</div></div>
+    <div class="da"><button class="btn btn-cancel" id="lvCancel">取消</button><button class="btn btn-danger raised" id="lvOk">丟掉修改</button></div>
+  </div>
+</div>
+<!-- 訓練辨識模型（openLarge） -->
+<div class="scrim" id="trDlg" hidden>
+  <div class="dialog large" role="dialog" aria-modal="true" aria-labelledby="trTitle">
+    <div class="dt"><span class="mark">▍</span><h4 id="trTitle">訓練辨識模型</h4><span class="sum n" id="trSum"></span></div>
+    <div class="dc">
+      <div class="radios" role="radiogroup" aria-label="訓練素材範圍">
+        <label><input type="radio" name="trScope" value="self" id="trSelf" checked>只用本型體地區的素材</label>
+        <label><input type="radio" name="trScope" value="ref" id="trRef">加入指定型體地區的素材</label>
+      </div>
+      <div class="frow">
+        <div class="fld w120"><label for="trStyle">型體</label><select id="trStyle"></select></div>
+        <div class="fld w120"><label for="trRegion">地區</label><select id="trRegion"></select></div>
+        <div class="fld w120"><label for="trColor">配色</label><select id="trColor"></select></div>
+        <label style="display:inline-flex;align-items:center;gap:6px;padding-top:12px"><input type="checkbox" id="trOnlyLabeled" checked> 只列有框選的</label>
+      </div>
+      <div class="gridwrap" style="min-height:200px"><table class="grid" id="trGrid"></table></div>
+      <div class="note warn">每個配色會留「最後一段」不拿去訓練；訓練完用新模型掃那一段，標記過的物品都看到了才換上新模型，否則保留舊模型（新模型存成 candidate.pt）。某配色只勾一段就全部拿去訓練，這個配色這次無法驗證。配色欄可以直接改（整支影片同一個配色）。</div>
+      <div class="note info" id="trProgress" hidden></div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="trCancel">取消</button><button class="btn btn-primary raised" id="trOk">開始訓練</button></div>
+  </div>
+</div>
+
+<!-- 訓練素材預覽（openLarge，第二層） -->
+<div class="scrim" id="pvDlg" hidden style="z-index:55">
+  <div class="dialog large" role="dialog" aria-modal="true" aria-labelledby="pvTitle">
+    <div class="dt"><span class="mark">▍</span><h4 id="pvTitle">訓練素材預覽</h4><span class="sum n" id="pvSum"></span></div>
+    <div class="dc" style="flex-direction:row; gap:16px; overflow:hidden">
+      <div class="gridwrap" id="pvList" style="flex:1 1 0; min-width:0"></div>
+      <div style="flex:0 0 520px; min-width:0; display:flex; flex-direction:column; border:1px solid var(--line)">
+        <div class="ttl"><h4 id="pvSegTitle"></h4><span class="sum n" id="pvTime"></span></div>
+        <div class="tabs" style="border-left:0;border-right:0" id="pvTabs"><button data-pv="frames" class="on">逐格畫面</button><button data-pv="seeds" id="pvSeedTab">標記框</button></div>
+        <div id="pvFrames" style="flex:1; min-height:0; display:flex; flex-direction:column">
+          <div style="flex:1 1 0; min-height:160px; position:relative; background:#15181d; overflow:hidden">
+            <img id="pvImg" alt="逐格畫面" style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain">
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; padding:8px 12px; border-top:1px solid var(--line)">
+            <button class="btn btn-cancel" id="pvPlay" style="width:44px;padding:0">▶</button>
+            <input type="range" id="pvSlider" min="0" max="0" value="0" style="flex:1; accent-color:var(--primary)" aria-label="時間">
+          </div>
+          <div class="note" style="color:var(--ink-2)">桌面範圍裁切，每 0.5 秒一格。點左邊的縮圖跳到那個時間。</div>
+        </div>
+        <div id="pvSeeds" hidden style="flex:1; min-height:0; display:flex; flex-direction:column">
+          <div style="display:flex; gap:10px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line-soft); flex-wrap:wrap">
+            <span class="fld w140"><label for="pvItem">物品</label><select id="pvItem"></select></span>
+            <label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="pvAutoOnly"> 只看自動框</label>
+            <span class="err" id="pvDel" style="margin-left:auto"></span>
+          </div>
+          <div id="pvGallery" style="flex:1; min-height:0; overflow:auto; padding:8px 12px"></div>
+          <div class="note" style="color:var(--ink-2)">藍框＝手框的那一格；其他是自動往前後 2 秒追出來的。框錯的按 ✕ 標成待刪，再按一次（↺）復原；按「套用」才真的刪。</div>
+        </div>
+      </div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="pvCancel">取消</button><button class="btn btn-primary raised" id="pvOk">套用</button></div>
+  </div>
+</div>
+<style>
+  .seg-th { display: inline-block; width: 74px; height: 66px; margin-right: 4px; border: 1px solid var(--line); background: #222 center/cover no-repeat; position: relative; cursor: pointer; vertical-align: middle; }
+  .seg-th span { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.62); color: #fff; font-size: 10px; padding: 0 3px; white-space: nowrap; overflow: hidden; }
+  .pvrow { display: grid; grid-template-columns: 30px 150px minmax(0, 1fr); gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); cursor: pointer; }
+  .pvrow.on { background: var(--primary-wash); box-shadow: inset 4px 0 0 var(--primary); }
+  .pvrow.hold { background: #fff3e0; }
+  .pvrow .meta { font-size: 12px; color: var(--ink-2); }
+  .pvrow .chips { grid-column: 3; display: flex; flex-wrap: wrap; gap: 4px; font-size: 11px; }
+  .pvrow .chips span { border: 1px solid var(--line); border-radius: 2px; padding: 0 5px; background: var(--card); }
+  .sg { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+  .sd { position: relative; border: 1px solid var(--line); background: #222; aspect-ratio: 10 / 9; cursor: pointer; }
+  .sd img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sd .cap { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10.5px; color: #fff; background: rgba(0,0,0,.6); padding: 0 4px; display: flex; justify-content: space-between; }
+  .sd.man { outline: 3px solid var(--primary); outline-offset: -3px; } .sd.man .cap { background: var(--primary); }
+  .sd .x { position: absolute; right: 2px; top: 2px; z-index: 2; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(255,255,255,.92); color: var(--danger); font-weight: 700; cursor: pointer; padding: 0; }
+  .sd.gone img { opacity: .25; } .sd.gone .x { background: var(--teal); color: #fff; }
+  .sd.gone::after { content: '待刪'; position: absolute; inset: 0; z-index: 1; pointer-events: none; display: grid; place-items: center; color: var(--danger); font-weight: 700; }
+  .gal-h { margin: 10px 0 6px; font-size: 13px; font-weight: 700; } .gal-h small { color: var(--ink-2); font-weight: 400; margin-left: 8px; }
+</style>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let methods = [], sel = null, detail = null, stepsEdit = null, dirty = false, tab = "steps", pkEditing = null, pendingSel = null;
+  const filters = {};
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  async function api(path, body) { const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}); return r.json(); }
+  function toast(t, bad) { const x = $("toast"); x.textContent = t; x.className = "toast" + (bad ? " bad" : ""); x.hidden = false; clearTimeout(toast._h); toast._h = setTimeout(() => { x.hidden = true; }, 4500); }
+  document.addEventListener("click", (ev) => {
+    const t = ev.target.closest("[data-menu]");
+    document.querySelectorAll(".menu").forEach((m) => { if (!t || m.id !== t.dataset.menu) m.hidden = true; });
+    if (t) { const m = $(t.dataset.menu); m.hidden = !m.hidden; }
+  });
+  const statusText = { verified: "已驗證", unverified: "未驗證", failed: "驗證判錯" };
+
+  function head(t, cols, flexIdx, filterUntil, rerender) {
+    const th = el("thead"), h1 = el("tr"), h2 = el("tr", "ff");
+    cols.forEach((c, i) => {
+      const x = el("th", c[2] || "", c[0]); x.style.minWidth = c[1] + "px"; if (i === flexIdx) x.style.width = "100%"; h1.appendChild(x);
+      const f = el("th", c[2] || "");
+      if (rerender && i < filterUntil) { const inp = el("input"); inp.value = filters[i] || ""; inp.setAttribute("aria-label", c[0] + " 篩選");
+        inp.oninput = () => { filters[i] = inp.value; rerender(); const n = t.querySelectorAll("tr.ff input")[i]; n.focus(); n.setSelectionRange(n.value.length, n.value.length); }; f.appendChild(inp); }
+      h2.appendChild(f);
+    });
+    th.appendChild(h1); if (rerender && filterUntil > 0) th.appendChild(h2); t.appendChild(th);
+  }
+  window.sopgHead = head;
+
+  // ---- 左：型體地區清單
+  async function load(keep) {
+    const d = await api("/api/methods"); methods = d.methods || [];
+    for (const [id, idx] of [["qRegion", "region"], ["qCust", "customer"]]) {
+      const s = $(id), cur = s.value; s.innerHTML = ""; s.appendChild(el("option", null, "全部"));
+      for (const v of [...new Set(methods.map((m) => m[idx]).filter(Boolean))]) s.appendChild(el("option", null, v));
+      if ([...s.options].some((o) => o.value === cur)) s.value = cur;
+    }
+    $("regionList").innerHTML = ""; for (const v of [...new Set(methods.map((m) => m.region).filter(Boolean))]) { const o = el("option"); o.value = v; $("regionList").appendChild(o); }
+    $("custList").innerHTML = ""; for (const v of [...new Set(methods.map((m) => m.customer).filter(Boolean))]) { const o = el("option"); o.value = v; $("custList").appendChild(o); }
+    renderMethods();
+    const want = keep || sel || new URLSearchParams(location.search).get("project");
+    if (want && methods.some((m) => m.name === want)) await select(want, true); else if (!sel && methods.length) await select(methods[0].name, true);
+  }
+  function renderMethods() {
+    const t = $("mGrid"); t.innerHTML = "";
+    const cols = [["型體", 100, "pinL"], ["地區", 100], ["型體名稱", 155], ["客戶", 100], ["包裝方式", 120], ["步驟", 60, "r"], ["操作", 96, "pinR c"]];
+    head(t, cols, 2, 6, renderMethods);
+    const tb = el("tbody"), key = $("qKey").value.trim(), reg = $("qRegion").value, cust = $("qCust").value;
+    let shown = 0;
+    for (const m of methods) {
+      const v = [m.has_packaging ? m.style : "（未設定）", m.region || "", m.style_name || "", m.customer || "", m.name, String(m.steps || 0)];
+      if (key && !((m.style || "").includes(key) || (m.style_name || "").includes(key) || m.name.includes(key))) continue;
+      if (reg && reg !== "全部" && m.region !== reg) continue;
+      if (cust && cust !== "全部" && m.customer !== cust) continue;
+      if (Object.entries(filters).some(([i, q]) => q && !String(v[i]).includes(q))) continue;
+      shown++;
+      const tone = m.error ? "t-danger" : m.enabled === false ? "t-danger" : (!m.has_packaging || !m.model_trained_at) ? "t-warn" : "";
+      const tr = el("tr", tone + (m.name === sel ? " sel" : ""));
+      v.forEach((x, j) => tr.appendChild(el("td", j === 0 ? "pinL" : j === 5 ? "r n" : "", x)));
+      const op = el("td", "pinR c"), box = el("span", "ops");
+      const b1 = el("button", "ib c-edit", "✎"); b1.title = m.has_packaging ? "編輯型體地區" : "設定型體地區"; b1.setAttribute("aria-label", b1.title); b1.onclick = (e) => { e.stopPropagation(); openPk(m, false); };
+      const b2 = el("button", "ib c-ink", "⧉"); b2.title = "複製到其他型體"; b2.setAttribute("aria-label", b2.title); b2.disabled = !m.has_packaging; b2.onclick = (e) => { e.stopPropagation(); openCopy(m); };
+      box.appendChild(b1); box.appendChild(b2);
+      if (m.has_packaging) {
+        const b3 = el("button", "ib " + (m.enabled ? "c-del" : "c-edit"), m.enabled ? "⊘" : "↺"); b3.title = m.enabled ? "停用" : "啟用"; b3.setAttribute("aria-label", b3.title);
+        b3.onclick = async (e) => { e.stopPropagation(); const d = await api("/api/method/packaging", { name: m.name, packaging: { enabled: !m.enabled } }); if (!d.ok) toast(d.error, true); else load(m.name); };
+        box.appendChild(b3);
+      }
+      op.appendChild(box); tr.appendChild(op);
+      tr.onclick = () => askSelect(m.name);
+      tr.ondblclick = () => openPk(m, true);
+      tb.appendChild(tr);
+    }
+    if (!shown) { const tr = el("tr", "empty"), td = el("td", null, methods.length ? "沒有符合條件的包裝方式" : "還沒有任何專案，先到「標記物品」新增"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
+    t.appendChild(tb);
+  }
+  function askSelect(name) { if (name === sel) return; if (dirty) { pendingSel = name; $("leave").hidden = false; return; } select(name); }
+  $("lvCancel").onclick = () => { $("leave").hidden = true; pendingSel = null; };
+  $("lvOk").onclick = () => { $("leave").hidden = true; dirty = false; select(pendingSel); };
+
+  async function select(name, quiet) {
+    sel = name; dirty = false; renderMethods();
+    const d = await api("/api/method?name=" + encodeURIComponent(name));
+    if (d.error) { toast(d.error, true); return; }
+    detail = d; stepsEdit = d.step_rows.map((s) => ({ ...s }));
+    history.replaceState(null, "", "/methods?project=" + encodeURIComponent(name));
+    $("mLabel").href = "/label?project=" + encodeURIComponent(name);
+    renderDetail();
+  }
+  function renderDetail() {
+    const d = detail;
+    $("mTitle").textContent = d.has_packaging ? `${d.style}／${d.region}　${d.style_name || ""}` : `${d.name}（還沒設定型體地區）`;
+    $("mMeta").innerHTML = "";
+    const meta = [["包裝方式", d.name], ["客戶", d.customer || "–"], ["使用中的產線", d.lines.length ? d.lines.join("、") : "無"],
+      ["辨識模型", d.model_trained_at ? (d.model_source ? `參考 ${d.model_source}（${d.model_trained_at}）` : `本型體地區（${d.model_trained_at}）`) : "還沒訓練"]];
+    for (const [k, v] of meta) $("mMeta").appendChild(el("span", null, k + "：" + v));
+    renderSteps(); renderModel();
+  }
+
+  // ---- 右：步驟清單
+  function renderSteps() {
+    const t = $("sGrid"); t.innerHTML = "";
+    head(t, [["順序", 60, "pinL r"], ["步驟名稱", 155], ["辨識物品", 155], ["停留秒數", 100, "r"], ["必要", 60, "c"], ["操作", 96, "pinR c"]], 1, 0, null);
+    const tb = el("tbody"), items = detail.model_items || [];
+    stepsEdit.forEach((s, i) => {
+      const tr = el("tr", s._new || s._changed ? "t-edit" : "");
+      tr.appendChild(el("td", "pinL r n", String(i + 1)));
+      const c1 = el("td", "ed"), a = el("input"); a.value = s.name; a.setAttribute("aria-label", "步驟名稱"); a.oninput = () => { s.name = a.value; mark(s, tr); }; c1.appendChild(a); tr.appendChild(c1);
+      const c2 = el("td", s.type === "item" || s._new ? "ed" : "");
+      if (s.type === "item" || s._new) {
+        const sl = el("select"); sl.setAttribute("aria-label", "辨識物品");
+        const opts = items.includes(s.label) || !s.label ? items : [s.label, ...items];
+        if (!s.label) sl.appendChild(el("option", null, "（請選）"));
+        for (const it of opts) { const o = el("option", null, it); o.value = it; sl.appendChild(o); }
+        sl.value = s.label || "（請選）"; sl.onchange = () => { s.label = sl.value; mark(s, tr); }; c2.appendChild(sl);
+      } else { c2.textContent = (s.label ? s.label + "　" : "") + "（" + s.type + "，在標記頁設定）"; c2.title = "非物品步驟只能改名稱、秒數與必要"; }
+      tr.appendChild(c2);
+      const c3 = el("td", "ed"), b = el("input", "r n"); b.value = s.dwell; b.setAttribute("aria-label", "停留秒數"); b.oninput = () => { s.dwell = b.value; mark(s, tr); }; c3.appendChild(b); tr.appendChild(c3);
+      const c4 = el("td", "c"), ck = el("input"); ck.type = "checkbox"; ck.checked = s.required; ck.setAttribute("aria-label", "必要"); ck.onchange = () => { s.required = ck.checked; mark(s, tr); }; c4.appendChild(ck); tr.appendChild(c4);
+      const c5 = el("td", "pinR c"), box = el("span", "ops");
+      const up = el("button", "ib c-ink", "↑"); up.title = "往上移"; up.disabled = i === 0; up.onclick = () => { [stepsEdit[i - 1], stepsEdit[i]] = [stepsEdit[i], stepsEdit[i - 1]]; dirty = true; renderSteps(); };
+      const dn = el("button", "ib c-ink", "↓"); dn.title = "往下移"; dn.disabled = i === stepsEdit.length - 1; dn.onclick = () => { [stepsEdit[i + 1], stepsEdit[i]] = [stepsEdit[i], stepsEdit[i + 1]]; dirty = true; renderSteps(); };
+      const del = el("button", "ib c-del", "✕"); del.title = "刪除這一步"; del.onclick = () => { stepsEdit.splice(i, 1); dirty = true; renderSteps(); };
+      [up, dn, del].forEach((x) => { x.setAttribute("aria-label", x.title); box.appendChild(x); });
+      c5.appendChild(box); tr.appendChild(c5);
+      tb.appendChild(tr);
+    });
+    if (!stepsEdit.length) { const tr = el("tr", "empty"), td = el("td", null, "還沒有步驟。按「操作 ▾ → 新增步驟」，或到「標記物品」產生步驟。"); td.colSpan = 6; tr.appendChild(td); tb.appendChild(tr); }
+    t.appendChild(tb);
+  }
+  function mark(s, tr) { s._changed = true; dirty = true; tr.className = "t-edit"; }
+  $("mAddStep").onclick = () => { if (!detail) return; stepsEdit.push({ index: null, name: "", type: "item", label: "", dwell: 0.5, required: true, _new: true }); dirty = true; setTab("steps"); renderSteps(); };
+  $("mSave").onclick = async () => {
+    if (!detail) return;
+    const d = await api("/api/method/steps", { name: detail.name, steps: stepsEdit.map((s) => ({ index: s.index, name: s.name.trim(), label: s.label, dwell: s.dwell, required: s.required })) });
+    if (!d.ok) { toast(d.error, true); return; }
+    toast("步驟清單已儲存"); dirty = false; load(detail.name);
+  };
+
+  // ---- 右：辨識模型
+  function renderModel() {
+    const d = detail;
+    $("srcSelf").checked = !d.model_source; $("srcRef").checked = !!d.model_source;
+    const pick = $("srcPick"); pick.innerHTML = "";
+    for (const m of methods) if (m.name !== d.name && m.own_model && !m.error) { const o = el("option", null, m.has_packaging ? `${m.style}／${m.region}` : m.name); o.value = m.name; pick.appendChild(o); }
+    if (!pick.options.length) { const o = el("option", null, "（沒有已訓練的型體地區）"); o.value = ""; pick.appendChild(o); }
+    if (d.model_source) pick.value = d.model_source;
+    pick.disabled = !d.model_source || !d.has_packaging; $("srcRef").disabled = !d.has_packaging; $("srcSelf").disabled = !d.has_packaging;
+    $("modelLine").innerHTML = "";
+    const lines = [["目前模型", d.model_trained_at ? (d.model_source ? `參考 ${d.model_source}（${d.model_trained_at}）` : `本型體地區（${d.model_trained_at}）`) : "還沒訓練"],
+      ["本型體地區自己的模型", d.own_model ? "有" : "沒有"], ["模型認得的物品", (d.model_items || []).join("、") || "–"],
+      ["規則", "步驟清單永遠用本型體地區的，只有模型可以參考別的型體地區"]];
+    if (!d.has_packaging) lines.unshift(["注意", "先按左邊 ✎ 設定型體地區，才能設模型來源與配色"]);
+    for (const [k, v] of lines) { const s = el("span"); s.appendChild(document.createTextNode(k + "：")); s.appendChild(el("b", null, v)); $("modelLine").appendChild(s); }
+    const t = $("cGrid"); t.innerHTML = "";
+    head(t, [["配色", 100, "pinL"], ["驗證結果", 100, "c"], ["驗證日期", 140], ["說明", 250], ["操作", 120, "pinR c"]], 3, 0, null);
+    const tb = el("tbody"); let ok = 0;
+    for (const c of d.colors || []) {
+      if (c.status === "verified") ok++;
+      const tr = el("tr", c.status === "verified" ? "" : "t-warn");
+      tr.appendChild(el("td", "pinL", c.name));
+      const st = el("td", "c"); st.appendChild(el("span", "chip " + (c.status === "verified" ? "ok" : c.status === "failed" ? "no" : "warn"), statusText[c.status])); tr.appendChild(st);
+      tr.appendChild(el("td", "n", c.checked_at || ""));
+      tr.appendChild(el("td", null, c.note || (c.status === "verified" ? "可以直接上線" : c.status === "failed" ? "補標記這個配色的畫面後重新訓練" : "上線前先錄 2～3 輪做離線驗證；在那之前監控算試跑")));
+      const op = el("td", "pinR c"), box = el("span", "ops");
+      for (const [g, s, tip, cls] of [["✓", "verified", "標成已驗證", "c-edit"], ["✗", "failed", "標成驗證判錯", "c-warn"], ["✕", "remove", "從清單移除", "c-del"]]) {
+        const b = el("button", "ib " + cls, g); b.title = tip; b.setAttribute("aria-label", tip);
+        b.onclick = async () => { const r = await api("/api/method/color", { name: d.name, color: c.name, status: s }); if (!r.ok) toast(r.error, true); else { toast("已更新配色「" + c.name + "」"); select(d.name); } };
+        box.appendChild(b);
+      }
+      op.appendChild(box); tr.appendChild(op); tb.appendChild(tr);
+    }
+    if (!(d.colors || []).length) { const tr = el("tr", "empty"), td = el("td", null, "還沒有配色紀錄。換線時選的配色會自動記進來（未驗證）。"); td.colSpan = 5; tr.appendChild(td); tb.appendChild(tr); }
+    t.appendChild(tb);
+    $("colorSum").textContent = (d.colors || []).length ? `已驗證 ${ok} / ${(d.colors || []).length} 個配色` : "";
+    $("btnAddColor").disabled = !d.has_packaging; $("newColor").disabled = !d.has_packaging;
+  }
+  async function setSource(src) {
+    const d = await api("/api/method/packaging", { name: detail.name, packaging: { model_source: src } });
+    if (!d.ok) { toast(d.error, true); renderModel(); return; }
+    toast(src ? "已改成參考 " + src + " 的模型" : "已改成用本型體地區自己的模型"); load(detail.name);
+  }
+  $("srcSelf").onchange = () => setSource(null);
+  $("srcRef").onchange = () => { const v = $("srcPick").value; if (!v) { toast("沒有可以參考的型體地區（要先有自己訓練好模型的）", true); renderModel(); return; } setSource(v); };
+  $("srcPick").onchange = () => setSource($("srcPick").value);
+  $("btnAddColor").onclick = async () => {
+    const c = $("newColor").value.trim(); if (!c) return;
+    const r = await api("/api/method/color", { name: detail.name, color: c, status: "unverified" });
+    if (!r.ok) { toast(r.error, true); return; } $("newColor").value = ""; select(detail.name);
+  };
+
+  function setTab(v) { tab = v; document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === v)); $("tab-steps").hidden = v !== "steps"; $("tab-model").hidden = v !== "model"; }
+  document.querySelector(".tabs").onclick = (ev) => { const b = ev.target.closest("[data-tab]"); if (b) setTab(b.dataset.tab); };
+
+  // ---- 型體地區燈箱
+  function openPk(m, ro) {
+    pkEditing = m;
+    $("pkTitle").textContent = (ro ? "查看" : m.has_packaging ? "編輯" : "設定") + "型體地區";
+    $("pStyle").value = m.style || ""; $("pRegion").value = m.region || ""; $("pStyleName").value = m.style_name || ""; $("pCustomer").value = m.customer || "";
+    $("pEnabled").checked = m.enabled !== false; $("pProject").textContent = m.name;
+    ["pStyle", "pRegion", "pStyleName", "pCustomer", "pEnabled"].forEach((id) => { $(id).disabled = ro; });
+    $("pSave").hidden = ro; $("pCancel").textContent = ro ? "關閉" : "取消"; $("pErr").hidden = true; $("pkDlg").hidden = false;
+    if (!ro) $("pStyle").focus();
+  }
+  $("pCancel").onclick = () => { $("pkDlg").hidden = true; };
+  $("pSave").onclick = async () => {
+    const d = await api("/api/method/packaging", { name: pkEditing.name, packaging: { style: $("pStyle").value.trim(), region: $("pRegion").value.trim(),
+      style_name: $("pStyleName").value.trim(), customer: $("pCustomer").value.trim(), enabled: $("pEnabled").checked } });
+    if (!d.ok) { $("pErr").textContent = d.error; $("pErr").hidden = false; return; }
+    $("pkDlg").hidden = true; toast("已儲存"); load(pkEditing.name);
+  };
+
+  // ---- 複製燈箱
+  let cpSrc = null, cpRows = [];
+  function openCopy(m) {
+    if (!m) { m = methods.find((x) => x.name === sel); }
+    if (!m || !m.has_packaging) { toast("請先選一個已設定型體地區的包裝方式", true); return; }
+    cpSrc = m; cpRows = [{ style: "", region: m.region, style_name: "" }];
+    $("cpTitle").textContent = `複製到其他型體　來源 ${m.style}／${m.region}`;
+    $("cpInfo").textContent = `只複製步驟清單。新的包裝方式先參考「${m.own_model ? m.name : (m.model_source || "（來源還沒有模型）")}」的辨識模型；客戶沿用「${m.customer || "–"}」。影片與框選不複製，之後要自己訓練再到「標記物品」錄影或上傳。`;
+    $("cpErr").hidden = true; renderCp(); $("cpDlg").hidden = false;
+  }
+  function renderCp() {
+    const t = $("cpGrid"); t.innerHTML = "";
+    head(t, [["型體", 120], ["地區", 120], ["型體名稱", 155], ["操作", 60, "pinR c"]], 2, 0, null);
+    const tb = el("tbody");
+    cpRows.forEach((r, i) => {
+      const tr = el("tr");
+      for (const k of ["style", "region", "style_name"]) { const td = el("td", "ed"), inp = el("input"); inp.value = r[k]; inp.setAttribute("aria-label", k); if (k === "region") inp.setAttribute("list", "regionList"); inp.oninput = () => { r[k] = inp.value; }; td.appendChild(inp); tr.appendChild(td); }
+      const op = el("td", "pinR c"), b = el("button", "ib c-del", "✕"); b.title = "移除這一筆"; b.setAttribute("aria-label", b.title); b.disabled = cpRows.length === 1; b.onclick = () => { cpRows.splice(i, 1); renderCp(); };
+      op.appendChild(b); tr.appendChild(op); tb.appendChild(tr);
+    });
+    t.appendChild(tb); $("cpSum").textContent = `共 ${cpRows.length} 筆`;
+  }
+  $("cpAdd").onclick = () => { cpRows.push({ style: "", region: cpSrc.region, style_name: "" }); renderCp(); };
+  $("cpCancel").onclick = () => { $("cpDlg").hidden = true; };
+  $("cpOk").onclick = async () => {
+    const targets = cpRows.map((r) => ({ style: r.style.trim(), region: r.region.trim(), style_name: r.style_name.trim() }));
+    const d = await api("/api/method/copy", { name: cpSrc.name, targets });
+    if (!d.ok) { $("cpErr").textContent = d.error; $("cpErr").hidden = false; return; }
+    $("cpDlg").hidden = true; toast("已複製：" + d.made.join("、")); load(d.made[0]);
+  };
+  $("mCopy").onclick = () => openCopy(null);
+  $("mTrain").onclick = () => { if (window.openTrain) window.openTrain(detail); else location.href = $("mLabel").href; };
+
+  $("btnSearch").onclick = () => renderMethods();
+  $("qKey").onkeydown = (ev) => { if (ev.key === "Enter") renderMethods(); };
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") ["pkDlg", "cpDlg", "leave"].forEach((id) => { $(id).hidden = true; }); });
+  window.addEventListener("beforeunload", (ev) => { if (dirty) { ev.preventDefault(); ev.returnValue = ""; } });
+  window.sopgMethods = { get detail() { return detail; }, get methods() { return methods; }, reload: () => load(sel), toast };
+  const q = new URLSearchParams(location.search);  // select() 會改網址，先記下來
+  load().then(async () => {                      // ?train=1 直接開訓練燈箱；&preview=段號 再開那一段的預覽
+    if (q.get("train") === "1" && window.openTrain) { await window.openTrain(detail); if (q.get("preview") && window.openTrainPreview) window.openTrainPreview(detail.name, Number(q.get("preview"))); }
+  });
+})();
+</script>
+
+<script>
+/* 訓練辨識模型：挑片段（可以跨型體地區）、預覽、刪錯框、留片段驗證 */
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const M = window.sopgMethods;
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  async function api(path, body) { const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}); return r.json(); }
+  const enc = encodeURIComponent;
+  let target = null, mats = [], picked = {}, poll = null;
+  const segKey = (p, s) => p + "|" + s.start + "|" + s.end;
+
+  window.openTrain = async function (detail) {
+    if (!detail) { M.toast("請先在左邊選一個包裝方式", true); return; }
+    target = detail;
+    $("trTitle").textContent = "訓練辨識模型　" + (detail.has_packaging ? `${detail.style}／${detail.region}` : detail.name);
+    const names = M.methods.filter((m) => !m.error).map((m) => m.name);
+    const d = await api("/api/material?projects=" + enc(names.join(",")));
+    mats = d.materials || []; picked = {};
+    for (const m of mats) if (m.project === target.name) for (const s of m.segments) picked[segKey(m.project, s)] = true;
+    $("trSelf").checked = true; fillFilters(); render();
+    const st = await api("/api/train/state"); showProgress(st);
+    if (st.running) startPoll();
+    $("trDlg").hidden = false;
+  };
+  function fillFilters() {
+    const wide = $("trRef").checked;
+    for (const [id, key] of [["trStyle", "style"], ["trRegion", "region"], ["trColor", "color"]]) {
+      const s = $(id), cur = s.value; s.innerHTML = ""; s.appendChild(el("option", null, "全部"));
+      for (const v of [...new Set(mats.map((m) => m[key] || "").filter(Boolean))]) s.appendChild(el("option", null, v));
+      if ([...s.options].some((o) => o.value === cur)) s.value = cur;
+      s.disabled = !wide;
+    }
+  }
+  function visibleMats() {
+    if (!$("trRef").checked) return mats.filter((m) => m.project === target.name);
+    return mats.filter((m) => ($("trStyle").value === "全部" || m.style === $("trStyle").value)
+      && ($("trRegion").value === "全部" || m.region === $("trRegion").value)
+      && ($("trColor").value === "全部" || m.color === $("trColor").value));
+  }
+  function selection() {
+    const out = [];
+    for (const m of mats) for (const s of m.segments) if (picked[segKey(m.project, s)]) out.push({ project: m.project, start: s.start, end: s.end, color: m.color || "", s, m });
+    return out;
+  }
+  function holdouts(sel) {              // 與後端 pick_holdout 同規則：每個配色最後一段，只有一段就不留
+    const by = {}; for (const x of sel) (by[x.color] = by[x.color] || []).push(x);
+    const keys = new Set();
+    for (const segs of Object.values(by)) if (segs.length >= 2) { const last = segs.reduce((a, b) => (b.project > a.project || (b.project === a.project && b.start > a.start)) ? b : a); keys.add(segKey(last.project, last.s)); }
+    return keys;
+  }
+  function render() {
+    const t = $("trGrid"); t.innerHTML = "";
+    const cols = [["", 40, "pinL c"], ["型體", 100], ["地區", 100], ["包裝方式", 120], ["配色", 110], ["片段", 60, "r"], ["時間（秒）", 140], ["框（手／自動）", 120, "r"], ["物品", 250], ["用途", 80, "c"], ["操作", 60, "pinR c"]];
+    window.sopgHead(t, cols, 8, 0, null);
+    const sel = selection(), hold = holdouts(sel), tb = el("tbody");
+    let rowsShown = 0;
+    for (const m of visibleMats()) {
+      if (!m.segments.length) {
+        if ($("trOnlyLabeled").checked) continue;
+        const tr = el("tr", "t-warn"); tr.appendChild(el("td", "pinL c", ""));
+        [m.style || "（未設定）", m.region || "", m.project].forEach((v) => tr.appendChild(el("td", null, v)));
+        const td = el("td", null, m.has_video ? "有影片、還沒框選，不能拿來訓練" : "沒有影片"); td.colSpan = 6; tr.appendChild(td);
+        const op = el("td", "pinR c"), a = el("a", null, "去標記"); a.href = "/label?project=" + enc(m.project); op.appendChild(a); tr.appendChild(op);
+        tb.appendChild(tr); rowsShown++; continue;
+      }
+      for (const s of m.segments) {
+        const k = segKey(m.project, s), isHold = picked[k] && hold.has(k);
+        const tr = el("tr", isHold ? "t-warn" : "");
+        const c0 = el("td", "pinL c"), ck = el("input"); ck.type = "checkbox"; ck.checked = !!picked[k]; ck.setAttribute("aria-label", "選取片段");
+        ck.onchange = () => { picked[k] = ck.checked; render(); }; c0.appendChild(ck); tr.appendChild(c0);
+        [m.style || "（未設定）", m.region || "", m.project].forEach((v) => tr.appendChild(el("td", null, v)));
+        const cc = el("td", "ed"), ci = el("input"); ci.value = m.color || ""; ci.placeholder = "（未填）"; ci.setAttribute("aria-label", "影片配色");
+        ci.onchange = async () => { const r = await api("/api/material/color", { project: m.project, color: ci.value.trim() }); if (!r.ok) { M.toast(r.error, true); return; } m.color = ci.value.trim(); fillFilters(); render(); };
+        cc.appendChild(ci); tr.appendChild(cc);
+        tr.appendChild(el("td", "r n", "第 " + s.no + " 段"));
+        tr.appendChild(el("td", "n", s.start_sec.toFixed(1) + "–" + s.end_sec.toFixed(1)));
+        tr.appendChild(el("td", "r n", s.manual + "／" + (s.n - s.manual)));
+        tr.appendChild(el("td", null, Object.keys(s.items).join("、")));
+        tr.appendChild(el("td", "c", picked[k] ? (isHold ? "驗證用" : "訓練") : ""));
+        const op = el("td", "pinR c"), b = el("button", "ib c-sec", "◉"); b.title = "預覽（逐段看畫面、刪錯框）"; b.setAttribute("aria-label", b.title);
+        b.onclick = () => openPreview(m, s.no); op.appendChild(b); tr.appendChild(op);
+        tb.appendChild(tr); rowsShown++;
+      }
+    }
+    if (!rowsShown) { const tr = el("tr", "empty"), td = el("td", null, "沒有可用的素材。先到「標記物品」錄影或上傳影片並框選。"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
+    t.appendChild(tb);
+    const nBox = sel.reduce((a, x) => a + x.s.n, 0), colors = [...new Set(sel.map((x) => x.color || "（未填）"))];
+    $("trSum").textContent = `已選 ${sel.length} 段（訓練 ${sel.length - hold.size}、驗證 ${hold.size}），共 ${nBox} 框；配色：${colors.join("、") || "–"}`;
+    $("trOk").disabled = !sel.length;
+  }
+  $("trSelf").onchange = $("trRef").onchange = () => { fillFilters(); render(); };
+  ["trStyle", "trRegion", "trColor", "trOnlyLabeled"].forEach((id) => { $(id).onchange = render; });
+  $("trCancel").onclick = () => { $("trDlg").hidden = true; if (poll) { clearInterval(poll); poll = null; } };
+  $("trOk").onclick = async () => {
+    const sel = selection().map((x) => ({ project: x.project, start: x.start, end: x.end }));
+    const d = await api("/api/train/material", { project: target.name, selection: sel });
+    if (!d.ok) { M.toast(d.error, true); return; }
+    M.toast(`開始訓練：訓練 ${d.train.length} 段、驗證 ${d.holdout.length} 段`); startPoll();
+  };
+  function startPoll() {
+    if (poll) clearInterval(poll);
+    poll = setInterval(async () => { const st = await api("/api/train/state"); showProgress(st); if (!st.running) { clearInterval(poll); poll = null; M.reload(); } }, 2000);
+  }
+  function showProgress(st) {
+    const p = $("trProgress");
+    if (!st || (!st.running && !st.finished && !st.error)) { p.hidden = true; $("trOk").disabled = false; return; }
+    p.hidden = false; p.className = "note " + (st.error ? "danger" : st.finished && st.installed === false ? "warn" : "info");
+    let txt = (st.running ? "訓練中（" + (st.project || "") + "）：" : "") + (st.error ? "失敗：" + st.error : st.stage || "");
+    if (st.elapsed) txt += `　已 ${Math.floor(st.elapsed / 60)} 分 ${st.elapsed % 60} 秒`;
+    if (st.validation && st.validation.length) txt += "　驗證：" + st.validation.map((v) => `${v.color || "（未填配色）"} ${v.ok === null ? "不支援" : v.ok ? "通過" : "漏看 " + v.missing.join("、")}`).join("；");
+    p.textContent = txt; $("trOk").disabled = !!st.running;
+  }
+
+  // ---- 預覽
+  let pv = null;   // {m, segs, seeds, cur, frame, gone:Set, timer}
+  window.openTrainPreview = (project, segNo) => { const m = mats.find((x) => x.project === project); if (m && m.segments.length) openPreview(m, segNo || 1); };
+  async function openPreview(m, segNo) {
+    const info = await api("/api/project?name=" + enc(m.project));
+    if (info.error) { M.toast(info.error, true); return; }
+    pv = { m, seeds: info.seeds.seeds, cur: Math.max(0, m.segments.findIndex((s) => s.no === segNo)), f: 0, gone: new Set(), timer: null };
+    $("pvTitle").textContent = `訓練素材預覽　${m.style || m.project}／${m.region || "–"}　配色 ${m.color || "（未填）"}`;
+    const si = $("pvItem"); si.innerHTML = ""; si.appendChild(el("option", null, "全部")); for (const n of m.item_order) si.appendChild(el("option", null, n));
+    renderPvList(); selectSeg(pv.cur); $("pvDlg").hidden = false;
+  }
+  function frameUrl(n, w) { return `/api/frame?project=${enc(pv.m.project)}&n=${n}&w=${w}&region=1`; }
+  function zoomUrl(sd) { return `/api/frame?project=${enc(pv.m.project)}&n=${sd.frame}&w=200&zoom=1&box=${sd.rect.join(",")}`; }
+  function renderPvList() {
+    const L = $("pvList"); L.innerHTML = "";
+    pv.m.segments.forEach((s, i) => {
+      const k = segKey(pv.m.project, s), row = el("div", "pvrow" + (i === pv.cur ? " on" : ""));
+      const ck = el("input"); ck.type = "checkbox"; ck.checked = !!picked[k]; ck.setAttribute("aria-label", "選取片段");
+      ck.onclick = (ev) => { ev.stopPropagation(); picked[k] = ck.checked; updPvSum(); };
+      row.appendChild(ck);
+      const meta = el("div"); meta.appendChild(el("div", null, "第 " + s.no + " 段")); meta.appendChild(el("div", "meta n", `${s.start_sec.toFixed(1)}–${s.end_sec.toFixed(1)} 秒`)); row.appendChild(meta);
+      const th = el("div");
+      for (const [name, key] of Object.entries(s.key)) {
+        const b = el("span", "seg-th"); b.style.backgroundImage = `url("${`/api/frame?project=${enc(pv.m.project)}&n=${key.frame}&w=160&zoom=1&box=${key.rect.join(",")}`}")`;
+        b.appendChild(el("span", null, name)); b.title = `${name} ${(key.frame / pv.m.fps).toFixed(1)} 秒，點一下跳到這裡`;
+        b.onclick = (ev) => { ev.stopPropagation(); selectSeg(i); setPvTab("frames"); seekFrame(key.frame); };
+        th.appendChild(b);
+      }
+      row.appendChild(th);
+      const chips = el("div", "chips");
+      for (const [n, c] of Object.entries(s.items)) { const g = s.indices.filter((ix) => pv.gone.has(ix) && pv.seeds[ix].name === n).length; chips.appendChild(el("span", null, `${n}　手框 ${c.manual}／自動 ${c.auto}` + (g ? `（待刪 ${g}）` : ""))); }
+      row.appendChild(chips);
+      row.onclick = () => selectSeg(i);
+      L.appendChild(row);
+    });
+    updPvSum();
+  }
+  function updPvSum() {
+    const n = pv.m.segments.filter((s) => picked[segKey(pv.m.project, s)]).length;
+    $("pvSum").textContent = `已選 ${n} / ${pv.m.segments.length} 段` + (pv.gone.size ? `；待刪 ${pv.gone.size} 格` : "");
+  }
+  function segFrames(s) { const step = Math.max(1, Math.round(pv.m.fps / 2)), out = []; for (let f = s.start; f <= s.end; f += step) out.push(f); if (out[out.length - 1] !== s.end) out.push(s.end); return out; }
+  function selectSeg(i) {
+    if (i !== pv.cur) { pv.cur = i; pv.f = 0; stopPv(); renderPvList(); }
+    const s = pv.m.segments[i]; $("pvSegTitle").textContent = `第 ${s.no} 段`;
+    $("pvSlider").max = segFrames(s).length - 1; $("pvSeedTab").textContent = `標記框（${s.n}）`;
+    showPv(); renderGallery();
+  }
+  function showPv() {
+    const fr = segFrames(pv.m.segments[pv.cur]), f = fr[Math.min(pv.f, fr.length - 1)];
+    $("pvImg").src = frameUrl(f, 520); $("pvSlider").value = pv.f;
+    $("pvTime").textContent = `${(f / pv.m.fps).toFixed(1)} 秒（${pv.f + 1} / ${fr.length} 格）`;
+  }
+  function seekFrame(frame) { const fr = segFrames(pv.m.segments[pv.cur]); let best = 0; fr.forEach((f, k) => { if (Math.abs(f - frame) < Math.abs(fr[best] - frame)) best = k; }); pv.f = best; showPv(); }
+  function stopPv() { if (pv && pv.timer) { clearInterval(pv.timer); pv.timer = null; } $("pvPlay").textContent = "▶"; }
+  $("pvSlider").oninput = () => { stopPv(); pv.f = Number($("pvSlider").value); showPv(); };
+  $("pvPlay").onclick = () => {
+    if (pv.timer) { stopPv(); return; }
+    $("pvPlay").textContent = "❚❚";
+    pv.timer = setInterval(() => { const n = segFrames(pv.m.segments[pv.cur]).length; pv.f = pv.f + 1 >= n ? 0 : pv.f + 1; showPv(); }, 500);
+  };
+  function setPvTab(v) { document.querySelectorAll("#pvTabs button").forEach((b) => b.classList.toggle("on", b.dataset.pv === v)); $("pvFrames").hidden = v !== "frames"; $("pvSeeds").hidden = v !== "seeds"; if (v !== "frames") stopPv(); }
+  $("pvTabs").onclick = (ev) => { const b = ev.target.closest("[data-pv]"); if (b) setPvTab(b.dataset.pv); };
+  $("pvItem").onchange = renderGallery; $("pvAutoOnly").onchange = renderGallery;
+  function renderGallery() {
+    const s = pv.m.segments[pv.cur], G = $("pvGallery"); G.innerHTML = "";
+    const f = $("pvItem").value, autoOnly = $("pvAutoOnly").checked;
+    const byName = {};
+    for (const ix of s.indices) { const sd = pv.seeds[ix]; if ((f === "全部" || sd.name === f) && (!autoOnly || sd.auto)) (byName[sd.name] = byName[sd.name] || []).push(ix); }
+    for (const [name, list] of Object.entries(byName)) {
+      list.sort((a, b) => pv.seeds[a].frame - pv.seeds[b].frame);
+      const man = list.filter((ix) => !pv.seeds[ix].auto).length;
+      const h = el("div", "gal-h", name); h.appendChild(el("small", null, `手框 ${man}、自動 ${list.length - man}`)); G.appendChild(h);
+      const grid = el("div", "sg");
+      for (const ix of list) {
+        const sd = pv.seeds[ix], c = el("div", "sd" + (sd.auto ? "" : " man") + (pv.gone.has(ix) ? " gone" : ""));
+        const im = el("img"); im.loading = "lazy"; im.src = zoomUrl(sd); im.alt = name; c.appendChild(im);
+        const cap = el("div", "cap"); cap.appendChild(el("span", null, sd.auto ? "自動" : "手框")); cap.appendChild(el("span", null, (sd.frame / pv.m.fps).toFixed(1))); c.appendChild(cap);
+        const x = el("button", "x", pv.gone.has(ix) ? "↺" : "✕"); x.title = pv.gone.has(ix) ? "復原（取消待刪）" : "標成待刪"; x.setAttribute("aria-label", x.title);
+        x.onclick = (ev) => { ev.stopPropagation(); if (pv.gone.has(ix)) pv.gone.delete(ix); else pv.gone.add(ix); renderGallery(); renderPvList(); };
+        c.appendChild(x);
+        c.onclick = () => { setPvTab("frames"); seekFrame(sd.frame); };
+        grid.appendChild(c);
+      }
+      G.appendChild(grid);
+    }
+    const g = s.indices.filter((ix) => pv.gone.has(ix)).length;
+    $("pvDel").textContent = g ? `這一段待刪 ${g} 格` : "";
+  }
+  $("pvCancel").onclick = () => { stopPv(); $("pvDlg").hidden = true; render(); };
+  $("pvOk").onclick = async () => {
+    stopPv();
+    if (pv.gone.size) {
+      const r = await api("/api/seeds", { project: pv.m.project, action: "remove_indices", indices: [...pv.gone] });
+      if (!r.ok) { M.toast(r.error, true); return; }
+      M.toast(`已刪除 ${pv.gone.size} 格錯框`);
+      const d = await api("/api/material?projects=" + enc(pv.m.project));
+      const fresh = (d.materials || [])[0];
+      if (fresh) {
+        const old = pv.m;
+        for (const s of old.segments) delete picked[segKey(old.project, s)];
+        Object.assign(old, fresh);
+        for (const s of old.segments) picked[segKey(old.project, s)] = true;
+      }
+    }
+    $("pvDlg").hidden = true; render();
+  };
+})();
+</script>
+</body>
+</html>

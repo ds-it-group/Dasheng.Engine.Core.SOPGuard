@@ -141,6 +141,23 @@ class Handler(BaseHTTPRequestHandler):
                 self._file(os.path.join(WEB_DIR, "index.html"), "text/html; charset=utf-8")
             elif path in ("/label", "/label.html"):
                 self._file(os.path.join(WEB_DIR, "label.html"), "text/html; charset=utf-8")
+            elif path in ("/lines", "/methods"):
+                self._file(os.path.join(WEB_DIR, path.strip("/") + ".html"), "text/html; charset=utf-8")
+            elif path == "/eip.css":
+                self._file(os.path.join(WEB_DIR, "eip.css"), "text/css; charset=utf-8")
+            elif path == "/api/lines":
+                import lines as line_store
+                ls = line_store.load_lines()
+                self._json({"lines": [line_store.line_public(l) for l in ls],
+                            "running_line": getattr(self.service, "line_id", None) if self.service.running else None})
+            elif path == "/api/methods":
+                import lines as line_store
+                import packing_methods as pkg
+                self._json({"methods": pkg.list_methods(line_store.lines_by_project())})
+            elif path == "/api/method":
+                import lines as line_store
+                import packing_methods as pkg
+                self._json(pkg.method_detail(self._query().get("name", ""), line_store.lines_by_project()))
             elif path == "/api/state":
                 self._json(self.service.snapshot())
             elif path == "/api/projects":
@@ -151,11 +168,17 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(self.label.project_info(self._query().get("name", "")))
             elif self.label is not None and path == "/api/frame":
                 q = self._query(); w = q.get("w")
-                data = self.label.frame_jpeg(q.get("project", ""), int(q.get("n", 0) or 0), int(w) if w else None)
+                box = [int(v) for v in q["box"].split(",")] if q.get("box") else None
+                data = self.label.frame_jpeg(q.get("project", ""), int(q.get("n", 0) or 0), int(w) if w else None,
+                                             region=q.get("region") == "1", box=box, zoom=q.get("zoom") == "1")
                 if data is None:
                     self._json({"error": "這個專案沒有示範影片"}, 404); return
                 self.send_response(200); self.send_header("Content-Type", "image/jpeg"); self.send_header("Cache-Control", "no-store")
                 self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
+            elif path == "/api/material":
+                import training_material as tm
+                names = [n for n in self._query().get("projects", "").split(",") if n]
+                self._json({"materials": tm.material_rows(names)})
             elif self.label is not None and path == "/api/train/state":
                 self._json(self.label.train.state())
             elif self.label is not None and path == "/api/record/state":
@@ -180,8 +203,13 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": "內容不是 JSON"}, 400); return
         try:
             if path == "/api/start":
-                self.service.start(str(body.get("project", "")), str(body.get("source", "demo")))
+                if body.get("line"):
+                    self.service.start("", str(body.get("source", "camera")), line_id=str(body["line"]))
+                else:
+                    self.service.start(str(body.get("project", "")), str(body.get("source", "demo")))
                 self._json({"ok": True})
+            elif path.startswith("/api/lines/") or path.startswith("/api/method/"):
+                self._json({"ok": True, **self._settings_action(path, body)})
             elif path == "/api/stop":
                 self.service.stop(); self._json({"ok": True})
             elif path == "/api/reset":
@@ -193,6 +221,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True, "seeds": self.label.seed_action(str(body.get("project", "")), body)})
             elif self.label is not None and path == "/api/project/create":
                 self._json({"ok": True, **self.label.create(str(body.get("name", "")))})
+            elif path == "/api/material/color":
+                import training_material as tm
+                tm.set_video_color(load_project(str(body.get("project", ""))), str(body.get("color", "")))
+                self._json({"ok": True})
+            elif self.label is not None and path == "/api/train/material":
+                plan = self.label.train.start_material(str(body.get("project", "")), body.get("selection") or [])
+                self._json({"ok": True, **plan})
             elif self.label is not None and path == "/api/train/start":
                 self.label.train.start(str(body.get("project", ""))); self._json({"ok": True})
             elif self.label is not None and path == "/api/steps/generate":
@@ -209,6 +244,37 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": str(e)}, 400)
         except Exception as e:
             self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
+
+    def _settings_action(self, path: str, body: dict) -> dict:
+        """產線設定／包裝方式設定的寫入動作。"""
+        import lines as line_store
+        import packing_methods as pkg
+        name = str(body.get("name", ""))
+        if path == "/api/lines/save":
+            return {"line": line_store.line_public(line_store.save_line(body.get("line") or {}))}
+        if path == "/api/lines/delete":
+            lid = str(body.get("id", ""))
+            if self.service.running and getattr(self.service, "line_id", None) == lid:
+                raise ValueError("這條產線正在監控中，請先停止")
+            line_store.delete_line(lid); return {}
+        if path == "/api/lines/switch":
+            lid = str(body.get("line", ""))
+            restart = self.service.running and getattr(self.service, "line_id", None) == lid
+            src_kind = getattr(self.service, "source_kind", "camera")
+            l = line_store.switch_line(lid, str(body.get("project", "")), str(body.get("color", "")))
+            if restart:                 # 正在監控這條線：停掉、用新的包裝方式重新啟動（這一輪作廢、不結算）
+                self.service.stop()
+                self.service.start("", src_kind, line_id=lid)
+            return {"line": line_store.line_public(l), "restarted": restart}
+        if path == "/api/method/packaging":
+            return {"method": pkg.set_packaging(name, body.get("packaging") or {})}
+        if path == "/api/method/steps":
+            return {"method": pkg.update_steps(name, body.get("steps") or [])}
+        if path == "/api/method/color":
+            return {"method": pkg.set_color(name, str(body.get("color", "")), str(body.get("status", "")), str(body.get("note", "")))}
+        if path == "/api/method/copy":
+            return {"made": pkg.copy_method(name, body.get("targets") or [])}
+        raise ValueError("沒有這個動作")
 
     def _upload(self):
         if self.label is None:

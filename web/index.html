@@ -4,180 +4,225 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SOP-Guard 監控</title>
+<link rel="stylesheet" href="/eip.css">
 <style>
-  :root {
-    --bg:#e4e7eb; --panel:#fff; --line:#c5ccd3; --soft:#eceff2;
-    --text:#1b2127; --muted:#6b7682; --dim:#a0a8b0;
-    --ok:#1e8e3e; --ok-fill:#2e9d4b; --ok-soft:#e6f4e9;
-    --warn:#c62828; --warn-fill:#d32f2f;
-    --att:#9a5c00; --att-fill:#f2a900; --att-soft:#fff4d9;
-    --idle-fill:#7b8794; --accent:#1f5fa8;
-  }
-  * { box-sizing:border-box; }
-  html, body { height:100%; }
-  body { margin:0; background:var(--bg); color:var(--text); font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif; font-size:15px;
-         display:flex; flex-direction:column; overflow:hidden; }
-  button, select { font:inherit; color:inherit; }
-  .n { font-variant-numeric:tabular-nums; }
-
-  /* 控制列 */
-  .bar { flex:none; display:flex; align-items:center; gap:8px; padding:5px 10px; background:#2b333c; color:#e8ecef; font-size:14px; }
-  .bar .name { font-weight:700; margin-right:8px; }
-  .bar select { background:#fff; color:var(--text); border:1px solid #6b7682; padding:3px 6px; min-width:200px; }
-  .bar label { display:inline-flex; align-items:center; gap:3px; cursor:pointer; }
-  .bar .sp { flex:1; }
-  .bar button, .bar a { background:#eef1f4; color:var(--text); border:1px solid #6b7682; padding:4px 12px; cursor:pointer; text-decoration:none; font-size:14px; }
-  .bar #btnStart { background:var(--accent); color:#fff; border-color:#174a83; font-weight:700; min-width:96px; }
-  .bar #btnStart.stop { background:#5a6570; border-color:#3d464f; }
-  .bar button:disabled { opacity:.5; }
-  #err { color:#ffb4b4; }
-
-  /* 狀態列 */
-  .status { flex:none; display:grid; grid-template-columns:minmax(0,1fr) 200px 130px 150px 150px 150px; margin:8px 8px 0; background:var(--panel); border:1px solid var(--line); }
-  .lamp { display:flex; flex-direction:column; justify-content:center; padding:8px 16px; background:var(--idle-fill); color:#fff; min-height:78px; }
-  .lamp.run { background:var(--ok-fill); } .lamp.wait { background:var(--att-fill); color:#2a1d00; } .lamp.alert { background:var(--warn-fill); }
-  .lamp .t { font-size:28px; font-weight:700; line-height:1.2; }
-  .lamp .d { font-size:17px; margin-top:2px; }
-  .cell { border-left:1px solid var(--soft); padding:8px 12px; display:flex; flex-direction:column; justify-content:center; gap:2px; }
-  .cell .k { font-size:13px; color:var(--muted); }
-  .cell .v { font-size:28px; font-weight:700; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .cell .v.txt { font-size:21px; }
-  .cell .s { font-size:12px; color:var(--muted); white-space:nowrap; }
-  .cell .v small { font-size:14px; font-weight:400; color:var(--muted); margin-left:2px; }
-  .cell.late .v { color:var(--att); } .cell.over .v { color:var(--warn); }
-  .okc { color:var(--ok); } .badc { color:var(--warn); }
-
-  /* 主體 */
-  .body { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr); gap:8px; padding:8px; }
-  .pane { background:var(--panel); border:1px solid var(--line); display:flex; flex-direction:column; min-height:0; overflow:hidden; }
-  .title { padding:10px 14px 6px; font-size:14px; font-weight:700; color:var(--muted); display:flex; justify-content:space-between; align-items:baseline; }
-  .title .sub { font-weight:400; font-size:13px; }
-
-  .video { position:relative; flex:1; min-height:0; background:#111; display:flex; align-items:center; justify-content:center; border:0; }
-  .video img { max-width:100%; max-height:100%; object-fit:contain; display:block; }
-  .video .hint { color:#aab3bc; text-align:center; line-height:1.8; padding:16px; }
-  .alarm { display:none; position:absolute; left:0; right:0; top:0; background:var(--warn-fill); color:#fff; padding:10px 12px; align-items:center; gap:10px; }
-  .alarm.on { display:flex; }
-  .alarm b { flex:1; font-size:21px; }
-  .alarm button { background:#fff; color:var(--warn); border:0; padding:9px 16px; font-size:17px; font-weight:700; cursor:pointer; }
-  .video.alerting { box-shadow:inset 0 0 0 4px var(--warn-fill); }
-
-  /* 步驟 */
-  ol.steps { list-style:none; margin:0; padding:0 14px 10px; }
-  ol.steps li { display:grid; grid-template-columns:30px 1fr auto; align-items:center; column-gap:12px; min-height:52px; border-bottom:1px solid var(--soft); }
-  ol.steps li:last-child { border-bottom:0; }
-  ol.steps .no { width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-size:14px; color:var(--muted); border:1px solid var(--line); }
-  ol.steps .name { font-size:19px; }
-  ol.steps .opt { font-size:12px; color:var(--dim); margin-left:6px; }
-  ol.steps .tag { font-size:15px; text-align:right; white-space:nowrap; }
-  ol.steps .meter { grid-column:2 / 4; height:4px; background:var(--soft); margin:-8px 0 8px; }
-  ol.steps .meter i { display:block; height:100%; background:var(--att-fill); }
-  ol.steps li.done .no { background:var(--ok-fill); border-color:var(--ok-fill); color:#fff; }
-  ol.steps li.done .tag { color:var(--ok); }
-  ol.steps li.doing { background:var(--att-soft); margin:0 -14px; padding:0 14px; }
-  ol.steps li.doing .no { background:var(--att-fill); border-color:var(--att-fill); color:#2a1d00; font-weight:700; }
-  ol.steps li.doing .tag { color:var(--att); font-weight:700; }
-  ol.steps li.todo .name { color:var(--muted); }
-  .none { color:var(--dim); font-size:14px; padding:4px 14px; }
-
-  /* 右欄 */
-  .block { padding-bottom:12px; }
-  .block + .block { border-top:1px solid var(--soft); }
-  .runs { display:flex; gap:3px; flex-wrap:wrap; padding:0 14px; }
-  .runs i { width:16px; height:20px; background:var(--ok-fill); color:#fff; font-style:normal; font-size:12px; font-weight:700;
-            display:flex; align-items:center; justify-content:center; }
-  .runs i.bad { background:var(--warn-fill); } .runs i.other { background:var(--att-fill); color:#2a1d00; }
-  /* 錯誤次數圖：每個必要步驟一條，次數直接寫在旁邊 */
-  .chart { padding:0 14px; }
-  .chart .r { display:grid; grid-template-columns:100px 1fr 44px; align-items:center; gap:10px; height:28px; font-size:15px; }
-  .chart .r .lbl { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .chart .r .track { height:14px; position:relative; border-left:1px solid var(--line); }
-  .chart .r .track i { position:absolute; left:0; top:0; bottom:0; background:var(--warn-fill); border-radius:0 3px 3px 0; }
-  .chart .r .c { text-align:right; font-variant-numeric:tabular-nums; font-weight:700; }
-  .chart .r.zero .lbl, .chart .r.zero .c { color:var(--dim); font-weight:400; }
-  .kinds { font-size:13px; color:var(--muted); padding:4px 14px 0; }
-  ul.warns { list-style:none; margin:0; padding:0 14px; }
-  ul.warns li { font-size:14px; padding:6px 10px; margin-bottom:4px; background:var(--att-soft); color:#6b4200; border-left:4px solid var(--att-fill); }
-
-  @media (max-width: 1000px) {
-    body { overflow:auto; display:block; height:auto; }
-    .status { grid-template-columns:repeat(5, 1fr); }
-    .lamp { grid-column:1 / -1; } .cell:nth-child(2) { border-left:0; }
-    .body { grid-template-columns:minmax(0,1fr); }
-    .video { min-height:260px; } .video img { max-height:65vh; }
-    .bar { flex-wrap:wrap; } .bar select { flex:1; min-width:0; }
+  /* 監控畫面：特殊版型，沿用共用骨架（側欄／topbar／麵包屑／查詢列／顏色註記列），中央改監控版面 */
+  .pk { flex: none; margin: 8px 8px 0; }
+  .pk .row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .pk .kv { padding: 8px 14px; border-left: 1px solid var(--line-soft); min-width: 0; }
+  .pk .kv:first-child { border-left: 0; }
+  .pk .k { font-size: 12px; color: var(--ink-2); }
+  .pk .v { font-size: 22px; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pk .v.big { color: var(--primary); font-size: 26px; }
+  .pk .v.sm { font-size: 17px; }
+  .pk .s { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pk .ttl .when { margin-left: auto; font-size: 12px; color: var(--ink-2); }
+  .trialbar { flex: none; margin: 8px 8px 0; padding: 8px 14px; background: var(--accent); color: #2a1d00; border-radius: 2px; font-size: 14px; }
+  .status { flex: none; display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)); margin: 8px 8px 0; background: var(--card); border: 1px solid var(--line); }
+  .lamp { padding: 8px 16px; background: var(--lamp-idle); color: #fff; min-height: 72px; display: flex; flex-direction: column; justify-content: center; }
+  .lamp.run { background: var(--lamp-run); } .lamp.alert { background: var(--lamp-alert); } .lamp.wait { background: var(--lamp-wait); color: #2a1d00; }
+  .lamp .t { font-size: 24px; font-weight: 700; line-height: 1.2; }
+  .lamp .d { font-size: 14px; }
+  .cell { padding: 8px 12px; border-left: 1px solid var(--line-soft); display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+  .cell .k { font-size: 12px; color: var(--ink-2); }
+  .cell .v { font-size: 24px; font-weight: 700; line-height: 1.15; white-space: nowrap; }
+  .cell .v small { font-size: 13px; font-weight: 400; color: var(--ink-2); margin-left: 2px; }
+  .cell .s { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+  .cell.late .v { color: #9a5c00; } .cell.over .v { color: var(--danger); }
+  .okc { color: var(--lamp-run); } .badc { color: var(--danger); }
+  .mbody { flex: 1; min-height: 380px; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, .9fr); gap: 8px; padding: 8px; }
+  .pane { background: var(--card); border: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+  .video { position: relative; flex: 1; min-height: 240px; background: #15181d; overflow: hidden; }
+  .video img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .video .hint { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: #aab3bc; line-height: 1.8; padding: 16px; }
+  .video.alerting { box-shadow: inset 0 0 0 4px var(--lamp-alert); }
+  .alarm { position: absolute; left: 0; right: 0; top: 0; z-index: 2; background: var(--lamp-alert); color: #fff; padding: 8px 12px; display: flex; align-items: center; gap: 10px; }
+  .alarm b { flex: 1; font-size: 18px; }
+  .alarm button { background: #fff; color: var(--danger); border: 0; border-radius: 4px; padding: 6px 14px; font-weight: 700; cursor: pointer; }
+  ol.steps { list-style: none; margin: 0; padding: 0; overflow: auto; }
+  ol.steps li { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; column-gap: 12px; min-height: 46px; padding: 0 12px; border-bottom: 1px solid var(--line-soft); }
+  ol.steps .no { width: 26px; height: 26px; border-radius: 2px; display: grid; place-items: center; font-size: 13px; color: var(--ink-2); border: 1px solid var(--line); }
+  ol.steps .nm { font-size: 17px; }
+  ol.steps .opt { font-size: 11px; color: var(--ink-3); margin-left: 6px; }
+  ol.steps .tag { font-size: 13px; white-space: nowrap; }
+  ol.steps .meter { grid-column: 2 / 4; height: 4px; background: var(--line-soft); margin: -6px 0 6px; }
+  ol.steps .meter i { display: block; height: 100%; background: var(--accent); }
+  ol.steps li.done { background: var(--st-ok); }
+  ol.steps li.done .no { background: var(--teal); border-color: var(--teal); color: #fff; }
+  ol.steps li.doing { background: var(--st-warn); }
+  ol.steps li.doing .no { background: var(--accent); border-color: var(--accent); color: #2a1d00; font-weight: 700; }
+  ol.steps li.todo .nm { color: var(--ink-2); }
+  ol.steps li.none { display: block; color: var(--ink-3); font-size: 14px; padding: 12px; min-height: 0; }
+  .runs { display: flex; gap: 3px; flex-wrap: wrap; padding: 10px 12px; }
+  .runs i { width: 16px; height: 20px; background: var(--teal); color: #fff; font-style: normal; font-size: 11px; font-weight: 700; display: grid; place-items: center; border-radius: 2px; }
+  .runs i.bad { background: var(--danger); } .runs i.other { background: var(--accent); color: #2a1d00; }
+  .chart { padding: 6px 12px 12px; }
+  .chart .r { display: grid; grid-template-columns: 96px 1fr 30px; align-items: center; gap: 8px; height: 26px; font-size: 13px; }
+  .chart .r .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chart .r .track { height: 12px; border-left: 1px solid var(--line); position: relative; }
+  .chart .r .track i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--danger); border-radius: 0 2px 2px 0; }
+  .chart .r .cnt { text-align: right; font-weight: 700; }
+  .chart .r.zero { color: var(--ink-3); } .chart .r.zero .cnt { font-weight: 400; }
+  .sec + .sec { border-top: 1px solid var(--line); }
+  .none { color: var(--ink-3); font-size: 13px; padding: 8px 12px; }
+  ul.warns { list-style: none; margin: 0; padding: 8px 12px; }
+  ul.warns li { font-size: 13px; padding: 6px 10px; margin-bottom: 4px; background: var(--st-warn); border-left: 4px solid var(--accent); }
+  @media (max-width: 1100px) {
+    .pk .row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .status { grid-template-columns: repeat(2, minmax(0, 1fr)); } .lamp { grid-column: 1 / -1; }
+    .mbody { grid-template-columns: minmax(0, 1fr); } .video { min-height: 320px; }
   }
 </style>
 </head>
 <body>
-<div class="bar">
-  <span class="name">SOP-Guard</span>
-  <select id="project" aria-label="專案"></select>
-  <label><input type="radio" name="src" value="demo" checked>示範影片</label>
-  <label><input type="radio" name="src" value="camera">相機</label>
-  <button id="btnStart">啟動監控</button>
-  <span id="err"></span>
-  <span class="sp"></span>
-  <a href="/label">標記物品</a>
-  <button id="btnShot">存截圖</button>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><span class="logo">S</span><span class="txt">SOP-Guard</span></div>
+    <nav>
+      <div class="grp">現場</div>
+      <a href="/" class="on"><span class="ico">▶</span><span class="txt">監控畫面</span></a>
+      <div class="grp">設定</div>
+      <a href="/lines"><span class="ico">≡</span><span class="txt">產線設定</span></a>
+      <a href="/methods"><span class="ico">▦</span><span class="txt">包裝方式設定</span></a>
+      <a href="/label"><span class="ico">▣</span><span class="txt">標記物品</span></a>
+    </nav>
+  </aside>
+  <div class="main">
+    <header class="topbar"><h1>監控畫面</h1><button id="btnCompact" title="收起／展開側欄（掛在產線旁的螢幕可以收起來）">側欄</button></header>
+    <div class="crumb"><b>SOP-Guard</b><span>/</span><span>監控畫面</span></div>
+    <section class="view">
+      <div class="query">
+        <div class="fld w140"><label for="selLine">產線</label><select id="selLine"></select></div>
+        <div class="fld w100"><label for="selSrc">影像來源</label><select id="selSrc"><option value="camera">相機</option><option value="demo">示範影片</option></select></div>
+        <span class="err" id="err"></span>
+        <span class="spacer"></span>
+        <div class="menuwrap">
+          <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 ▾</button>
+          <div class="menu" id="opMenu" hidden>
+            <button id="mStart">啟動監控</button>
+            <button id="mSwitch">換包裝方式</button>
+            <hr>
+            <button id="mShot">存截圖</button>
+            <a id="mLabel" href="/label">標記物品</a>
+            <a href="/lines">產線設定</a>
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--st-ok)"></i>步驟已完成</span>
+        <span><i style="background:var(--st-warn)"></i>正在做（累積中）</span>
+        <span><i style="background:var(--danger)"></i>漏做的輪次</span>
+        <span><i style="background:var(--accent)"></i>試跑：配色沒驗證過，不計入錯誤率、不響警報</span>
+      </div>
+
+      <div class="pk card">
+        <div class="ttl"><span class="mark">▍</span><h4>目前包裝方式</h4><span class="when n" id="pkWhen"></span></div>
+        <div class="row">
+          <div class="kv"><div class="k">產線</div><div class="v" id="pkLine">–</div><div class="s" id="pkCam"></div></div>
+          <div class="kv"><div class="k">型體</div><div class="v big" id="pkStyle">–</div><div class="s" id="pkStyleInfo"></div></div>
+          <div class="kv"><div class="k">地區</div><div class="v big" id="pkRegion">–</div><div class="s" id="pkCode"></div></div>
+          <div class="kv"><div class="k">配色</div><div class="v sm" id="pkColor">–</div><div class="s" id="pkColorInfo"></div></div>
+          <div class="kv"><div class="k">步驟</div><div class="v n" id="pkSteps">–</div><div class="s" id="pkReq"></div></div>
+          <div class="kv"><div class="k">辨識模型</div><div class="v sm n" id="pkModel">–</div><div class="s" id="pkModelInfo"></div></div>
+        </div>
+      </div>
+      <div class="trialbar" id="trialBar" hidden></div>
+
+      <div class="status">
+        <div class="lamp" id="lamp"><div class="t" id="nowTitle">尚未啟動</div><div class="d" id="nowDetail">選好產線與來源，按「操作 ▾ → 啟動監控」</div></div>
+        <div class="cell" id="cellTime"><span class="k">本輪用時</span><span class="v n" id="timerVal">–</span><span class="s n" id="timerLimit"></span></div>
+        <div class="cell" id="cellAvg"><span class="k">平均完成時間</span><span class="v n" id="avgDur">–</span><span class="s n" id="durInfo"></span></div>
+        <div class="cell"><span class="k">完成 : 錯誤</span><span class="v n"><span class="okc" id="cycles">0</span> : <span class="badc" id="bad">0</span></span><span class="s n" id="badRate"></span></div>
+        <div class="cell"><span class="k n" id="today"></span><span class="v n" id="clock">--:--:--</span><span class="s n" id="runFor"></span></div>
+      </div>
+
+      <div class="mbody">
+        <div class="pane">
+          <div class="video" id="stage">
+            <img id="stream" alt="監控畫面" hidden>
+            <div class="hint" id="hint">選好產線與來源，按「操作 ▾ → 啟動監控」。<br>第一次載入約 10～30 秒。</div>
+            <div class="alarm" id="alert" hidden><b id="alertMsg"></b><button id="btnReset">解除警告</button></div>
+          </div>
+        </div>
+        <div class="pane">
+          <div class="ttl"><span class="mark">▍</span><h4>本輪步驟</h4><span class="sum n" id="stepSum"></span></div>
+          <ol class="steps" id="steps"><li class="none">尚未啟動</li></ol>
+        </div>
+        <div class="pane" style="overflow:auto">
+          <div class="sec" id="warnBlock" hidden>
+            <div class="ttl"><span class="mark">▍</span><h4>需要注意</h4></div>
+            <ul class="warns" id="warns"></ul>
+          </div>
+          <div class="sec">
+            <div class="ttl"><span class="mark">▍</span><h4>最近輪次</h4><span class="sum" id="histSum"></span></div>
+            <div class="runs" id="strip"></div>
+            <div class="none" id="noRuns">還沒有完成任何一輪</div>
+          </div>
+          <div class="sec">
+            <div class="ttl"><span class="mark">▍</span><h4>漏做次數</h4><span class="sum n" id="errTotal"></span></div>
+            <div class="chart" id="errChart"></div>
+            <div class="none n" id="kinds"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
 </div>
 
-<div class="status">
-  <div class="lamp" id="lamp"><div class="t" id="nowTitle">尚未啟動</div><div class="d" id="nowDetail">選好專案與來源，按「啟動監控」</div></div>
-  <div class="cell"><span class="k">目前型體</span><span class="v txt" id="modelName">–</span><span class="s n" id="modelInfo"></span></div>
-  <div class="cell" id="cellTime"><span class="k">本輪用時</span><span class="v n" id="timerVal">–</span><span class="s n" id="timerLimit"></span></div>
-  <div class="cell" id="cellAvg"><span class="k">平均完成時間</span><span class="v n" id="avgDur">–</span><span class="s n" id="durInfo"></span></div>
-  <div class="cell"><span class="k">完成 : 錯誤</span><span class="v n"><span class="okc" id="cycles">0</span> : <span class="badc" id="bad">0</span></span><span class="s n" id="badRate"></span></div>
-  <div class="cell"><span class="k n" id="today">今天</span><span class="v n" id="clock">--:--:--</span><span class="s n" id="runFor"></span></div>
-</div>
-
-<div class="body">
-  <div class="pane">
-    <div class="video" id="stage">
-      <img id="stream" alt="監控畫面" style="display:none">
-      <div class="hint" id="hint">選好專案與來源，按「啟動監控」。<br>第一次載入約 10～30 秒。</div>
-      <div class="alarm" id="alert"><b id="alertMsg"></b><button id="btnReset">解除警告</button></div>
+<!-- 換包裝方式（openSmall 700×600） -->
+<div class="scrim" id="dlg" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="dt"><span class="mark">▍</span><h4 id="dlgTitle">換包裝方式</h4></div>
+    <div class="dc">
+      <div class="frow">
+        <div class="fld w140"><label>產線</label><div class="ro" id="dLine"></div></div>
+        <div class="fld w320"><label>目前</label><div class="ro" id="dNow"></div></div>
+      </div>
+      <div class="frow">
+        <div class="fld w140"><label for="dStyle">型體</label><select id="dStyle"></select></div>
+        <div class="fld w140"><label for="dRegion">地區</label><select id="dRegion"></select></div>
+        <div class="fld w200"><label>型體名稱／客戶</label><div class="ro" id="dStyleInfo"></div></div>
+      </div>
+      <div class="frow">
+        <div class="fld w140"><label for="dColor">配色</label><select id="dColor"></select></div>
+        <div class="fld w140" id="dColorNewWrap" hidden><label for="dColorNew">新配色名稱</label><input id="dColorNew" placeholder="例如 全白"></div>
+        <div class="fld w320"><label>辨識模型</label><div class="ro" id="dModel"></div></div>
+      </div>
+      <div class="note warn" id="dCycle" hidden>這條線正在監控中。換線會重新載入模型（約 10～30 秒），目前這一輪作廢，不結算也不報警。</div>
+      <div class="note warn" id="dTrial" hidden></div>
+      <div class="note danger" id="dBlock" hidden></div>
+      <div class="preview"><div class="ph" id="dPrevHead">換線後的步驟</div><ol id="dPrev"></ol></div>
     </div>
-  </div>
-
-  <div class="pane">
-    <div class="title"><span>本輪步驟</span><span class="sub n" id="stepSum"></span></div>
-    <ol class="steps" id="steps"><li class="none">尚未啟動</li></ol>
-  </div>
-
-  <div class="pane">
-    <div class="block" id="warnBlock" style="display:none">
-      <div class="title"><span>需要注意</span></div>
-      <ul class="warns" id="warns"></ul>
-    </div>
-    <div class="block">
-      <div class="title"><span>最近輪次</span><span class="sub" id="histSum"></span></div>
-      <div class="runs" id="strip"></div>
-      <div class="none" id="noRuns">還沒有完成任何一輪</div>
-    </div>
-    <div class="block">
-      <div class="title"><span>流程錯誤次數</span><span class="sub n" id="errTotal"></span></div>
-      <div class="chart" id="errChart"></div>
-      <div class="kinds n" id="kinds"></div>
+    <div class="da">
+      <button class="btn btn-cancel" id="dCancel">取消</button>
+      <button class="btn btn-primary raised" id="dOk">確認換線</button>
     </div>
   </div>
 </div>
+<div class="toast" id="toast" hidden></div>
 
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  let running = false, lastAlert = false, audioCtx = null, streamOn = false;
-  const startedAt = { t: null };        // 伺服器記的監控開始時間（換台電腦打開網頁也一樣）
+  let running = false, lastAlert = false, audioCtx = null, streamOn = false, trial = false;
+  let lines = [], methods = [], runningLine = null, lastState = {};
+  const startedAt = { t: null };
+  const NEW = "__new";
 
+  try { if (localStorage.getItem("sopg-compact") === "1") document.body.classList.add("compact"); } catch (e) {}
+  $("btnCompact").onclick = () => { document.body.classList.toggle("compact"); try { localStorage.setItem("sopg-compact", document.body.classList.contains("compact") ? "1" : "0"); } catch (e) {} };
+
+  function toast(text, bad) { const t = $("toast"); t.textContent = text; t.className = "toast" + (bad ? " bad" : ""); t.hidden = false; clearTimeout(toast._h); toast._h = setTimeout(() => { t.hidden = true; }, 4000); }
   function beep() {
-    try {
-      if (!audioCtx) return;
-      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.frequency.value = 880; g.gain.value = 0.2; o.connect(g); g.connect(audioCtx.destination);
-      o.start(); o.stop(audioCtx.currentTime + 0.5);
-    } catch (e) {}
+    try { if (!audioCtx || trial) return; const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.value = 880; g.gain.value = 0.2; o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.5); } catch (e) {}
   }
   document.addEventListener("click", () => { if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } }, { once: true });
+  document.addEventListener("click", (ev) => {
+    const t = ev.target.closest("[data-menu]");
+    document.querySelectorAll(".menu").forEach((m) => { if (!t || m.id !== t.dataset.menu) m.hidden = true; });
+    if (t) { const m = $(t.dataset.menu); m.hidden = !m.hidden; }
+  });
 
   async function api(path, body) {
     const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
@@ -186,151 +231,227 @@
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   const sec = (s) => s == null ? "–" : s >= 60 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : s.toFixed(1);
   const p2 = (x) => String(x).padStart(2, "0");
+  const colorText = (c) => !c ? "未指定" : c === NEW ? "新配色（模型沒看過）" : c;
+  const colorStatusText = { verified: "已驗證", unverified: "未驗證", failed: "驗證判錯", new: "模型沒看過", none: "" };
 
-  async function loadProjects() {
-    const d = await api("/api/projects"); const sel = $("project"); const cur = sel.value; sel.innerHTML = "";
-    for (const p of d.projects) {
-      const o = document.createElement("option"); o.value = p.name;
-      o.textContent = p.name + (p.ok ? (p.steps ? `（${p.steps} 步）` : "（還沒有步驟）") : "（設定檔有問題）");
-      o.disabled = !p.ok || !p.steps; sel.appendChild(o);
-    }
-    if (cur) sel.value = cur;
+  // ---- 產線
+  async function loadLines(keep) {
+    const d = await api("/api/lines"); lines = d.lines || []; runningLine = d.running_line;
+    const sel = $("selLine"), cur = keep || sel.value || runningLine || (new URLSearchParams(location.search).get("line")) || "";
+    sel.innerHTML = "";
+    for (const l of lines) { const o = el("option", null, l.name + (l.enabled ? "" : "（停用）")); o.value = l.id; sel.appendChild(o); }
+    if (cur && lines.some((l) => l.id === cur)) sel.value = cur;
+    renderLine();
   }
+  const curLine = () => lines.find((l) => l.id === $("selLine").value);
+  function renderLine() {
+    const l = curLine(); const pk = l && l.packaging;
+    $("pkLine").textContent = l ? l.name : "–"; $("pkCam").textContent = l ? (l.has_camera ? "相機 " + l.camera : "還沒設定相機") : "";
+    $("pkWhen").textContent = l && l.switched_at ? l.switched_at + " 換線" : (l ? "還沒指定包裝方式" : "");
+    $("pkStyle").textContent = pk ? (pk.style || pk.name) : "–";
+    $("pkStyleInfo").textContent = pk ? [pk.style_name, pk.customer].filter(Boolean).join("　") || (pk.has_packaging ? "" : "還沒設定型體地區") : "";
+    $("pkRegion").textContent = pk ? (pk.region || "–") : "–"; $("pkCode").textContent = pk ? "包裝方式 " + pk.name : "";
+    $("pkColor").textContent = l ? colorText(l.color) : "–";
+    $("pkColorInfo").textContent = l && pk ? (colorStatusText[l.color_status] || "") : "";
+    $("pkSteps").textContent = pk ? pk.steps + " 步" : "–"; $("pkReq").textContent = "";
+    $("pkModel").textContent = pk ? (pk.model_trained_at || "還沒訓練") : "–";
+    $("pkModelInfo").textContent = pk ? (pk.model_source ? "參考 " + pk.model_source : pk.model_trained_at ? "本型體地區" : "不能啟動監控") : "";
+    $("mLabel").href = pk ? "/label?project=" + encodeURIComponent(pk.name) : "/label";
+    $("mSwitch").disabled = !l || !l.enabled;
+  }
+  $("selLine").onchange = () => { renderLine(); history.replaceState(null, "", "/?line=" + encodeURIComponent($("selLine").value)); };
 
   function setStream(on) {
     if (on === streamOn) return;
     streamOn = on; const img = $("stream");
-    if (on) { img.src = "/stream.mjpg?t=" + Date.now(); img.style.display = "block"; $("hint").style.display = "none"; }
+    if (on) { img.src = "/stream.mjpg?t=" + Date.now(); img.hidden = false; $("hint").hidden = true; }
   }
-
   function tickClock() {
     const d = new Date();
     $("clock").textContent = `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
-    $("today").textContent = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+    $("today").textContent = `${d.getFullYear()}/${p2(d.getMonth() + 1)}/${p2(d.getDate())}`;
     const t = running ? startedAt.t : null;
     $("runFor").textContent = t ? `${p2(t.getHours())}:${p2(t.getMinutes())} 開始監控` : "";
   }
   setInterval(tickClock, 1000); tickClock();
 
   function renderStatus(s) {
-    let level = "", title = "尚未啟動", detail = "選好專案與來源，按「啟動監控」";
+    let level = "", title = "尚未啟動", detail = "選好產線與來源，按「操作 ▾ → 啟動監控」";
     if (s.error) { level = "alert"; title = "錯誤"; detail = s.error; }
     else if (s.loading) { level = "wait"; title = "載入中"; detail = s.loading; }
     else if (running && s.now) { level = s.now.level; title = s.now.title; detail = s.now.detail; }
     else if (s.finished) { title = "已停止"; detail = s.finished; }
     $("lamp").className = "lamp " + level; $("nowTitle").textContent = title; $("nowDetail").textContent = detail || "";
-
-    const m = s.model;
-    $("modelName").textContent = m ? m.project : "–"; $("modelName").title = m ? m.project : "";
-    $("modelInfo").textContent = !m ? "" : m.file ? `模型 ${m.trained_at}` : "沒有物品辨識模型";
-
     const c = s.cycle || {}, inCycle = running && c.elapsed != null;
     $("timerVal").innerHTML = ""; $("timerVal").append(inCycle ? sec(c.elapsed) : "–");
     if (inCycle) $("timerVal").appendChild(el("small", "", "秒"));
     $("timerLimit").textContent = inCycle && c.timeout ? `上限 ${c.timeout} 秒` : "";
     const r = inCycle && c.timeout ? c.elapsed / c.timeout : 0;
     $("cellTime").className = "cell" + (r >= 1 ? " over" : r >= .75 ? " late" : "");
-
     $("avgDur").innerHTML = ""; $("avgDur").append(s.avg_dur != null ? sec(s.avg_dur) : "–");
     if (s.avg_dur != null) $("avgDur").appendChild(el("small", "", "秒"));
-    const ds = s.dur_stats;
-    $("durInfo").textContent = ds ? `${ds.n} 輪平均` : "";
+    const ds = s.dur_stats; $("durInfo").textContent = ds ? `${ds.n} 輪平均` : "";
     $("cellAvg").title = ds ? `最快 ${sec(ds.min)} 秒、最慢 ${sec(ds.max)} 秒、上一輪 ${sec(ds.last)} 秒` : "只算完成的輪";
-
     const good = s.cycle_count ?? 0, bad = s.bad_cycle_count ?? 0, tot = good + bad;
     $("cycles").textContent = good; $("bad").textContent = bad;
-    $("badRate").textContent = tot ? `錯誤率 ${Math.round(bad / tot * 100)}%` : "";
+    $("badRate").textContent = s.trial && running ? "試跑，不計入錯誤率" : tot ? `錯誤率 ${Math.round(bad / tot * 100)}%` : "";
+    $("pkReq").textContent = c.required_total ? `必要 ${c.required_total} 步` : "";
   }
-
   function renderSteps(s) {
-    const ol = $("steps"); ol.innerHTML = "";
-    const steps = s.steps || [], c = s.cycle || {};
+    const ol = $("steps"); ol.innerHTML = ""; const steps = s.steps || [], c = s.cycle || {};
     $("stepSum").textContent = c.required_total ? `必要 ${c.required_done} / ${c.required_total}` : "";
     if (!steps.length) { ol.appendChild(el("li", "none", running ? "載入中…" : "尚未啟動")); return; }
     steps.forEach((st, i) => {
       const done = st.state === "done", doing = !done && (st.doing || st.state === "active");
       const li = el("li", done ? "done" : doing ? "doing" : "todo");
       li.appendChild(el("span", "no n", String(i + 1)));
-      const name = el("span", "name", st.name); if (!st.required) name.appendChild(el("span", "opt", "選配")); li.appendChild(name);
-      let tag = "";
-      if (done) tag = st.done_at != null ? `✓ ${st.done_at} 秒` : "✓";
-      else if (doing) tag = "正在做";
-      li.appendChild(el("span", "tag n", tag));
+      const name = el("span", "nm", st.name); if (!st.required) name.appendChild(el("span", "opt", "選配")); li.appendChild(name);
+      li.appendChild(el("span", "tag n", done ? (st.done_at != null ? `✓ ${st.done_at} 秒` : "✓") : doing ? "正在做" : ""));
       if (doing && st.acc != null) { const m = el("span", "meter"), f = el("i"); f.style.width = Math.min(100, st.acc / (st.dwell || 1) * 100) + "%"; m.appendChild(f); li.appendChild(m); }
       ol.appendChild(li);
     });
   }
-
   function renderRight(s) {
     const warns = running && !s.loading ? (s.warnings || []) : [];
-    $("warnBlock").style.display = warns.length ? "block" : "none";
-    const w = $("warns"); w.innerHTML = ""; for (const t of warns) w.appendChild(el("li", "", t));
-
+    $("warnBlock").hidden = !warns.length; const w = $("warns"); w.innerHTML = ""; for (const t of warns) w.appendChild(el("li", "", t));
     const hist = s.history || [], strip = $("strip"); strip.innerHTML = "";
     hist.slice().reverse().forEach((h) => {
       const i = el("i", h.ok ? "" : h.kind === "漏做" ? "bad" : "other", h.ok ? "" : h.kind === "漏做" ? "✕" : "!");
       i.title = `${h.time} ${h.kind}` + (h.dur != null ? ` ${h.dur} 秒` : "") + (h.missing.length ? ` 缺：${h.missing.join("、")}` : "");
       strip.appendChild(i);
     });
-    $("noRuns").style.display = hist.length ? "none" : "block";
-    $("histSum").textContent = hist.length ? `${hist.length} 輪，左舊右新　✕ 漏做　! 超時` : "";
-
+    $("noRuns").hidden = !!hist.length; $("histSum").textContent = hist.length ? `${hist.length} 輪，左舊右新　✕ 漏做　! 超時` : "";
     const chart = $("errChart"); chart.innerHTML = "";
-    const rows = s.miss_by_step || [], maxc = Math.max(1, ...rows.map((x) => x.count));
-    const total = rows.reduce((a, x) => a + x.count, 0);
+    const rows = s.miss_by_step || [], maxc = Math.max(1, ...rows.map((x) => x.count)), total = rows.reduce((a, x) => a + x.count, 0);
     for (const x of rows) {
       const r = el("div", "r" + (x.count ? "" : " zero")); r.title = `${x.name}：漏做 ${x.count} 次`;
       r.appendChild(el("span", "lbl", x.name));
       const tr = el("span", "track"), f = el("i"); f.style.width = (x.count / maxc * 100) + "%"; tr.appendChild(f); r.appendChild(tr);
-      r.appendChild(el("span", "c", String(x.count))); chart.appendChild(r);
+      r.appendChild(el("span", "cnt n", String(x.count))); chart.appendChild(r);
     }
     if (!rows.length) chart.appendChild(el("div", "none", running ? "載入中…" : "尚未啟動"));
-    $("errTotal").textContent = rows.length ? `漏做 共 ${total} 次` : "";
+    $("errTotal").textContent = rows.length ? `共 ${total} 次` : "";
     const kc = s.kind_count || {}, extra = [];
-    if (kc["超時"]) extra.push(`超時 ${kc["超時"]} 輪`);
-    if (kc["跳步"]) extra.push(`跳步 ${kc["跳步"]} 輪`);
-    $("kinds").textContent = extra.join("　");
+    if (kc["超時"]) extra.push(`超時 ${kc["超時"]} 輪`); if (kc["跳步"]) extra.push(`跳步 ${kc["跳步"]} 輪`);
+    $("kinds").textContent = extra.join("　"); $("kinds").hidden = !extra.length;
   }
-
   function render(s) {
+    lastState = s;
     startedAt.t = s.running && s.started_at ? new Date(s.started_at) : null;
-    running = !!s.running;
-    const bs = $("btnStart");
-    bs.textContent = running ? "停止監控" : "啟動監控"; bs.className = running ? "stop" : ""; bs.disabled = !!(running && s.loading);
+    const wasRunning = running; running = !!s.running; trial = !!(s.running && s.trial);
+    if (running && s.line && s.line.id && s.line.id !== $("selLine").value && !wasRunning) { $("selLine").value = s.line.id; renderLine(); }
+    $("mStart").textContent = running ? "停止監控" : "啟動監控"; $("mStart").disabled = !!(running && s.loading);
+    $("selLine").disabled = running; $("selSrc").disabled = running;
     $("err").textContent = s.error || "";
     if (s.frame_id > 0) setStream(true);
-    if (!running && !s.frame_id) $("hint").style.display = "block";
-
+    if (!running && !s.frame_id) $("hint").hidden = false;
+    $("trialBar").hidden = !trial;
+    if (trial) $("trialBar").textContent = `試跑中：配色「${colorText(s.color)}」模型還沒驗證過。照樣判斷與顯示漏做，但不計入錯誤率、不響警報。請錄 2～3 輪後到「包裝方式設定 → 辨識模型」驗證。`;
     renderStatus(s); renderSteps(s); renderRight(s); tickClock();
-
-    $("alert").classList.toggle("on", !!s.alert_active);
-    $("alertMsg").textContent = s.alert_message || "";
+    $("alert").hidden = !s.alert_active; $("alertMsg").textContent = (s.alert_message || "") + (trial ? "（試跑）" : "");
     $("stage").classList.toggle("alerting", !!s.alert_active);
     if (s.alert_active && !lastAlert) beep();
     lastAlert = !!s.alert_active;
   }
-
   async function poll() {
-    try {
-      if (!$("project").options.length) await loadProjects();
-      render(await api("/api/state"));
-    } catch (e) { $("lamp").className = "lamp alert"; $("nowTitle").textContent = "連不上伺服器"; $("nowDetail").textContent = "請確認監控程式還開著"; }
+    try { render(await api("/api/state")); }
+    catch (e) { $("lamp").className = "lamp alert"; $("nowTitle").textContent = "連不上伺服器"; $("nowDetail").textContent = "請確認監控程式還開著"; }
     setTimeout(poll, 500);
   }
 
-  $("btnStart").onclick = async () => {
+  $("mStart").onclick = async () => {
     $("err").textContent = "";
     if (running) { await api("/api/stop", {}); streamOn = false; return; }
-    if (!$("project").value) await loadProjects();
-    const src = document.querySelector("input[name=src]:checked").value;
-    const d = await api("/api/start", { project: $("project").value, source: src });
-    if (!d.ok) $("err").textContent = d.error || "啟動失敗";
+    const l = curLine(); if (!l) { toast("請先到「產線設定」新增產線", true); return; }
+    const d = await api("/api/start", { line: l.id, source: $("selSrc").value });
+    if (!d.ok) { $("err").textContent = d.error || "啟動失敗"; toast(d.error || "啟動失敗", true); }
     streamOn = false;
   };
   $("btnReset").onclick = () => api("/api/reset", {});
-  $("btnShot").onclick = async () => { const d = await api("/api/screenshot", {}); $("nowDetail").textContent = d.ok ? "已存截圖：" + d.path : (d.error || "存截圖失敗"); };
+  $("mShot").onclick = async () => { const d = await api("/api/screenshot", {}); toast(d.ok ? "已存截圖：" + d.path : (d.error || "存截圖失敗"), !d.ok); };
 
-  loadProjects(); poll();
+  // ---- 換包裝方式
+  const withPk = () => methods.filter((m) => !m.error && m.steps > 0 && m.enabled !== false);
+  const styleKey = (m) => m.has_packaging ? m.style : "（未設定）" + m.name;
+  async function openSwitch() {
+    const l = curLine(); if (!l) { toast("請先到「產線設定」新增產線", true); return; }
+    const d = await api("/api/methods"); methods = d.methods || [];
+    $("dLine").textContent = l.name;
+    const pk = l.packaging;
+    $("dNow").textContent = pk ? `${pk.style || pk.name}／${pk.region || "–"}　配色 ${colorText(l.color)}` : "（未指定）";
+    const ds = $("dStyle"); ds.innerHTML = "";
+    const keys = [...new Set(withPk().map(styleKey))];
+    for (const k of keys) { const o = el("option", null, k); o.value = k; ds.appendChild(o); }
+    if (!keys.length) { const o = el("option", null, "（沒有可用的包裝方式）"); o.value = ""; ds.appendChild(o); }
+    ds.value = pk ? styleKey(pk) : keys[0] || "";
+    fillRegions(pk ? pk.name : null, l.color);
+    $("dCycle").hidden = !(running && runningLine === l.id) && !(running && lastState.line && lastState.line.id === l.id);
+    $("dlg").hidden = false; ds.focus();
+  }
+  function fillRegions(keepName, keepColor) {
+    const dr = $("dRegion"); dr.innerHTML = "";
+    for (const m of withPk().filter((m) => styleKey(m) === $("dStyle").value)) { const o = el("option", null, m.region || "–"); o.value = m.name; dr.appendChild(o); }
+    if (keepName && [...dr.options].some((o) => o.value === keepName)) dr.value = keepName;
+    fillColors(keepColor); renderPreview();
+  }
+  function fillColors(keep) {
+    const m = methods.find((x) => x.name === $("dRegion").value), dc = $("dColor"); dc.innerHTML = "";
+    if (m && m.has_packaging) {
+      for (const c of m.colors) { const o = el("option", null, c.name + "（" + colorStatusText[c.status] + "）"); o.value = c.name; dc.appendChild(o); }
+      const o = el("option", null, "新配色（模型沒看過）"); o.value = NEW; dc.appendChild(o);
+      dc.disabled = false;
+    } else { const o = el("option", null, "（舊專案不分配色）"); o.value = ""; dc.appendChild(o); dc.disabled = true; }
+    if (keep != null && [...dc.options].some((o) => o.value === keep)) dc.value = keep;
+    $("dColorNewWrap").hidden = dc.value !== NEW;
+  }
+  function renderPreview() {
+    const m = methods.find((x) => x.name === $("dRegion").value), l = curLine(), now = l && l.packaging;
+    $("dStyleInfo").textContent = m ? [m.style_name, m.customer].filter(Boolean).join("　") || "–" : "–";
+    $("dModel").textContent = !m ? "–" : !m.model_trained_at ? "還沒訓練" : (m.model_source ? `參考 ${m.model_source}（${m.model_trained_at}）` : `本型體地區（${m.model_trained_at}）`);
+    const block = !m ? "這個型體沒有可用的包裝方式" : !m.model_trained_at ? "這個包裝方式的辨識模型還沒訓練，不能用來監控。請先到「包裝方式設定」設定參考模型，或到「標記物品」標記並訓練。" : "";
+    $("dBlock").hidden = !block; $("dBlock").textContent = block; $("dOk").disabled = !!block;
+    const dc = $("dColor"); $("dColorNewWrap").hidden = dc.value !== NEW;
+    let tmsg = "";
+    if (m && m.has_packaging) {
+      const c = m.colors.find((x) => x.name === dc.value);
+      if (dc.value === NEW) tmsg = "模型沒看過這個配色。可以啟動，但這段時間的輪次算試跑，不計入錯誤率、不響警報；錄 2～3 輪後到「包裝方式設定 → 辨識模型」驗證。";
+      else if (c && c.status !== "verified") tmsg = `「${c.name}」${c.status === "failed" ? "離線驗證判錯過" : "還沒做過離線驗證"}，啟動後算試跑，不計入錯誤率、不響警報。`;
+    }
+    $("dTrial").hidden = !tmsg; $("dTrial").textContent = tmsg;
+    const ol = $("dPrev"); ol.innerHTML = "";
+    if (!m) { $("dPrevHead").textContent = "換線後的步驟"; return; }
+    api("/api/method?name=" + encodeURIComponent(m.name)).then((det) => {
+      if ($("dRegion").value !== m.name) return;
+      const nowNames = new Set((lastState.steps || []).map((s) => s.name));
+      let diff = 0; ol.innerHTML = "";
+      for (const s of det.step_rows || []) {
+        const li = el("li", null, s.name + (s.required ? "" : "（選配）"));
+        if (now && now.name !== m.name && nowNames.size && !nowNames.has(s.name)) { li.className = "diff"; li.textContent += "　← 跟目前不同"; diff++; }
+        ol.appendChild(li);
+      }
+      $("dPrevHead").textContent = `${m.name} 的步驟（${(det.step_rows || []).length} 步${diff ? "，跟目前不同的有 " + diff + " 步" : ""}）`;
+    });
+  }
+  $("dStyle").onchange = () => fillRegions(null, null);
+  $("dRegion").onchange = () => { fillColors(null); renderPreview(); };
+  $("dColor").onchange = renderPreview;
+  $("dCancel").onclick = () => { $("dlg").hidden = true; };
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("dlg").hidden = true; });
+  $("dOk").onclick = async () => {
+    const l = curLine(); let color = $("dColor").value;
+    if (color === NEW && $("dColorNew").value.trim()) color = $("dColorNew").value.trim();
+    $("dOk").disabled = true;
+    const d = await api("/api/lines/switch", { line: l.id, project: $("dRegion").value, color });
+    $("dOk").disabled = false;
+    if (!d.ok) { toast(d.error || "換線失敗", true); return; }
+    $("dlg").hidden = true; await loadLines(l.id);
+    toast(d.restarted ? "已換線，正在用新的包裝方式重新載入" : "已換線");
+  };
+  $("mSwitch").onclick = openSwitch;
+
+  loadLines().then(() => { if (new URLSearchParams(location.search).get("switch") === "1") openSwitch(); });
+  setInterval(() => { if (!running) loadLines(); }, 15000);
+  poll();
 })();
 </script>
 </body>

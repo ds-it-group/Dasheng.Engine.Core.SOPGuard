@@ -56,6 +56,31 @@ class Step:
                                             # hand_on_object 用：手經過鞋子的零碎片段整輪加起來也會超過門檻
 
 
+COLOR_STATUSES = ("verified", "unverified", "failed")
+
+
+@dataclass
+class ColorCheck:
+    """這個型體地區的辨識模型驗證過哪些配色（配色不進主鍵；沒驗證過的配色可以監控，但算試跑）。"""
+    name: str
+    status: str = "unverified"              # verified 已驗證／unverified 未驗證／failed 驗證判錯
+    checked_at: str = ""                    # YYYY/MM/DD
+    note: str = ""
+
+
+@dataclass
+class Packaging:
+    """包裝方式的身分：主鍵＝型體（不含配色）＋地區。客戶從型體帶出來顯示，不是鍵。
+    model_source：None＝用本專案自己訓練的模型；專案名稱＝參考那個型體地區的模型（步驟清單永遠用自己的）。"""
+    style: str
+    region: str
+    style_name: str = ""
+    customer: str = ""
+    model_source: str | None = None
+    colors: list[ColorCheck] = field(default_factory=list)
+    enabled: bool = True
+
+
 @dataclass
 class Project:
     project_name: str
@@ -81,6 +106,7 @@ class Project:
     state_rel: list[float] = field(default_factory=lambda: [0.0, 0.0, 1.0, 1.0])   # 裁盒內的相對區域
     state_fixed: list[int] | None = None    # 工位固定時鎖定的固定區域 [x, y, w, h]；有設就優先用
     state_every_n_frames: int = 5           # 幾格判一次狀態（5：放完東西到下一個動作常只有 0.7 秒空檔，10 格一次投票來不及）
+    packaging: Packaging | None = None      # 型體＋地區；舊專案沒有＝「還沒設定型體地區」
     dir_path: str = ""
 
     @property
@@ -262,6 +288,44 @@ def _parse_cycle_end(raw, zones, anchor_names, gesture_model) -> Step | None:
     return end
 
 
+def parse_packaging(raw, project_name: str = "") -> Packaging | None:
+    if raw is None:
+        return None
+    _require(isinstance(raw, dict), "packaging 必須是物件或 null")
+    style = raw.get("style"); region = raw.get("region")
+    _require(isinstance(style, str) and style.strip(), "packaging.style（型體）必須是非空字串")
+    _require(isinstance(region, str) and region.strip(), "packaging.region（地區）必須是非空字串")
+    for k in ("style_name", "customer"):
+        _require(isinstance(raw.get(k, ""), str), f"packaging.{k} 必須是字串")
+    src = raw.get("model_source")
+    _require(src is None or (isinstance(src, str) and src.strip()), "packaging.model_source 必須是 null 或專案名稱")
+    _require(src is None or src != project_name, "packaging.model_source 不能參考自己")
+    colors = []
+    raw_colors = raw.get("colors", [])
+    _require(isinstance(raw_colors, list), "packaging.colors 必須是陣列")
+    seen = set()
+    for c in raw_colors:
+        _require(isinstance(c, dict) and isinstance(c.get("name"), str) and c["name"].strip(), "packaging.colors 每一筆要有 name")
+        _require(c.get("status", "unverified") in COLOR_STATUSES, f"packaging.colors 的 status 只能是 {COLOR_STATUSES}")
+        _require(c["name"].strip() not in seen, f"配色「{c['name']}」重複")
+        seen.add(c["name"].strip())
+        colors.append(ColorCheck(name=c["name"].strip(), status=c.get("status", "unverified"),
+                                 checked_at=str(c.get("checked_at", "") or ""), note=str(c.get("note", "") or "")))
+    enabled = raw.get("enabled", True)
+    _require(isinstance(enabled, bool), "packaging.enabled 必須是 true/false")
+    return Packaging(style=style.strip(), region=region.strip(), style_name=raw.get("style_name", "").strip(),
+                     customer=raw.get("customer", "").strip(), model_source=None if src is None else src.strip(),
+                     colors=colors, enabled=enabled)
+
+
+def packaging_to_dict(pk: Packaging | None) -> dict | None:
+    if pk is None:
+        return None
+    return {"style": pk.style, "region": pk.region, "style_name": pk.style_name, "customer": pk.customer,
+            "model_source": pk.model_source, "enabled": pk.enabled,
+            "colors": [{"name": c.name, "status": c.status, "checked_at": c.checked_at, "note": c.note} for c in pk.colors]}
+
+
 def project_from_dict(data: dict, dir_path: str = "") -> Project:
     _require(isinstance(data, dict), "config.json 最外層必須是物件")
     schema = data.get("schema_version")
@@ -388,7 +452,8 @@ def project_from_dict(data: dict, dir_path: str = "") -> Project:
         gesture_model=gesture_model, gesture_anchors=gesture_anchors,
         cycle_end=cycle_end, cycle_timeout_sec=None if cycle_timeout is None else float(cycle_timeout),
         cycle_min_sec=float(cycle_min), state_anchor=state_anchor, state_rel=[float(v) for v in state_rel],
-        state_fixed=state_fixed, state_every_n_frames=int(state_every), dir_path=dir_path,
+        state_fixed=state_fixed, state_every_n_frames=int(state_every),
+        packaging=parse_packaging(data.get("packaging"), data["project_name"]), dir_path=dir_path,
     )
 
 
@@ -427,6 +492,7 @@ def project_to_dict(project: Project) -> dict:
         "state_rel": list(project.state_rel),
         "state_fixed": None if project.state_fixed is None else list(project.state_fixed),
         "state_every_n_frames": project.state_every_n_frames,
+        "packaging": packaging_to_dict(project.packaging),
         "cycle_end": None,
         "steps": [],
     })
