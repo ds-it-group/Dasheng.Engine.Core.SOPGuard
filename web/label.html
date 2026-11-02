@@ -35,6 +35,12 @@
   pre.log { background: #1e2129; color: #ddd; padding: 8px; border-radius: 2px; font-size: 12px; max-height: 180px; overflow: auto; white-space: pre-wrap; margin: 0; }
   .nav { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
   #predRow .btn { height: 28px; padding: 0 8px; font-size: 12px; }
+  .predbar { position: absolute; z-index: 3; display: flex; gap: 4px; align-items: center; background: var(--card); border-radius: 4px; padding: 4px; box-shadow: 0 3px 8px rgba(0,0,0,.35); }
+  .predbar .btn { height: 30px; padding: 0 10px; font-size: 13px; }
+  .predbar select { height: 30px; font-size: 13px; }
+  #fixList li { cursor: default; }
+  #fixList .st { font-size: 12px; border-radius: 10px; padding: 0 8px; line-height: 18px; white-space: nowrap; }
+  #fixList .st.ok { background: var(--st-ok); } #fixList .st.pred { background: #bbdefb; } #fixList .st.no { background: var(--st-danger); color: var(--danger); font-weight: 700; }
   .setup .body { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
   .setup .stage { min-height: 160px; flex: none; height: 320px; }
   @media (max-width: 1100px) { .lbody { grid-template-columns: minmax(0, 1fr); } .lbody > section, .lbody > aside { overflow: visible; } .stage img { max-height: 70vh; } }
@@ -94,7 +100,13 @@
             </div>
           </div>
           <div id="labelArea" hidden style="display:flex; flex-direction:column; gap:8px; flex:1; min-height:0">
-            <div class="stage"><img id="frame" alt=""><canvas id="ov"></canvas></div>
+            <div class="stage" id="stage"><img id="frame" alt=""><canvas id="ov"></canvas>
+              <div class="predbar" id="predBar" hidden>
+                <select id="predName" aria-label="物品名稱"></select>
+                <button class="btn btn-primary" id="predOk" title="採納這個框（自動往前後追）"><span class="mi">done</span>採納</button>
+                <button class="btn btn-cancel" id="predNo" title="不要這個框（快速鍵 Delete）"><span class="mi">close</span>不要</button>
+              </div>
+            </div>
             <div class="ctl">
               <button class="btn btn-cancel" data-d="-30" title="往前 30 格"><span class="mi">fast_rewind</span></button><button class="btn btn-cancel" data-d="-5" title="往前 5 格"><span class="mi">chevron_left</span><span class="mi" style="margin-left:-10px">chevron_left</span></button><button class="btn btn-cancel" data-d="-1" title="往前 1 格"><span class="mi">chevron_left</span></button>
               <input type="range" id="slider" min="0" max="0" value="0" aria-label="影格">
@@ -104,6 +116,21 @@
           </div>
         </section>
         <aside class="card wiz">
+          <div id="fixCard" hidden style="border-bottom:1px solid var(--line)">
+            <div class="ttl"><span class="mi mark">rate_review</span><h4 id="fixTitle">補框</h4><span class="sum n" id="fixPos"></span></div>
+            <div class="body">
+              <div class="hint" id="fixHint"></div>
+              <ul class="items" id="fixList" style="border:1px solid var(--line-soft)"></ul>
+              <div class="row" id="fixRange"></div>
+              <div class="row">
+                <button class="btn btn-primary raised btn-big" id="btnAllOk" title="快速鍵 Enter">這格都對，下一個</button>
+              </div>
+              <div class="row">
+                <button class="btn btn-cancel" id="btnFixPrev">上一個</button>
+                <button class="btn btn-cancel" id="btnNotDone" title="畫面上真的沒有這一步（作業員漏做）">這一步真的沒做，下一個</button>
+              </div>
+            </div>
+          </div>
           <div class="ttl"><span class="mi mark">rate_review</span><h4 id="stepTitle">請先選專案</h4></div>
           <div class="body">
             <div class="hint" id="stepHint"></div>
@@ -182,6 +209,7 @@
   const $ = (id) => document.getElementById(id);
   EIP.compactToggle($("btnCompact"));
   let proj = "", info = null, n = 0, sel = null, drag = null, step = 0, selItem = null, loadTimer = null, trainTimer = null, recTimer = null, preds = [];
+  let queue = [], qi = 0, predSel = -1;
   const img = $("frame"), ov = $("ov"), ctx = ov.getContext("2d");
   const enc = encodeURIComponent;
   document.addEventListener("click", (ev) => {
@@ -228,6 +256,8 @@
   function goFrame(k) {
     if (!info || !info.has_video) return;
     n = Math.max(0, Math.min(info.frame_count - 1, k)); $("slider").value = n; sel = null;
+    if (preds.length) { preds = []; predSel = -1; renderPreds(); }          // 預框只屬於那一格，換格就清掉
+    if (queue.length) renderFix();
     clearTimeout(loadTimer); loadTimer = setTimeout(() => { img.src = `/api/frame?project=${enc(proj)}&n=${n}`; }, 60);
     $("frameLabel").textContent = `第 ${n} 格 / ${info.frame_count - 1}（${(n / Math.max(info.fps, 1)).toFixed(2)} 秒）`;
     draw();
@@ -251,7 +281,14 @@
       if (x.auto) { ctx.setLineDash([8, 6]); rect(x.rect, "#86efac", x.name + "（自動）"); ctx.setLineDash([]); }
       else rect(x.rect, "#22c55e", x.name);
     }
-    ctx.setLineDash([6, 4]); for (const p of preds) rect(p.rect, "#60a5fa", p.name + " " + p.conf); ctx.setLineDash([]);
+    // 模型預框：很確定（≥ 0.5）畫實線，不太確定畫虛線；選中的那個加粗
+    preds.forEach((p, i) => {
+      const sure = p.conf >= 0.5; ctx.setLineDash(sure ? [] : [7, 5]);
+      ctx.lineWidth = i === predSel ? 5 : 3; ctx.strokeStyle = "#60a5fa"; ctx.strokeRect(p.rect[0] * s, p.rect[1] * s, p.rect[2] * s, p.rect[3] * s);
+      ctx.fillStyle = "#60a5fa"; ctx.font = "bold 15px sans-serif"; ctx.fillText(p.name + (sure ? "" : "（不太確定）"), p.rect[0] * s + 3, Math.max(16, p.rect[1] * s - 5));
+    });
+    ctx.setLineDash([]); ctx.lineWidth = 3;
+    placePredBar();
     let tag = []; if (sd.refs.includes(n)) tag.push(sd.region ? "空桌面參考" : "空盒參考"); if (sd.closed.includes(n)) tag.push("蓋著的盒子");
     if (tag.length) { ctx.fillStyle = "#ffb703"; ctx.font = "bold 22px sans-serif"; ctx.fillText(tag.join("、"), 12, 32); }
     if (sel) rect(sel, "#facc15");
@@ -268,9 +305,45 @@
     }
   }
   function toFrame(e) { const r = ov.getBoundingClientRect(); const s = scale(); return [Math.round((e.clientX - r.left) / s), Math.round((e.clientY - r.top) / s)]; }
-  ov.addEventListener("pointerdown", (e) => { if (!info || !info.has_video) return; ov.setPointerCapture(e.pointerId); drag = toFrame(e); sel = null; });
-  ov.addEventListener("pointermove", (e) => { if (!drag) return; const p = toFrame(e); sel = [Math.min(drag[0], p[0]), Math.min(drag[1], p[1]), Math.abs(p[0] - drag[0]), Math.abs(p[1] - drag[1])]; draw(); });
-  ov.addEventListener("pointerup", () => { drag = null; if (sel && (sel[2] < 12 || sel[3] < 12)) sel = null; draw(); });
+  // 點一下（沒拖拉）＝選模型預框、在框旁邊出現「採納／不要」；拖拉＝自己框
+  let downAt = null;
+  ov.addEventListener("pointerdown", (e) => { if (!info || !info.has_video) return; ov.setPointerCapture(e.pointerId); drag = toFrame(e); downAt = [e.clientX, e.clientY]; });
+  ov.addEventListener("pointermove", (e) => {
+    if (!drag || !downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 6) return;
+    const p = toFrame(e); sel = [Math.min(drag[0], p[0]), Math.min(drag[1], p[1]), Math.abs(p[0] - drag[0]), Math.abs(p[1] - drag[1])]; predSel = -1; draw();
+  });
+  ov.addEventListener("pointerup", (e) => {
+    const click = downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 6;
+    if (click) {
+      const [x, y] = drag; const hit = preds.map((p, i) => ({ p, i })).filter(({ p }) => x >= p.rect[0] && x <= p.rect[0] + p.rect[2] && y >= p.rect[1] && y <= p.rect[1] + p.rect[3])
+        .sort((a, b) => a.p.rect[2] * a.p.rect[3] - b.p.rect[2] * b.p.rect[3])[0];
+      predSel = hit ? hit.i : -1; if (!hit) sel = null;
+    }
+    drag = null; downAt = null; if (sel && (sel[2] < 12 || sel[3] < 12)) sel = null; draw();
+  });
+  function itemNames() { return [...new Set([...(info && info.seeds ? info.seeds.order : []), ...preds.map((p) => p.name)])]; }
+  function placePredBar() {
+    const bar = $("predBar");
+    if (predSel < 0 || !preds[predSel]) { bar.hidden = true; return; }
+    const p = preds[predSel], s = scale();
+    const sel2 = $("predName"); sel2.innerHTML = ""; for (const n of itemNames()) { const o = document.createElement("option"); o.value = o.textContent = n; sel2.appendChild(o); } sel2.value = p.name;
+    bar.hidden = false;
+    const st = $("stage").getBoundingClientRect(), im = img.getBoundingClientRect();
+    let left = im.left - st.left + p.rect[0] * s, top = im.top - st.top + (p.rect[1] + p.rect[3]) * s + 6;
+    if (top + 44 > st.height) top = Math.max(0, im.top - st.top + p.rect[1] * s - 46);
+    left = Math.min(Math.max(0, left), st.width - bar.offsetWidth - 4);
+    bar.style.left = left + "px"; bar.style.top = top + "px";
+  }
+  $("predName").onchange = () => { if (preds[predSel]) { preds[predSel].name = $("predName").value; draw(); renderFix(); } };
+  async function acceptPred(i) {
+    const p = preds[i]; if (!p) return;
+    sel = [...p.rect]; $("itemName").value = p.name;
+    await $("btnAddSeed").onclick();
+    preds = preds.filter((_, k) => k !== i); predSel = -1; renderPreds(); draw(); renderFix();
+  }
+  function rejectPred(i) { if (!preds[i]) return; preds = preds.filter((_, k) => k !== i); predSel = -1; renderPreds(); draw(); renderFix(); }
+  $("predOk").onclick = () => acceptPred(predSel);
+  $("predNo").onclick = () => rejectPred(predSel);
 
   // ---- 種子
   async function seedAct(body) {
@@ -300,38 +373,82 @@
   };
   let lastGroup = 0;
   $("btnDropAuto").onclick = async () => { if (lastGroup && await seedAct({ action: "remove_auto_group", group: lastGroup })) { msg("已刪除這次的自動框，只留手框的那一格。"); $("btnDropAuto").hidden = true; } };
-  function renderPreds() {
+  function renderPreds() {             // 畫面外的簡短清單：點名稱＝在畫面上選那個框
     const r = $("predRow");
     r.innerHTML = ""; r.hidden = !preds.length; if (!preds.length) return;
-    r.appendChild(document.createTextNode("模型預框："));
-    preds.forEach((p, i) => {
-      const b = document.createElement("button"); b.className = "btn btn-cancel"; b.textContent = `${p.name} (${p.conf})`; b.title = "點一下選取微調";
-      b.onclick = () => { sel = [...p.rect]; $("itemName").value = p.name; draw(); msg(`已載入預框「${p.name}」（黃框），可直接按「加入框選的物品」或在畫面上重拉微調。`); };
-      const a = document.createElement("button"); a.className = "btn btn-primary"; a.textContent = "採納"; a.title = "直接採納這個預框並自動往前後追蹤";
-      a.onclick = async () => { sel = [...p.rect]; $("itemName").value = p.name; await $("btnAddSeed").onclick(); preds = preds.filter((_, k) => k !== i); renderPreds(); draw(); };
-      r.appendChild(b); r.appendChild(a);
-    });
-    if (preds.length > 1) {
-      const all = document.createElement("button"); all.className = "btn btn-primary"; all.textContent = `全部採納 (${preds.length})`;
-      all.onclick = async () => {
-        const sec = parseFloat($("trackSec").value) || 0;
-        msg(`批次採納 ${preds.length} 個預框並追蹤前後 ${sec} 秒中…`);
-        const d = await seedAct({ action: "add_batch", boxes: preds, track_sec: sec });
-        if (d && d.seeds.batch_result) { const br = d.seeds.batch_result; preds = []; renderPreds(); draw(); msg(`已一次採納 ${br.added} 個預框，並自動追出 ${br.auto} 格。`); }
-      };
-      r.appendChild(all);
-    }
+    r.appendChild(document.createTextNode(`模型預框 ${preds.length} 個（點畫面上的藍框可以採納或不要）：`));
+    preds.forEach((p, i) => { const b = document.createElement("button"); b.className = "btn btn-cancel"; b.textContent = p.name + (p.conf >= 0.5 ? "" : "？"); b.onclick = () => { predSel = i; draw(); }; r.appendChild(b); });
+  }
+  async function acceptAll() {           // 剩下的預框全部採納（批次、各自往前後追）
+    if (!preds.length) return true;
+    const sec = parseFloat($("trackSec").value) || 0;
+    msg(`採納 ${preds.length} 個預框並往前後追 ${sec} 秒中…`);
+    const d = await seedAct({ action: "add_batch", boxes: preds, track_sec: sec });
+    if (!d || !d.seeds.batch_result) return false;
+    const br = d.seeds.batch_result; preds = []; predSel = -1; renderPreds(); draw(); msg(`已採納 ${br.added} 個框，並自動追出 ${br.auto} 格。`);
+    return true;
   }
   async function runPredict(silent) {
     if (!proj || !info || !info.has_model) { if (!silent) msg("這個專案還沒有可用的模型（自己的或參考的），請先手動框幾個樣本並訓練一次", true); return; }
     if (!silent) msg("模型預框辨識中…");
     const d = await api("/api/seeds", { project: proj, frame: n, action: "predict_frame" });
     if (!d.ok) { if (!silent) msg(d.error, true); return; }
-    preds = d.seeds.predictions || [];
-    if (preds.length) { sel = [...preds[0].rect]; $("itemName").value = preds[0].name; if (!silent) msg(`模型在這一格找到 ${preds.length} 個還沒標的物品（藍虛線），按「採納」一鍵加入，或點名稱微調後按「加入框選的物品」。`); }
-    else if (!silent) msg("模型在這格沒有找到新的物品（或這一格的物品都已經標過了）。");
-    renderPreds(); draw();
+    preds = d.seeds.predictions || []; predSel = -1;
+    if (!silent) msg(preds.length ? `模型在這一格找到 ${preds.length} 個還沒框的物品（藍框）。點框可以採納或不要；都對就按「這格都對，下一個」。` : "模型在這一格沒有找到新的物品（或都已經框過了）。");
+    renderPreds(); draw(); renderFix();
   }
+
+  // ---- 補框清單（從預覽「到標記頁補框」過來：?queue=格:物品:範圍起:範圍迄:輪;…）
+  function parseQueue(s) {
+    return (s || "").split(";").filter(Boolean).map((x) => { const [f, label, a, b, no] = x.split(":"); return { frame: +f, label, from: +a, to: +b, round: no }; })
+      .filter((x) => Number.isFinite(x.frame));
+  }
+  async function gotoTarget(k) {
+    if (!queue.length) return;
+    qi = Math.max(0, Math.min(queue.length - 1, k)); const q = queue[qi];
+    step = 0; render(); goFrame(q.frame); preds = []; predSel = -1; renderPreds(); renderFix();
+    setTimeout(() => runPredict(false), 250);
+  }
+  function renderFix() {
+    const card = $("fixCard"); card.hidden = !queue.length; if (!queue.length) return;
+    const q = queue[qi], fps = Math.max(1, info ? info.fps : 30);
+    $("fixTitle").textContent = `補框：第 ${q.round} 輪　${q.label}`;
+    $("fixPos").textContent = `第 ${qi + 1} / ${queue.length} 處`;
+    $("fixHint").textContent = `步驟分析在這一輪沒看到「${q.label}」，大約在 ${(q.from / fps).toFixed(1)}～${(q.to / fps).toFixed(1)} 秒之間。可能是模型沒認出來，也可能作業員真的漏做。\n看畫面：有的話確認藍框或自己拖拉框住它；畫面上真的沒有就按「這一步真的沒做」。`;
+    const ul = $("fixList"); ul.innerHTML = "";
+    const want = [q.label];
+    const here = info ? info.seeds.seeds.filter((s) => s.frame === n) : [];
+    for (const nm of want) {
+      const li = document.createElement("li"); const g = document.createElement("span"); g.className = "grow"; g.textContent = nm; li.appendChild(g);
+      const st = document.createElement("span");
+      if (here.some((s) => s.name === nm)) { st.className = "st ok"; st.textContent = "這一格已框 ✓"; }
+      else if (preds.some((p) => p.name === nm)) { st.className = "st pred"; st.textContent = "模型找到了，請確認藍框"; }
+      else {
+        st.className = "st no"; st.textContent = "模型沒找到";
+        const b = document.createElement("button"); b.className = "btn btn-cancel"; b.style.height = "26px"; b.textContent = "我來框";
+        b.onclick = () => { $("itemName").value = nm; msg(`在畫面上拖拉框住「${nm}」，再按「加入框選的物品」。前後幾格找不到的話，用下面的「範圍開頭／中間／結尾」跳一下。`); };
+        li.appendChild(b);
+      }
+      li.appendChild(st); ul.appendChild(li);
+    }
+    const rg = $("fixRange"); rg.innerHTML = "";
+    rg.appendChild(document.createTextNode("跳到範圍："));
+    for (const [txt, f] of [["開頭", q.from], ["中間", Math.round((q.from + q.to) / 2)], ["結尾", q.to]]) {
+      const b = document.createElement("button"); b.className = "btn btn-cancel"; b.style.height = "28px"; b.textContent = txt; b.onclick = () => { goFrame(f); preds = []; predSel = -1; renderPreds(); runPredict(true); renderFix(); }; rg.appendChild(b);
+    }
+  }
+  function nextTarget() {
+    if (qi + 1 < queue.length) { gotoTarget(qi + 1); return; }
+    msg(`${queue.length} 處都看過了。回到「包裝方式設定 → 訓練辨識模型」重新整理預覽，就會看到補好的框；記得重新分析步驟。`);
+  }
+  $("btnAllOk").onclick = async () => { if (await acceptAll()) nextTarget(); };
+  $("btnNotDone").onclick = () => { preds = []; predSel = -1; renderPreds(); draw(); nextTarget(); };
+  $("btnFixPrev").onclick = () => gotoTarget(qi - 1);
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || !$("newDlg").hidden || !$("cfDlg").hidden) return;
+    if (e.key === "Enter" && queue.length) { e.preventDefault(); $("btnAllOk").click(); }
+    else if ((e.key === "Delete" || e.key === "Backspace") && predSel >= 0) { e.preventDefault(); rejectPred(predSel); }
+  });
   $("btnPredict").onclick = () => runPredict(false);
   $("btnRetrack").onclick = async () => {
     const sec = parseFloat($("trackSec").value) || 2.0;
@@ -447,6 +564,7 @@
     const u = new URLSearchParams(location.search);
     if (!u.get("project")) { render(); return; }
     $("project").value = u.get("project"); await openProject(u.get("project"));
+    if (info && info.has_video && u.get("queue")) { queue = parseQueue(u.get("queue")); if (queue.length) { gotoTarget(0); return; } }
     if (info && info.has_video && u.get("frame")) goFrame(parseInt(u.get("frame"), 10) || 0);
     if (u.get("predict") === "1") { step = 0; render(); setTimeout(() => runPredict(false), 300); }   // 預框工具在第 1 步
   });

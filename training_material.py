@@ -167,7 +167,12 @@ def material_rows(project_names: list[str]) -> list[dict]:
             rows.append({"project": name, "error": str(e)}); continue
         pk = p.packaging
         seeds = items.ItemSeeds(p.dir_path)
-        rows.append({"project": name, "style": pk.style if pk else "", "region": pk.region if pk else "",
+        import step_analysis
+        an = step_analysis.load(p)
+        rows.append({"analysis": None if an is None else {"rounds": an.get("rounds", []), "stale": an.get("stale"),
+                                                          "analyzed_at": an.get("analyzed_at"), "steps": an.get("steps", [])},
+                     "steps": [{"index": s.step_index, "name": s.step_name, "type": s.type, "label": s.label or s.object or "",
+                                "required": s.required} for s in p.steps],"project": name, "style": pk.style if pk else "", "region": pk.region if pk else "",
                      "style_name": pk.style_name if pk else "", "has_video": os.path.isfile(p.video_path),
                      "fps": p.fps, "color": video_color(p), "region_rect": p.state_fixed or seeds.region,
                      "fixed": items.is_fixed(p), "segments": segments(p, seeds), "item_order": list(seeds.order)})

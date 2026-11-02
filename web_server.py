@@ -75,7 +75,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):        # 串流每張都印會洗版
         msg = fmt % args
-        if "stream.mjpg" in msg or "/api/state" in msg or "/api/train/state" in msg or "/api/record/state" in msg or "/api/frame" in msg:
+        if "stream.mjpg" in msg or "/api/state" in msg or "/api/train/state" in msg or "/api/analysis/state" in msg or "/api/record/state" in msg or "/api/frame" in msg:
             return
         super().log_message(fmt, *args)
 
@@ -183,6 +183,12 @@ class Handler(BaseHTTPRequestHandler):
                 import training_material as tm
                 names = [n for n in self._query().get("projects", "").split(",") if n]
                 self._json({"materials": tm.material_rows(names)})
+            elif path == "/api/analysis":
+                import step_analysis
+                d = step_analysis.load(load_project(self._query().get("project", "")))
+                self._json({"analysis": d})
+            elif self.label is not None and path == "/api/analysis/state":
+                self._json(self.label.analysis.state())
             elif self.label is not None and path == "/api/train/state":
                 self._json(self.label.train.state())
             elif self.label is not None and path == "/api/record/state":
@@ -229,6 +235,10 @@ class Handler(BaseHTTPRequestHandler):
                 import training_material as tm
                 tm.set_video_color(load_project(str(body.get("project", ""))), str(body.get("color", "")))
                 self._json({"ok": True})
+            elif self.label is not None and path == "/api/analysis/start":
+                self._json({"ok": True, **self.label.analysis.start(str(body.get("project", "")))})
+            elif self.label is not None and path == "/api/analysis/cancel":
+                self.label.analysis.cancel(); self._json({"ok": True})
             elif self.label is not None and path == "/api/train/material":
                 plan = self.label.train.start_material(str(body.get("project", "")), body.get("selection") or [])
                 self._json({"ok": True, **plan})

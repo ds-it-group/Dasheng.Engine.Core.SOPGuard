@@ -169,6 +169,11 @@
 <div class="scrim" id="pvDlg" hidden style="z-index:55">
   <div class="dialog large" role="dialog" aria-modal="true" aria-labelledby="pvTitle">
     <div class="dt"><span class="mi mark">rate_review</span><h4 id="pvTitle">訓練素材預覽</h4><span class="sum n" id="pvSum"></span></div>
+    <div class="note info" id="pvAnBar" style="margin-top:10px; align-items:center">
+      <span class="mi" style="font-size:18px">model_training</span><span id="pvAnText" style="flex:1"></span>
+      <button class="btn btn-secondary raised" id="pvAnBtn" style="height:30px">分析步驟</button>
+      <a class="btn btn-primary raised" id="pvFixBtn" style="height:30px; text-decoration:none" target="_blank" hidden>到標記頁補框</a>
+    </div>
     <div class="dc" style="flex-direction:row; gap:16px; overflow:hidden">
       <div class="gridwrap" id="pvList" style="flex:1 1 0; min-width:0"></div>
       <div style="flex:0 0 520px; min-width:0; display:flex; flex-direction:column; border:1px solid var(--line)">
@@ -177,12 +182,14 @@
         <div id="pvFrames" style="flex:1; min-height:0; display:flex; flex-direction:column">
           <div style="flex:1 1 0; min-height:160px; position:relative; background:#15181d; overflow:hidden">
             <img id="pvImg" alt="逐格畫面" style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain">
+            <div id="pvNow" class="pvnow" hidden></div>
           </div>
-          <div style="display:flex; gap:10px; align-items:center; padding:8px 12px; border-top:1px solid var(--line)">
-            <button class="btn btn-cancel" id="pvPlay" style="width:44px;padding:0">▶</button>
+          <div style="display:flex; gap:10px; align-items:center; padding:8px 12px 0; border-top:1px solid var(--line)">
+            <button class="btn btn-cancel" id="pvPlay" style="width:44px;padding:0" aria-label="播放"><span class="mi">play_arrow</span></button>
             <input type="range" id="pvSlider" min="0" max="0" value="0" style="flex:1; accent-color:var(--primary)" aria-label="時間">
           </div>
-          <div class="note" style="color:var(--ink-2)">桌面範圍裁切，每 0.5 秒一格。點左邊的縮圖跳到那個時間。</div>
+          <div class="pvmarks" id="pvMarks"></div>
+          <div class="note" style="color:var(--ink-2)">桌面範圍裁切，每 0.5 秒一格。時間軸下方：綠色＝模型判定這一步完成的時間、紅色＝沒看到的步驟大約該在的位置（點一下跳過去）。</div>
         </div>
         <div id="pvSeeds" hidden style="flex:1; min-height:0; display:flex; flex-direction:column">
           <div style="display:flex; gap:10px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line-soft); flex-wrap:wrap">
@@ -216,6 +223,20 @@
   .sd.gone img { opacity: .25; } .sd.gone .x { background: var(--teal); color: #fff; }
   .sd.gone::after { content: '待刪'; position: absolute; inset: 0; z-index: 1; pointer-events: none; display: grid; place-items: center; color: var(--danger); font-weight: 700; }
   .gal-h { margin: 10px 0 6px; font-size: 13px; font-weight: 700; } .gal-h small { color: var(--ink-2); font-weight: 400; margin-left: 8px; }
+  .pvnow { position: absolute; left: 8px; top: 8px; right: 8px; background: rgba(0,0,0,.66); color: #fff; font-size: 14px; padding: 4px 10px; border-radius: 2px; }
+  .pvnow b { color: #ffd54f; }
+  .pvmarks { position: relative; height: 34px; margin: 2px 12px 0 66px; }
+  .pvmarks span { position: absolute; top: 0; transform: translateX(-50%); font-size: 10.5px; white-space: nowrap; cursor: pointer; padding: 0 2px; }
+  .pvmarks span::before { content: ''; display: block; width: 2px; height: 6px; margin: 0 auto 1px; background: currentColor; }
+  .pvmarks .ok { color: var(--teal); } .pvmarks .miss { color: var(--danger); font-weight: 700; }
+  .pvmarks span.row2 { top: 16px; }
+  .stepchips { grid-column: 3; display: flex; flex-wrap: wrap; gap: 4px; font-size: 11px; }
+  .stepchips span { border-radius: 2px; padding: 0 6px; line-height: 20px; white-space: nowrap; }
+  .stepchips .ok { background: var(--st-ok); }
+  .stepchips .miss { background: var(--st-danger); color: var(--danger); font-weight: 700; cursor: pointer; }
+  .stepchips .miss.nobox { cursor: default; }
+  .rst { font-size: 11px; border-radius: 10px; padding: 0 8px; line-height: 18px; display: inline-block; margin-top: 2px; }
+  .rst.完成 { background: var(--st-ok); } .rst.漏做 { background: var(--st-danger); } .rst.未完成, .rst.超時 { background: #ffe082; } .rst.框選段 { background: var(--primary-wash); }
 </style>
 <div class="toast" id="toast" hidden></div>
 
@@ -495,7 +516,9 @@
     const d = await api("/api/material?projects=" + enc(names.join(",")));
     mats = d.materials || []; picked = {};
     for (const m of mats) if (m.project === target.name) for (const s of m.segments) picked[segKey(m.project, s)] = true;
-    $("trSelf").checked = true; fillFilters(); render();
+    $("trSelf").checked = true;
+    $("trOnlyLabeled").checked = mats.some((m) => m.project === target.name && m.segments.length);   // 還沒框選的新影片：直接列出來
+    fillFilters(); render();
     const st = await api("/api/train/state"); showProgress(st);
     if (st.running) startPoll();
     $("trDlg").hidden = false;
@@ -537,8 +560,12 @@
         if ($("trOnlyLabeled").checked) continue;
         const tr = el("tr", "t-warn"); tr.appendChild(el("td", "pinL c", ""));
         [m.style || "（未設定）", m.region || "", m.project].forEach((v) => tr.appendChild(el("td", null, v)));
-        const td = el("td", null, m.has_video ? "有影片、還沒框選，不能拿來訓練" : "沒有影片"); td.colSpan = 6; tr.appendChild(td);
-        const op = el("td", "pinR c"), a = el("a", null, "去標記"); a.href = "/label?project=" + enc(m.project) + "&predict=1"; a.title = "到標記頁，用目前模型先預框"; op.appendChild(a); tr.appendChild(op);
+        const an = m.analysis, nr = an ? an.rounds.length : 0;
+        const td = el("td", null, !m.has_video ? "沒有影片" : nr ? `還沒框選，不能拿來訓練；步驟分析切出 ${nr} 輪，按預覽看每輪缺哪些步驟、再補框` : "有影片、還沒框選；按預覽可以先分析步驟、自動切出每一輪");
+        td.colSpan = 6; tr.appendChild(td);
+        const op = el("td", "pinR c");
+        if (m.has_video) op.appendChild(EIP.iconBtn("visibility", "c-sec", "預覽（分析步驟、找出要補框的地方）", () => openPreview(m, 1)));
+        tr.appendChild(op);
         tb.appendChild(tr); rowsShown++; continue;
       }
       for (const s of m.segments) {
@@ -588,37 +615,127 @@
     p.textContent = txt; $("trOk").disabled = !!st.running;
   }
 
-  // ---- 預覽
-  let pv = null;   // {m, segs, seeds, cur, frame, gone:Set, timer}
-  window.openTrainPreview = async (project, segNo) => { const m = mats.find((x) => x.project === project); if (m && m.segments.length) await openPreview(m, segNo || 1); };
+  // ---- 預覽：有步驟分析就以「輪」為單位（含沒框選的輪），沒有就以框選片段為單位
+  let pv = null;   // {m, rows, seeds, an, cur, f, gone:Set, timer}
+  window.openTrainPreview = async (project, segNo) => { const m = mats.find((x) => x.project === project); if (m) await openPreview(m, segNo || 1); };
+  const statusTip = { 完成: "完成", 漏做: "漏做", 未完成: "影片結束前沒做完", 超時: "超時" };
+  function buildRows(m, an) {
+    if (!an || !an.rounds || !an.rounds.length) return m.segments.map((s) => ({ ...s, kind: "seg", segs: [s] }));
+    return an.rounds.map((r) => {
+      const segs = m.segments.filter((s) => s.end >= r.start - Math.round(m.fps) && s.start <= r.end + Math.round(m.fps));
+      const items = {}, key = {}; let n = 0, manual = 0; const indices = [];
+      for (const s of segs) {
+        for (const [k, v] of Object.entries(s.items)) { items[k] = items[k] || { manual: 0, auto: 0 }; items[k].manual += v.manual; items[k].auto += v.auto; }
+        for (const [k, v] of Object.entries(s.key)) if (!key[k]) key[k] = v;
+        n += s.n; manual += s.manual; indices.push(...s.indices);
+      }
+      return { kind: "round", no: r.no, start: r.start, end: r.end, start_sec: r.start_t, end_sec: r.end_t, status: r.status, done: r.done, missing: r.missing,
+               segs, items, key, n, manual, indices };
+    });
+  }
   async function openPreview(m, segNo) {
-    const info = await api("/api/project?name=" + enc(m.project));
+    const [info, ad] = await Promise.all([api("/api/project?name=" + enc(m.project)), api("/api/analysis?project=" + enc(m.project))]);
     if (info.error) { M.toast(info.error, true); return; }
-    pv = { m, seeds: info.seeds.seeds, cur: Math.max(0, m.segments.findIndex((s) => s.no === segNo)), f: 0, gone: new Set(), timer: null };
+    const an = ad.analysis || null;
+    pv = { m, an, rows: buildRows(m, an), seeds: info.seeds.seeds, steps: m.steps || [], cur: 0, f: 0, gone: new Set(), timer: null };
+    const i = pv.rows.findIndex((r) => r.no === segNo); pv.cur = Math.max(0, i);
     $("pvTitle").textContent = `訓練素材預覽　${m.style || m.project}／${m.region || "–"}　配色 ${m.color || "（未填）"}`;
     const si = $("pvItem"); si.innerHTML = ""; si.appendChild(el("option", null, "全部")); for (const n of m.item_order) si.appendChild(el("option", null, n));
-    renderPvList(); selectSeg(pv.cur); $("pvDlg").hidden = false;
+    renderAnBar(); renderPvList();
+    if (pv.rows.length) selectSeg(pv.cur); else { $("pvImg").removeAttribute("src"); $("pvSegTitle").textContent = "還沒有可以看的段"; $("pvMarks").innerHTML = ""; $("pvNow").hidden = true; }
+    $("pvDlg").hidden = false;
+    pollAnalysis(false);
   }
+  // ---- 步驟分析狀態列
+  let anPoll = null;
+  function stepName(i) { const s = pv.steps.find((x) => x.index === Number(i)); return s ? s.name : "#" + i; }
+  function fixQueue() {               // 要到標記頁補框的地方：每一輪沒看到、而且可以用框標的步驟
+    const out = [];
+    for (const r of pv.rows) for (const x of r.missing || []) if (x.boxable) out.push(`${x.frame}:${x.label}:${Math.round(x.from_t * pv.m.fps)}:${Math.round(x.to_t * pv.m.fps)}:${r.no}`);
+    return out;
+  }
+  function fixUrl(queue) { return `/label?project=${enc(pv.m.project)}&queue=${enc(queue.join(";"))}`; }
+  function renderAnBar(st) {
+    const an = pv.an, t = $("pvAnText"), b = $("pvAnBtn"), fix = $("pvFixBtn");
+    if (st && st.running && st.project === pv.m.project) {
+      const pct = st.total ? Math.round(100 * st.done / st.total) : 0;
+      t.textContent = `正在分析步驟：${pct}%（${st.done}/${st.total} 格，已 ${st.elapsed || 0} 秒）。分析完會自動更新這個畫面。`;
+      b.textContent = "取消分析"; b.dataset.act = "cancel"; fix.hidden = true; $("pvAnBar").className = "note info"; return;
+    }
+    if (st && st.running) { t.textContent = `正在分析別的專案「${st.project}」，這個專案排在後面。`; b.hidden = true; fix.hidden = true; return; }
+    b.hidden = !pv.m.has_video; b.dataset.act = "start";
+    const est = Math.max(1, Math.round((pv.m.frame_count || 6000) / 18 / 60));
+    if (!an) {
+      t.textContent = pv.m.has_video ? `還沒分析步驟。按「分析步驟」會用目前的模型把整支影片跑一遍（這台約 ${est} 分鐘），之後時間軸會標出每一步的時間、沒看到的步驟會標紅。` : "沒有影片，不能分析。";
+      b.textContent = "分析步驟"; fix.hidden = true; $("pvAnBar").className = "note warn"; return;
+    }
+    const q = fixQueue(), miss = pv.rows.reduce((a, r) => a + (r.missing || []).length, 0);
+    t.textContent = `${an.stale ? "分析結果過期（影片、模型或步驟改過），建議重新分析。" : ""}` +
+      `步驟分析 ${an.analyzed_at}：${an.rounds.length} 輪、完成 ${an.rounds.filter((r) => r.status === "完成").length} 輪；沒看到的步驟 ${miss} 處（可能真的漏做，也可能模型沒認出來，請看畫面確認）。`;
+    b.textContent = an.stale ? "重新分析" : "重新分析"; $("pvAnBar").className = "note " + (an.stale ? "warn" : "info");
+    fix.hidden = !q.length; fix.textContent = `到標記頁補框（${q.length} 處）`; fix.href = fixUrl(q);
+  }
+  async function pollAnalysis(force) {
+    if (anPoll) { clearTimeout(anPoll); anPoll = null; }
+    if (!pv || $("pvDlg").hidden) return;
+    const st = await api("/api/analysis/state");
+    renderAnBar(st);
+    if (st.running) { anPoll = setTimeout(() => pollAnalysis(true), 2000); return; }
+    if (force && st.project === pv.m.project && st.finished) {      // 剛分析完：重新載入
+      const ad = await api("/api/analysis?project=" + enc(pv.m.project));
+      pv.an = ad.analysis; pv.rows = buildRows(pv.m, pv.an); pv.cur = 0; renderAnBar(); renderPvList(); if (pv.rows.length) selectSeg(0);
+      M.toast("步驟分析完成");
+    } else if (force && st.error && st.project === pv.m.project) { M.toast("步驟分析失敗：" + st.error, true); }
+  }
+  $("pvAnBtn").onclick = async () => {
+    if ($("pvAnBtn").dataset.act === "cancel") { await api("/api/analysis/cancel", {}); pollAnalysis(true); return; }
+    const d = await api("/api/analysis/start", { project: pv.m.project });
+    if (!d.ok) { M.toast(d.error, true); return; }
+    M.toast(d.queued ? "已排入分析，前面的跑完就會開始" : "開始分析步驟"); pollAnalysis(true);
+  };
+
   function frameUrl(n, w) { return `/api/frame?project=${enc(pv.m.project)}&n=${n}&w=${w}&region=1`; }
   function zoomUrl(sd) { return `/api/frame?project=${enc(pv.m.project)}&n=${sd.frame}&w=200&zoom=1&box=${sd.rect.join(",")}`; }
+  function rowPicked(r) { return r.segs.length > 0 && r.segs.every((s) => picked[segKey(pv.m.project, s)]); }
   function renderPvList() {
     const L = $("pvList"); L.innerHTML = "";
-    pv.m.segments.forEach((s, i) => {
-      const k = segKey(pv.m.project, s), row = el("div", "pvrow" + (i === pv.cur ? " on" : ""));
-      const ck = el("input"); ck.type = "checkbox"; ck.checked = !!picked[k]; ck.setAttribute("aria-label", "選取片段");
-      ck.onclick = (ev) => { ev.stopPropagation(); picked[k] = ck.checked; updPvSum(); };
+    if (!pv.rows.length) { const e = el("div", "empty", pv.m.has_video ? "這支影片還沒有框選，也還沒分析步驟。按上方「分析步驟」，系統會自動切出每一輪。" : "沒有影片。"); e.style.padding = "20px"; L.appendChild(e); updPvSum(); return; }
+    pv.rows.forEach((r, i) => {
+      const row = el("div", "pvrow" + (i === pv.cur ? " on" : ""));
+      const ck = el("input"); ck.type = "checkbox"; ck.checked = rowPicked(r); ck.disabled = !r.segs.length; ck.setAttribute("aria-label", "選取這一段做訓練素材");
+      ck.title = r.segs.length ? "勾選＝拿這一輪的框選來訓練" : "這一輪還沒框選，不能拿來訓練";
+      ck.onclick = (ev) => { ev.stopPropagation(); for (const s of r.segs) picked[segKey(pv.m.project, s)] = ck.checked; updPvSum(); };
       row.appendChild(ck);
-      const meta = el("div"); meta.appendChild(el("div", null, "第 " + s.no + " 段")); meta.appendChild(el("div", "meta n", `${s.start_sec.toFixed(1)}–${s.end_sec.toFixed(1)} 秒`)); row.appendChild(meta);
+      const meta = el("div");
+      meta.appendChild(el("div", null, (r.kind === "round" ? "第 " + r.no + " 輪" : "第 " + r.no + " 段")));
+      meta.appendChild(el("div", "meta n", `${r.start_sec.toFixed(1)}–${r.end_sec.toFixed(1)} 秒`));
+      const stt = r.kind === "round" ? r.status : "框選段"; const chip = el("span", "rst " + stt, statusTip[stt] || stt); meta.appendChild(chip);
+      if (r.kind === "round" && !r.segs.length) meta.appendChild(el("div", "meta", "還沒框選"));
+      row.appendChild(meta);
       const th = el("div");
-      for (const [name, key] of Object.entries(s.key)) {
-        const b = el("span", "seg-th"); b.style.backgroundImage = `url("${`/api/frame?project=${enc(pv.m.project)}&n=${key.frame}&w=160&zoom=1&box=${key.rect.join(",")}`}")`;
+      for (const [name, key] of Object.entries(r.key)) {
+        const b = el("span", "seg-th"); b.style.backgroundImage = `url("/api/frame?project=${enc(pv.m.project)}&n=${key.frame}&w=160&zoom=1&box=${key.rect.join(",")}")`;
         b.appendChild(el("span", null, name)); b.title = `${name} ${(key.frame / pv.m.fps).toFixed(1)} 秒，點一下跳到這裡`;
         b.onclick = (ev) => { ev.stopPropagation(); selectSeg(i); setPvTab("frames"); seekFrame(key.frame); };
         th.appendChild(b);
       }
       row.appendChild(th);
+      if (r.kind === "round") {                       // 模型判定的步驟：綠＝看到、紅＝沒看到（點紅的到標記頁補框）
+        const sc = el("div", "stepchips");
+        const done = Object.entries(r.done).sort((a, b) => a[1] - b[1]);
+        for (const [k, t] of done) sc.appendChild(el("span", "ok", `✓ ${stepName(k)} ${t.toFixed(1)}`));
+        for (const x of r.missing || []) {
+          const c = el("span", "miss" + (x.boxable ? "" : " nobox"), `✗ ${x.name}`);
+          if (x.boxable) {
+            c.title = `大約在 ${x.from_t.toFixed(1)}～${x.to_t.toFixed(1)} 秒。點一下開標記頁補框（另開分頁）`;
+            c.onclick = (ev) => { ev.stopPropagation(); window.open(fixUrl([`${x.frame}:${x.label}:${Math.round(x.from_t * pv.m.fps)}:${Math.round(x.to_t * pv.m.fps)}:${r.no}`]), "_blank"); };
+          } else c.title = "這一步看手停在物件上，不用框；常沒看到的話調整停留秒數";
+          sc.appendChild(c);
+        }
+        row.appendChild(sc);
+      }
       const chips = el("div", "chips");
-      for (const [n, c] of Object.entries(s.items)) { const g = s.indices.filter((ix) => pv.gone.has(ix) && pv.seeds[ix].name === n).length; chips.appendChild(el("span", null, `${n}　手框 ${c.manual}／自動 ${c.auto}` + (g ? `（待刪 ${g}）` : ""))); }
+      for (const [n, c] of Object.entries(r.items)) { const g = r.indices.filter((ix) => pv.gone.has(ix) && pv.seeds[ix].name === n).length; chips.appendChild(el("span", null, `${n}　手框 ${c.manual}／自動 ${c.auto}` + (g ? `（待刪 ${g}）` : ""))); }
       row.appendChild(chips);
       row.onclick = () => selectSeg(i);
       L.appendChild(row);
@@ -626,37 +743,68 @@
     updPvSum();
   }
   function updPvSum() {
-    const n = pv.m.segments.filter((s) => picked[segKey(pv.m.project, s)]).length;
-    $("pvSum").textContent = `已選 ${n} / ${pv.m.segments.length} 段` + (pv.gone.size ? `；待刪 ${pv.gone.size} 格` : "");
+    const segs = pv.m.segments, n = segs.filter((s) => picked[segKey(pv.m.project, s)]).length;
+    $("pvSum").textContent = `訓練素材已選 ${n} / ${segs.length} 段` + (pv.gone.size ? `；待刪 ${pv.gone.size} 格` : "");
   }
   function segFrames(s) { const step = Math.max(1, Math.round(pv.m.fps / 2)), out = []; for (let f = s.start; f <= s.end; f += step) out.push(f); if (out[out.length - 1] !== s.end) out.push(s.end); return out; }
   function selectSeg(i) {
     if (i !== pv.cur) { pv.cur = i; pv.f = 0; stopPv(); renderPvList(); }
-    const s = pv.m.segments[i]; $("pvSegTitle").textContent = `第 ${s.no} 段`;
-    $("pvSlider").max = segFrames(s).length - 1; $("pvSeedTab").textContent = `標記框（${s.n}）`;
-    showPv(); renderGallery();
+    const r = pv.rows[i]; $("pvSegTitle").textContent = (r.kind === "round" ? `第 ${r.no} 輪　${statusTip[r.status] || r.status}` : `第 ${r.no} 段`);
+    $("pvSlider").max = segFrames(r).length - 1; $("pvSeedTab").textContent = `標記框（${r.n}）`;
+    renderMarks(); showPv(); renderGallery();
+    const on = $("pvList").querySelector(".pvrow.on"); if (on) on.scrollIntoView({ block: "nearest" });
+    $("pvMarks").style.height = (Math.max(1, ...[...$("pvMarks").children].map((x) => parseInt(x.style.top || "0", 10) / 14 + 1)) * 14 + 6) + "px";
+  }
+  function renderMarks() {             // 時間軸下方：綠＝這一步判定完成的時間、紅＝沒看到的步驟大概的位置
+    const r = pv.rows[pv.cur], M2 = $("pvMarks"); M2.innerHTML = "";
+    if (r.kind !== "round") return;
+    const span = Math.max(1, r.end - r.start), marks = [];
+    for (const [k, t] of Object.entries(r.done)) marks.push({ f: Math.round(t * pv.m.fps), txt: stepName(k), cls: "ok" });
+    for (const x of r.missing || []) marks.push({ f: x.frame, txt: "✗ " + x.name, cls: "miss" });
+    marks.sort((a, b) => a.f - b.f);
+    const placed = [];
+    for (const mk of marks) {
+      const pct = Math.min(100, Math.max(0, (mk.f - r.start) / span * 100));
+      let lane = 0; while (placed.some((q) => q.lane === lane && Math.abs(q.pct - pct) < 16)) lane++;   // 太靠近就往下一排放
+      placed.push({ pct, lane });
+      const s = el("span", mk.cls, mk.txt); s.style.left = pct + "%"; s.style.top = (lane * 14) + "px"; s.title = (mk.f / pv.m.fps).toFixed(1) + " 秒";
+      s.onclick = () => seekFrame(mk.f); M2.appendChild(s);
+    }
+  }
+  function nowText(t) {                 // 逐格畫面上方：這一刻正在累積的步驟（沒有就列出畫面上看到的物品）
+    const tl = pv.an && pv.an.timeline; if (!tl || !tl.length) return null;
+    let lo = 0, hi = tl.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (tl[mid][0] <= t) lo = mid; else hi = mid - 1; }
+    const [, seen, doing] = tl[lo];
+    if (doing && doing.length) return `目前在做：<b>${doing.map(stepName).join("、")}</b>`;
+    if (seen && seen.length) return `畫面上看到：${seen.join("、")}`;
+    return "畫面上沒有認出要檢查的物品";
   }
   function showPv() {
-    const fr = segFrames(pv.m.segments[pv.cur]), f = fr[Math.min(pv.f, fr.length - 1)];
+    const r = pv.rows[pv.cur]; if (!r) return;
+    const fr = segFrames(r), f = fr[Math.min(pv.f, fr.length - 1)], t = f / pv.m.fps;
     $("pvImg").src = frameUrl(f, 520); $("pvSlider").value = pv.f;
-    $("pvTime").textContent = `${(f / pv.m.fps).toFixed(1)} 秒（${pv.f + 1} / ${fr.length} 格）`;
+    $("pvTime").textContent = `${t.toFixed(1)} 秒（${pv.f + 1} / ${fr.length} 格）`;
+    const nt = nowText(t); $("pvNow").hidden = !nt; if (nt) $("pvNow").innerHTML = nt;
   }
-  function seekFrame(frame) { const fr = segFrames(pv.m.segments[pv.cur]); let best = 0; fr.forEach((f, k) => { if (Math.abs(f - frame) < Math.abs(fr[best] - frame)) best = k; }); pv.f = best; showPv(); }
-  function stopPv() { if (pv && pv.timer) { clearInterval(pv.timer); pv.timer = null; } $("pvPlay").textContent = "▶"; }
+  function seekFrame(frame) { const fr = segFrames(pv.rows[pv.cur]); let best = 0; fr.forEach((f, k) => { if (Math.abs(f - frame) < Math.abs(fr[best] - frame)) best = k; }); pv.f = best; showPv(); }
+  function stopPv() { if (pv && pv.timer) { clearInterval(pv.timer); pv.timer = null; } $("pvPlay").innerHTML = '<span class="mi">play_arrow</span>'; }
   $("pvSlider").oninput = () => { stopPv(); pv.f = Number($("pvSlider").value); showPv(); };
   $("pvPlay").onclick = () => {
     if (pv.timer) { stopPv(); return; }
-    $("pvPlay").textContent = "❚❚";
-    pv.timer = setInterval(() => { const n = segFrames(pv.m.segments[pv.cur]).length; pv.f = pv.f + 1 >= n ? 0 : pv.f + 1; showPv(); }, 500);
+    $("pvPlay").innerHTML = '<span class="mi">pause</span>';
+    pv.timer = setInterval(() => { const n = segFrames(pv.rows[pv.cur]).length; pv.f = pv.f + 1 >= n ? 0 : pv.f + 1; showPv(); }, 500);
   };
   function setPvTab(v) { document.querySelectorAll("#pvTabs button").forEach((b) => b.classList.toggle("on", b.dataset.pv === v)); $("pvFrames").hidden = v !== "frames"; $("pvSeeds").hidden = v !== "seeds"; if (v !== "frames") stopPv(); }
   $("pvTabs").onclick = (ev) => { const b = ev.target.closest("[data-pv]"); if (b) setPvTab(b.dataset.pv); };
   $("pvItem").onchange = renderGallery; $("pvAutoOnly").onchange = renderGallery;
   function renderGallery() {
-    const s = pv.m.segments[pv.cur], G = $("pvGallery"); G.innerHTML = "";
+    const r = pv.rows[pv.cur], G = $("pvGallery"); G.innerHTML = "";
+    if (!r) return;
+    if (!r.indices.length) { G.appendChild(el("div", "empty", "這一輪還沒有框選。點左邊紅色的步驟，或上方「到標記頁補框」。")); $("pvDel").textContent = ""; return; }
     const f = $("pvItem").value, autoOnly = $("pvAutoOnly").checked;
     const byName = {};
-    for (const ix of s.indices) { const sd = pv.seeds[ix]; if ((f === "全部" || sd.name === f) && (!autoOnly || sd.auto)) (byName[sd.name] = byName[sd.name] || []).push(ix); }
+    for (const ix of r.indices) { const sd = pv.seeds[ix]; if (sd && (f === "全部" || sd.name === f) && (!autoOnly || sd.auto)) (byName[sd.name] = byName[sd.name] || []).push(ix); }
     for (const [name, list] of Object.entries(byName)) {
       list.sort((a, b) => pv.seeds[a].frame - pv.seeds[b].frame);
       const man = list.filter((ix) => !pv.seeds[ix].auto).length;
@@ -674,24 +822,24 @@
       }
       G.appendChild(grid);
     }
-    const g = s.indices.filter((ix) => pv.gone.has(ix)).length;
-    $("pvDel").textContent = g ? `這一段待刪 ${g} 格` : "";
+    const g = r.indices.filter((ix) => pv.gone.has(ix)).length;
+    $("pvDel").textContent = g ? `這一輪待刪 ${g} 格` : "";
   }
-  $("pvCancel").onclick = () => { stopPv(); $("pvDlg").hidden = true; render(); };
+  $("pvCancel").onclick = () => { stopPv(); if (anPoll) { clearTimeout(anPoll); anPoll = null; } $("pvDlg").hidden = true; render(); };
   $("pvOk").onclick = async () => {
-    stopPv();
+    stopPv(); if (anPoll) { clearTimeout(anPoll); anPoll = null; }
     if (pv.gone.size) {
       const r = await api("/api/seeds", { project: pv.m.project, action: "remove_indices", indices: [...pv.gone] });
       if (!r.ok) { M.toast(r.error, true); return; }
       M.toast(`已刪除 ${pv.gone.size} 格錯框`);
-      const d = await api("/api/material?projects=" + enc(pv.m.project));
-      const fresh = (d.materials || [])[0];
-      if (fresh) {
-        const old = pv.m;
-        for (const s of old.segments) delete picked[segKey(old.project, s)];
-        Object.assign(old, fresh);
-        for (const s of old.segments) picked[segKey(old.project, s)] = true;
-      }
+    }
+    const d = await api("/api/material?projects=" + enc(pv.m.project));       // 框選可能在標記頁補過：重新抓
+    const fresh = (d.materials || [])[0];
+    if (fresh) {
+      const old = pv.m, was = new Set(old.segments.filter((s) => picked[segKey(old.project, s)]).map((s) => s.start));
+      for (const s of old.segments) delete picked[segKey(old.project, s)];
+      Object.assign(old, fresh);
+      for (const s of old.segments) if (pv.gone.size || was.has(s.start) || !was.size) picked[segKey(old.project, s)] = true;
     }
     $("pvDlg").hidden = true; render();
   };

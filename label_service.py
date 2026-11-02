@@ -252,6 +252,69 @@ class TrainJob:
             self._proc = None
 
 
+class AnalysisJob:
+    """背景跑離線步驟分析（step_analysis.analyze），一次一個；結果存在專案的 items/analysis.json。"""
+
+    def __init__(self):
+        self._lock = threading.Lock(); self._thread = None; self._stop = threading.Event()
+        self.project_name = None; self.done_n = 0; self.total_n = 0; self.error = None; self.finished = False; self.started_at = 0.0
+        self.queue: list[str] = []
+
+    @property
+    def running(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def state(self) -> dict:
+        with self._lock:
+            return {"running": self.running, "project": self.project_name, "done": self.done_n, "total": self.total_n, "error": self.error,
+                    "finished": self.finished, "queue": list(self.queue),
+                    "elapsed": round(time.perf_counter() - self.started_at) if self.started_at and self.running else None}
+
+    def start(self, project_name: str) -> dict:
+        """正在跑別的專案就排隊；同一個專案重複按不會重複排。"""
+        load_project(project_name)
+        with self._lock:
+            if self.running:
+                if project_name != self.project_name and project_name not in self.queue:
+                    self.queue.append(project_name)
+                return {"queued": project_name != self.project_name}
+        self._begin(project_name)
+        return {"queued": False}
+
+    def _begin(self, project_name: str) -> None:
+        with self._lock:
+            self.project_name = project_name; self.done_n = self.total_n = 0; self.error = None; self.finished = False
+            self.started_at = time.perf_counter()
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, args=(project_name,), daemon=True); self._thread.start()
+
+    def cancel(self) -> None:
+        with self._lock:
+            self.queue = []
+        self._stop.set()
+
+    def _run(self, project_name: str) -> None:
+        import step_analysis
+        try:
+            p = load_project(project_name)
+            step_analysis.analyze(p, HAND_MODEL, YOLO_WEIGHTS, progress=self._progress, should_stop=self._stop.is_set)
+            with self._lock:
+                self.finished = True
+        except Exception as e:
+            with self._lock:
+                self.error = str(e) if isinstance(e, (ValueError, RuntimeError)) else f"{type(e).__name__}: {e}"
+        nxt = None
+        with self._lock:
+            if self.queue and not self._stop.is_set():
+                nxt = self.queue.pop(0)
+        if nxt:
+            threading.Thread(target=self._begin, args=(nxt,), daemon=True).start()
+
+    def _progress(self, a: int, b: int) -> None:
+        with self._lock:
+            self.done_n, self.total_n = a, b
+
+
 class RecordJob:
     """新增專案時錄示範影片：開相機、建專案（用相機的解析度／fps）、寫 demo.avi、給預覽 JPEG。"""
 
@@ -352,7 +415,7 @@ class LabelService:
         from collections import OrderedDict
         self._jpegs: OrderedDict = OrderedDict()
         self._lock = threading.Lock()
-        self.train = TrainJob(); self.record = RecordJob()
+        self.train = TrainJob(); self.record = RecordJob(); self.analysis = AnalysisJob()
 
     def _detector(self, project) -> items.ItemDetector:
         mp = items.model_path(project)
