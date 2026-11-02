@@ -53,6 +53,7 @@
         <div class="menuwrap">
           <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden>
+            <button id="mAdopt">參照現有包裝方式（帶入步驟與模型）</button>
             <button id="mCopy">複製到其他型體（可多筆）</button>
             <button id="mAddStep">新增步驟</button>
             <button id="mSave">儲存步驟清單</button>
@@ -72,6 +73,10 @@
         <div class="left"><div class="gridwrap"><table class="grid" id="mGrid"></table></div></div>
         <div class="right">
           <div class="sub"><h4 id="mTitle">請在左邊選一個包裝方式</h4><span class="meta n" id="mMeta"></span></div>
+          <div class="note warn" id="adoptBar" hidden style="border:1px solid var(--line); border-top:0; border-radius:0; align-items:center">
+            <span id="adoptText" style="flex:1"></span>
+            <button class="btn btn-primary raised" id="btnAdopt" style="height:30px">參照現有包裝方式</button>
+          </div>
           <div class="tabs" role="tablist"><button data-tab="steps" class="on">步驟清單</button><button data-tab="model">辨識模型</button></div>
           <div class="pane" id="tab-steps"><div class="gridwrap"><table class="grid" id="sGrid"></table></div></div>
           <div class="pane" id="tab-model" hidden>
@@ -131,6 +136,31 @@
       <div class="note danger" id="cpErr" hidden></div>
     </div>
     <div class="da"><button class="btn btn-cancel" id="cpCancel">取消</button><button class="btn btn-primary raised" id="cpOk">複製</button></div>
+  </div>
+</div>
+
+<!-- 參照現有包裝方式（openSmall） -->
+<div class="scrim" id="adDlg" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="adTitle">
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="adTitle">參照現有包裝方式</h4></div>
+    <div class="dc">
+      <div class="note info">把另一個包裝方式的步驟清單、偵測設定和辨識模型帶到這個專案。影片和框選不會複製；畫面大小不同時，桌面範圍要自己再框一次。</div>
+      <div class="frow">
+        <div class="fld w320"><label for="adSrc">參照來源</label><select id="adSrc"></select></div>
+      </div>
+      <div class="frow">
+        <label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="adSteps" checked> 帶入步驟清單與偵測設定</label>
+        <label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="adModel" checked> 使用它的辨識模型</label>
+      </div>
+      <div class="frow">
+        <div class="fld w140"><label for="adStyle">這個專案的型體</label><input id="adStyle"></div>
+        <div class="fld w140"><label for="adRegion">地區</label><input id="adRegion" list="regionList"></div>
+        <div class="fld w200"><label for="adStyleName">型體名稱</label><input id="adStyleName"></div>
+        <div class="fld w140"><label for="adCustomer">客戶</label><input id="adCustomer" list="custList"></div>
+      </div>
+      <div class="note danger" id="adErr" hidden></div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="adCancel">取消</button><button class="btn btn-primary raised" id="adOk">參照</button></div>
   </div>
 </div>
 
@@ -353,6 +383,12 @@
     const meta = [["包裝方式", d.name], ["客戶", d.customer || "–"], ["使用中的產線", d.lines.length ? d.lines.join("、") : "無"],
       ["辨識模型", d.model_trained_at ? (d.model_source ? `參考 ${d.model_source}（${d.model_trained_at}）` : `本型體地區（${d.model_trained_at}）`) : "還沒訓練"]];
     for (const [k, v] of meta) $("mMeta").appendChild(el("span", null, k + "：" + v));
+    // 還沒設定型體地區、或還沒有步驟／模型：直接給「參照現有包裝方式」的入口
+    const need = !d.has_packaging || !d.steps || !d.model_trained_at;
+    $("adoptBar").hidden = !need;
+    if (need) $("adoptText").textContent = !d.steps ? "這個專案還沒有步驟。可以參照現有的包裝方式，一次帶入步驟清單、偵測設定和辨識模型。"
+      : !d.model_trained_at ? "這個專案還沒有辨識模型。可以參照現有包裝方式的模型（步驟可選擇要不要一起帶入）。"
+      : "這個專案還沒設定型體地區。按「參照現有包裝方式」或左邊鉛筆圖示設定。";
     renderSteps(); renderModel();
   }
 
@@ -498,11 +534,40 @@
     $("cpDlg").hidden = true; toast("已複製：" + d.made.join("、")); load(d.made[0]);
   };
   $("mCopy").onclick = () => openCopy(null);
+
+  // ---- 參照現有包裝方式（空專案一次帶入步驟、偵測設定、模型；來源不必設過型體地區）
+  function openAdopt() {
+    if (!detail) { toast("請先在左邊選一個專案", true); return; }
+    const s = $("adSrc"); s.innerHTML = "";
+    const cands = methods.filter((m) => m.name !== detail.name && !m.error && m.steps > 0)
+      .sort((a, b) => (b.own_model ? 1 : 0) - (a.own_model ? 1 : 0));
+    for (const m of cands) {
+      const o = el("option", null, (m.has_packaging ? `${m.style}／${m.region}（${m.name}）` : m.name) + `　${m.steps} 步` + (m.model_trained_at ? `、模型 ${m.model_trained_at}` : "、沒有模型"));
+      o.value = m.name; s.appendChild(o);
+    }
+    if (!cands.length) { const o = el("option", null, "（沒有可以參照的包裝方式）"); o.value = ""; s.appendChild(o); }
+    $("adStyle").value = detail.style || ""; $("adRegion").value = detail.region || ""; $("adStyleName").value = detail.style_name || ""; $("adCustomer").value = detail.customer || "";
+    $("adSteps").checked = !detail.steps; $("adModel").checked = !detail.model_trained_at || !!detail.model_source;
+    $("adErr").hidden = true; $("adTitle").textContent = `參照現有包裝方式　→ ${detail.name}`; $("adDlg").hidden = false; s.focus();
+  }
+  $("adCancel").onclick = () => { $("adDlg").hidden = true; };
+  $("adOk").onclick = async () => {
+    const src = $("adSrc").value;
+    if (!src) { $("adErr").textContent = "沒有可以參照的來源"; $("adErr").hidden = false; return; }
+    if (!$("adSteps").checked && !$("adModel").checked) { $("adErr").textContent = "至少要勾一項（步驟或模型）"; $("adErr").hidden = false; return; }
+    const d = await api("/api/method/adopt", { name: detail.name, source: src, copy_steps: $("adSteps").checked, use_model: $("adModel").checked,
+      packaging: { style: $("adStyle").value.trim(), region: $("adRegion").value.trim(), style_name: $("adStyleName").value.trim(), customer: $("adCustomer").value.trim() } });
+    if (!d.ok) { $("adErr").textContent = d.error; $("adErr").hidden = false; return; }
+    $("adDlg").hidden = true;
+    toast("已參照「" + src + "」" + (d.warnings && d.warnings.length ? "。注意：" + d.warnings.join("；") : ""), !!(d.warnings && d.warnings.length));
+    load(detail.name);
+  };
+  $("mAdopt").onclick = openAdopt; $("btnAdopt").onclick = openAdopt;
   $("mTrain").onclick = () => { if (window.openTrain) window.openTrain(detail); else location.href = $("mLabel").href; };
 
   $("btnSearch").onclick = () => renderMethods();
   $("qKey").onkeydown = (ev) => { if (ev.key === "Enter") renderMethods(); };
-  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") ["pkDlg", "cpDlg", "leave"].forEach((id) => { $(id).hidden = true; }); });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") ["pkDlg", "cpDlg", "adDlg", "leave"].forEach((id) => { $(id).hidden = true; }); });
   window.addEventListener("beforeunload", (ev) => { if (dirty) { ev.preventDefault(); ev.returnValue = ""; } });
   window.sopgMethods = { get detail() { return detail; }, get methods() { return methods; }, reload: () => load(sel), toast };
   const q = new URLSearchParams(location.search);  // select() 會改網址，先記下來
@@ -510,6 +575,7 @@
     if (q.get("tab") === "model") setTab("model");
     if (q.get("dlg") === "pk") openPk(methods.find((m) => m.name === sel), false);
     if (q.get("dlg") === "copy") openCopy(null);
+    if (q.get("dlg") === "adopt") openAdopt();
     if (q.get("train") === "1" && window.openTrain) { await window.openTrain(detail); if (q.get("preview") && window.openTrainPreview) { await window.openTrainPreview(detail.name, Number(q.get("preview"))); if (q.get("pvtab") === "seeds") document.querySelector('#pvTabs [data-pv="seeds"]').click(); } }
   });
 })();

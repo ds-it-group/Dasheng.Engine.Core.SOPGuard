@@ -234,6 +234,84 @@ def copy_method(source: str, targets: list[dict]) -> list[str]:
     return made
 
 
+ADOPT_KEYS = ("steps", "cycle_end", "cycle_timeout_sec", "cycle_min_sec", "state_anchor", "state_rel", "state_every_n_frames",
+              "anchors", "zones", "work_area", "detect_every_n_frames", "skip_alert_sec", "cycle_arm_clear_sec")
+
+
+def adopt_method(target: str, source: str, packaging: dict, copy_steps: bool = True, use_model: bool = True) -> dict:
+    """把已經存在的專案（例如剛建的空專案）參照另一個包裝方式：一次設好型體地區、複製步驟清單與偵測設定、用來源的辨識模型。
+    來源不必設過型體地區（舊專案也可以）。不複製影片與框選；桌面範圍只有畫面大小一樣才複製。回傳 {method, warnings}。"""
+    from project_store import packaging_to_dict, project_from_dict
+    if target == source:
+        raise ValueError("不能參照自己")
+    tgt = load_project(target); src = load_project(source)
+    warnings: list[str] = []
+    with open(os.path.join(tgt.dir_path, "config.json"), "r", encoding="utf-8-sig") as f:
+        tcfg = json.load(f)
+    with open(os.path.join(src.dir_path, "config.json"), "r", encoding="utf-8-sig") as f:
+        scfg = json.load(f)
+    same_res = list(tgt.resolution) == list(src.resolution)
+    if copy_steps:
+        if not src.steps:
+            raise ValueError(f"「{source}」還沒有步驟可以複製")
+        for k in ADOPT_KEYS:
+            if k in scfg:
+                tcfg[k] = scfg[k]
+        if same_res and scfg.get("state_fixed"):
+            tcfg["state_fixed"] = scfg["state_fixed"]
+        elif scfg.get("state_fixed"):
+            tcfg["state_fixed"] = None
+            warnings.append(f"畫面大小不同（這支 {tgt.resolution[0]}×{tgt.resolution[1]}、來源 {src.resolution[0]}×{src.resolution[1]}），"
+                            "桌面範圍沒有複製，請到「標記物品」框一次桌面範圍")
+            if not tcfg.get("state_anchor"):
+                kept = [s for s in tcfg.get("steps", []) if s.get("type") not in ("item", "box_state")]
+                if len(kept) != len(tcfg.get("steps", [])):
+                    for i, s in enumerate(kept):
+                        s["step_index"] = i
+                    tcfg["steps"] = kept
+                    warnings.append("物品步驟要有桌面範圍才能用，先拿掉了；框好桌面範圍後再參照一次就會帶回來")
+        # 框選設定（物品名單、盒子的樣子、桌面範圍、手部步驟）跟著過來；框選本身不帶（那是別支影片的格）
+        sd_src = items.ItemSeeds(src.dir_path); sd = items.ItemSeeds(tgt.dir_path)
+        sd.order = list(dict.fromkeys(list(sd.order) + list(sd_src.order)))
+        sd.box_labels = list(dict.fromkeys(list(sd.box_labels) + list(sd_src.box_labels)))
+        if same_res and sd_src.region and not sd.region:
+            sd.region = list(sd_src.region)
+        have = {h["name"] for h in sd.hand_steps}
+        sd.hand_steps = list(sd.hand_steps) + [h for h in sd_src.hand_steps if h["name"] not in have]
+        sd.save()
+    model_src = None
+    if use_model:
+        if os.path.isfile(items.own_model_path(src)):
+            model_src = source
+        elif src.packaging is not None and src.packaging.model_source:
+            model_src = src.packaging.model_source
+        else:
+            warnings.append(f"「{source}」還沒有訓練好的模型，這個專案暫時沒有模型可用")
+    cur = tgt.packaging
+    merged = {"style": packaging.get("style", cur.style if cur else ""), "region": packaging.get("region", cur.region if cur else ""),
+              "style_name": packaging.get("style_name", cur.style_name if cur else ""),
+              "customer": packaging.get("customer") or (cur.customer if cur else "") or (src.packaging.customer if src.packaging else ""),
+              "model_source": model_src if use_model else (cur.model_source if cur else None), "enabled": True,
+              "colors": [c.__dict__ for c in cur.colors] if cur else []}
+    try:
+        pk = parse_packaging(merged, tgt.project_name)
+    except ProjectConfigError as e:
+        raise ValueError(str(e))
+    other = find_method(pk.style, pk.region, exclude=tgt.project_name)
+    if other:
+        raise ValueError(f"型體 {pk.style}／{pk.region} 已經有包裝方式了（{other}）")
+    tcfg["packaging"] = packaging_to_dict(pk)
+    try:
+        project_from_dict(tcfg, tgt.dir_path)                    # 先驗證，失敗就不寫
+    except ProjectConfigError as e:
+        raise ValueError(f"參照後的設定不合法：{e}")
+    tmp = os.path.join(tgt.dir_path, "config.json.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(tcfg, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, os.path.join(tgt.dir_path, "config.json"))
+    return {"method": method_row(load_project(target)), "warnings": warnings}
+
+
 def method_detail(project_name: str, lines_by_project: dict | None = None) -> dict:
     p = load_project(project_name)
     row = method_row(p, lines_by_project)

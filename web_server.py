@@ -289,6 +289,9 @@ class Handler(BaseHTTPRequestHandler):
             return {"method": pkg.update_steps(name, body.get("steps") or [])}
         if path == "/api/method/color":
             return {"method": pkg.set_color(name, str(body.get("color", "")), str(body.get("status", "")), str(body.get("note", "")))}
+        if path == "/api/method/adopt":
+            return pkg.adopt_method(name, str(body.get("source", "")), body.get("packaging") or {},
+                                    copy_steps=bool(body.get("copy_steps", True)), use_model=bool(body.get("use_model", True)))
         if path == "/api/method/copy":
             return {"made": pkg.copy_method(name, body.get("targets") or [])}
         raise ValueError("沒有這個動作")

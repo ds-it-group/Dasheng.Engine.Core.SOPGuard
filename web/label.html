@@ -148,6 +148,7 @@
                 <button class="btn btn-cancel" id="btnRetrack" title="用顏色與位置檢查，把全部手框重新往前後追一次">全部重新追蹤</button>
               </div>
               <div class="row" id="predRow" hidden></div>
+              <div class="note warn" id="noModelNote" hidden>這個專案還沒有辨識模型，不能預框。可以先到包裝方式設定<a id="lnkAdopt" href="/methods">參照現有包裝方式</a>，用它的步驟和模型來預框，就不用每樣東西從頭框。</div>
               <div class="row">
                 <span>加入後自動往前後追</span><input type="number" id="trackSec" value="2" min="0" max="5" step="0.5" style="width:60px" aria-label="追蹤秒數"><span>秒（0＝不追）</span>
                 <button class="btn btn-cancel" id="btnDropAuto" hidden>刪除這次的自動框</button>
@@ -480,6 +481,8 @@
     $("btnClosed").hidden = !!(sd && sd.region);
     $("chkFixed").checked = !!(sd && sd.region); $("btnRegion").hidden = !$("chkFixed").checked; $("handRow").hidden = !$("chkFixed").checked;
     $("btnPredict").disabled = !hasModel;
+    $("noModelNote").hidden = !(hasVideo && !hasModel);
+    $("lnkAdopt").href = proj ? "/methods?project=" + enc(proj) + "&dlg=adopt" : "/methods";
     const titles = ["第 1 步／3　標記：每一輪按一次「空盒」、每樣物品框一次", "第 2 步／3　訓練：一顆按鈕，等它跑完", "第 3 步／3　完成：產生步驟，到監控試"];
     const hints = ["每一輪做兩件事：\n(1) 拉到盒子放好、還沒放東西的那一格 → 按「這一格是空盒」。\n(2) 拉到東西放好的那一格 → 在畫面上拖拉框住它 → 輸入名稱 → 按「加入框選的物品」，每樣東西各一次。已經有模型的話，按「模型預框這一格」讓它先框，你只要採納或微調。\n流程最後會蓋上蓋子的話，拉到蓋好的那一格按「這一格是蓋著的盒子」（2～3 格）。\n東西不是放進盒子裡（例如先檢查鞋子、再把鞋放在盒子上）就勾「看整張桌面」，框一次桌面範圍；做完沒痕跡的動作用「手停在物件上」。\n鍵盤 ← → 可逐格，Shift+← → 一次 30 格。全部輪次做完再按「下一步」。",
       "按「開始訓練」會自動接著做：整支影片找盒子和手（第一次約影片長度的 1～2 倍時間）→ 把框選延伸成訓練資料 → 在伺服器訓練小模型。\n訓練時伺服器會很忙，不要同時監控；看到「訓練完成」再按「下一步」。",
