@@ -16,6 +16,25 @@ from project_store import (COLOR_STATUSES, ColorCheck, ProjectConfigError, Step,
                            projects_dir, save_project, validate_project_name)
 
 NEW_COLOR = "__new"         # 換線時選「新配色（模型沒看過）」
+STYLE_RULE_TEXT = "型體要照規定：6 碼數字＋空一格＋2 碼數字，例如 310222 01"
+
+
+def normalize_style(s: str) -> str:
+    """型體代碼照公司規定「6 碼＋空白＋2 碼」（例 310222 01）。31022201、310222-01、310222_01、多個空白都整理成標準寫法；
+    其他格式丟 ValueError。"""
+    import re
+    raw = (s or "").strip()
+    m = re.fullmatch(r"(\d{6})[\s\-_]*(\d{2})", raw)
+    if not m:
+        raise ValueError(f"{STYLE_RULE_TEXT}（你輸入的是「{raw}」）")
+    return f"{m.group(1)} {m.group(2)}"
+
+
+def _checked_style(new: str, current: str | None) -> str:
+    """新填或改過的型體才檢查格式；沒改（舊資料、規定之前建的）照原樣保留。"""
+    if current is not None and (new or "").strip() == current:
+        return current
+    return normalize_style(new)
 
 
 def _try_load(name: str):
@@ -95,6 +114,8 @@ def set_packaging(project_name: str, data: dict) -> dict:
     """新增或修改型體地區（主鍵不可重複）。data 只要給要改的欄位；colors 不在這裡改（用 set_color）。"""
     p = load_project(project_name)
     cur = p.packaging
+    if "style" in data:
+        data = dict(data, style=_checked_style(str(data["style"]), cur.style if cur else None))
     merged = {"style": data.get("style", cur.style if cur else ""), "region": data.get("region", cur.region if cur else ""),
               "style_name": data.get("style_name", cur.style_name if cur else ""), "customer": data.get("customer", cur.customer if cur else ""),
               "model_source": data.get("model_source", cur.model_source if cur else None) or None,
@@ -204,6 +225,7 @@ def copy_method(source: str, targets: list[dict]) -> list[str]:
         style = str(t.get("style", "")).strip(); region = str(t.get("region", "")).strip()
         if not style or not region:
             raise ValueError("每一筆都要有型體和地區")
+        style = normalize_style(style)
         other = find_method(style, region)
         if other:
             raise ValueError(f"型體 {style}／{region} 已經有包裝方式了（{other}）")
@@ -350,6 +372,8 @@ def adopt_method(target: str, source: str, packaging: dict, copy_steps: bool = T
         else:
             warnings.append(f"「{source}」還沒有訓練好的模型，這個專案暫時沒有模型可用")
     cur = tgt.packaging
+    if packaging.get("style"):
+        packaging = dict(packaging, style=_checked_style(str(packaging["style"]), cur.style if cur else None))
     merged = {"style": packaging.get("style", cur.style if cur else ""), "region": packaging.get("region", cur.region if cur else ""),
               "style_name": packaging.get("style_name", cur.style_name if cur else ""),
               "customer": packaging.get("customer") or (cur.customer if cur else "") or (src.packaging.customer if src.packaging else ""),

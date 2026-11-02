@@ -107,7 +107,7 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pkTitle">
     <div class="dt"><span class="mi mark">rate_review</span><h4 id="pkTitle">型體地區</h4></div>
     <div class="dc">
-      <div class="note info">主鍵＝型體（不含配色）＋地區，兩個合起來不能重複。客戶只是顯示用。</div>
+      <div class="note info">主鍵＝型體＋地區，兩個合起來不能重複。型體照規定填「6 碼數字＋空一格＋2 碼數字」，例如 310222 01。客戶只是顯示用。</div>
       <div class="frow">
         <div class="fld w140"><label for="pStyle">型體</label><input id="pStyle"></div>
         <div class="fld w140"><label for="pRegion">地區</label><input id="pRegion" list="regionList"></div>
@@ -520,7 +520,7 @@
     const tb = el("tbody");
     cpRows.forEach((r, i) => {
       const tr = el("tr");
-      for (const k of ["style", "region", "style_name"]) { const td = el("td", "ed"), inp = el("input"); inp.value = r[k]; inp.setAttribute("aria-label", k); if (k === "region") inp.setAttribute("list", "regionList"); inp.oninput = () => { r[k] = inp.value; }; td.appendChild(inp); tr.appendChild(td); }
+      for (const k of ["style", "region", "style_name"]) { const td = el("td", "ed"), inp = el("input"); inp.value = r[k]; inp.setAttribute("aria-label", k); if (k === "region") inp.setAttribute("list", "regionList"); if (k === "style") { EIP.styleFmt(inp); inp.addEventListener("blur", () => { r.style = inp.value; }); } inp.oninput = () => { r[k] = inp.value; }; td.appendChild(inp); tr.appendChild(td); }
       const op = el("td", "pinR c"), b = EIP.iconBtn("delete", "c-del", "移除這一筆", () => { cpRows.splice(i, 1); renderCp(); }); b.disabled = cpRows.length === 1;
       op.appendChild(b); tr.appendChild(op); tb.appendChild(tr);
     });
@@ -570,6 +570,7 @@
   $("qKey").onkeydown = (ev) => { if (ev.key === "Enter") renderMethods(); };
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") ["pkDlg", "cpDlg", "adDlg", "leave"].forEach((id) => { $(id).hidden = true; }); });
   window.addEventListener("beforeunload", (ev) => { if (dirty) { ev.preventDefault(); ev.returnValue = ""; } });
+  EIP.styleFmt($("pStyle")); EIP.styleFmt($("adStyle"));
   window.sopgMethods = { get detail() { return detail; }, get methods() { return methods; }, reload: () => load(sel), toast };
   const q = new URLSearchParams(location.search);  // select() 會改網址，先記下來
   load().then(async () => {                      // ?train=1 直接開訓練燈箱；&preview=段號 再開那一段的預覽

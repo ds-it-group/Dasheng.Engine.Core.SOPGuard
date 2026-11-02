@@ -90,10 +90,10 @@ def test_wizard_create_route(tmp_path, monkeypatch):
     th = threading.Thread(target=srv.serve_forever, daemon=True); th.start()
     base = f"http://127.0.0.1:{srv.server_address[1]}"
     try:
-        st, d = _post(base + "/api/wizard/create", {"style": "RN-9", "region": "歐洲", "customer": "客戶 A"})
-        assert st == 200 and d["name"] == "RN-9_歐洲"
-        st, d = _post(base + "/api/wizard/create", {"style": "RN-9", "region": "歐洲"}); assert st == 200 and d["resumed"]   # 重新整理再按一次
+        st, d = _post(base + "/api/wizard/create", {"style": "31022209", "region": "歐洲", "customer": "客戶 A"})
+        assert st == 200 and d["name"] == "310222 09_歐洲"
+        st, d = _post(base + "/api/wizard/create", {"style": "31022209", "region": "歐洲"}); assert st == 200 and d["resumed"]   # 重新整理再按一次
         st, d = _post(base + "/api/wizard/create", {"style": "", "region": "歐洲"}); assert st == 400
-        assert json.load(open(pdir / "RN-9_歐洲" / "config.json", encoding="utf-8"))["packaging"]["customer"] == "客戶 A"
+        assert json.load(open(pdir / "310222 09_歐洲" / "config.json", encoding="utf-8"))["packaging"]["customer"] == "客戶 A"
     finally:
         srv.shutdown(); srv.server_close()

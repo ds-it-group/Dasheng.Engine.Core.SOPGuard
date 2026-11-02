@@ -28,6 +28,19 @@
       th.appendChild(h);
     });
   };
+  /* 型體代碼照公司規定「6 碼＋空白＋2 碼」（310222 01）：離開欄位時自動整理（31022201、310222-01 → 310222 01），不合格式就標紅 */
+  EIP.STYLE_HINT = "照規定：6 碼數字＋空一格＋2 碼數字，例如 310222 01";
+  EIP.styleFmt = function (input) {
+    if (!input) return;
+    input.placeholder = input.placeholder || "例如 310222 01"; input.title = EIP.STYLE_HINT;
+    const fix = () => {
+      const v = input.value.trim(); if (!v) { input.style.borderBottomColor = ""; return; }
+      const m = v.match(/^(\d{6})[\s\-_]*(\d{2})$/);
+      if (m) { input.value = m[1] + " " + m[2]; input.style.borderBottomColor = ""; }
+      else input.style.borderBottomColor = "var(--danger)";
+    };
+    input.addEventListener("blur", fix);
+  };
   EIP.compactToggle = function (btn) {
     try { if (localStorage.getItem("sopg-compact") === "1") document.body.classList.add("compact"); } catch (e) {}
     if (btn) btn.onclick = () => { document.body.classList.toggle("compact"); try { localStorage.setItem("sopg-compact", document.body.classList.contains("compact") ? "1" : "0"); } catch (e) {} };

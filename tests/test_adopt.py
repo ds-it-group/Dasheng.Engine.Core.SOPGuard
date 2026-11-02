@@ -34,10 +34,10 @@ def test_adopt_into_empty_project_from_legacy_source(base):
         json.dump({"order": ["藍盒", "貼紙"], "refs": [3], "closed": [], "seeds": [{"name": "藍盒", "frame": 3, "rect": [1, 1, 9, 9]}],
                    "region": [0, 0, 400, 240], "box_labels": ["藍盒"], "hand_steps": [{"name": "檢查", "prompt": "shoe", "dwell": 0.7}]}, f, ensure_ascii=False)
     _empty(base, "123456")
-    r = pkg.adopt_method("123456", "legacy", {"style": "RN-1", "region": "歐洲"})
+    r = pkg.adopt_method("123456", "legacy", {"style": "31022201", "region": "歐洲"})
     p = project_store.load_project("123456")
     assert [s.step_name for s in p.steps] == ["藍盒", "貼紙"] and p.state_fixed == [0, 0, 400, 240]
-    assert p.packaging.style == "RN-1" and p.packaging.model_source == "legacy" and r["warnings"] == []
+    assert p.packaging.style == "310222 01" and p.packaging.model_source == "legacy" and r["warnings"] == []
     assert ir.model_path(p).endswith(os.path.join("legacy", "items", "model", "best.pt")) and r["method"]["model_trained_at"]
     sd = ir.ItemSeeds(p.dir_path)
     assert sd.order == ["藍盒", "貼紙"] and sd.box_labels == ["藍盒"] and sd.region == [0, 0, 400, 240] and sd.seeds == [] and sd.refs == []
@@ -45,19 +45,19 @@ def test_adopt_into_empty_project_from_legacy_source(base):
 
 
 def test_adopt_checks_and_resolution_mismatch(base):
-    _proj(base, "src", {"style": "A", "region": "歐洲"}, model=True)
+    _proj(base, "src", {"style": "310222 01", "region": "歐洲"}, model=True)
     _empty(base, "big", res=(800, 600))
     with pytest.raises(ValueError, match="已經有包裝方式"):
-        pkg.adopt_method("big", "src", {"style": "A", "region": "歐洲"})
+        pkg.adopt_method("big", "src", {"style": "310222 01", "region": "歐洲"})
     with pytest.raises(ValueError, match="自己"):
-        pkg.adopt_method("src", "src", {"style": "B", "region": "x"})
+        pkg.adopt_method("src", "src", {"style": "310222 02", "region": "x"})
     with pytest.raises(ValueError, match="型體"):
         pkg.adopt_method("big", "src", {"style": "", "region": "歐洲"})
-    r = pkg.adopt_method("big", "src", {"style": "B", "region": "歐洲"})
+    r = pkg.adopt_method("big", "src", {"style": "310222 02", "region": "歐洲"})
     p = project_store.load_project("big")
     assert p.state_fixed is None and p.steps == [] and len(r["warnings"]) == 2       # 畫面大小不同：桌面範圍與物品步驟都先不帶
     assert p.packaging.model_source == "src"
     # 只用模型、不帶步驟
     _empty(base, "m_only")
-    pkg.adopt_method("m_only", "src", {"style": "C", "region": "歐洲"}, copy_steps=False)
+    pkg.adopt_method("m_only", "src", {"style": "310222 03", "region": "歐洲"}, copy_steps=False)
     assert project_store.load_project("m_only").steps == [] and project_store.load_project("m_only").packaging.model_source == "src"

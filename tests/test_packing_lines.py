@@ -81,15 +81,15 @@ def test_unique_key_model_source_and_colors(base):
 
 
 def test_copy_and_update_steps(base):
-    _proj(base, "a", {"style": "RN-2601", "region": "歐洲", "customer": "客戶 A"}, model=True)
-    made = pkg.copy_method("a", [{"style": "RN-2602", "region": "歐洲", "style_name": "慢跑鞋 2602"}, {"style": "RN-2603", "region": "歐洲"}])
-    assert made == ["RN-2602_歐洲", "RN-2603_歐洲"]
-    c = project_store.load_project("RN-2602_歐洲")
+    _proj(base, "a", {"style": "310222 01", "region": "歐洲", "customer": "客戶 A"}, model=True)
+    made = pkg.copy_method("a", [{"style": "310222-02", "region": "歐洲", "style_name": "慢跑鞋 2602"}, {"style": "310222 03", "region": "歐洲"}])
+    assert made == ["310222 02_歐洲", "310222 03_歐洲"]
+    c = project_store.load_project("310222 02_歐洲")
     assert c.packaging.model_source == "a" and c.packaging.customer == "客戶 A" and [s.step_name for s in c.steps] == ["藍盒", "貼紙"]
     with pytest.raises(ValueError, match="已經有包裝方式"):
-        pkg.copy_method("a", [{"style": "RN-2602", "region": "歐洲"}])
+        pkg.copy_method("a", [{"style": "310222-02", "region": "歐洲"}])
     # 從「參考別人」的專案再複製：沿用同一個模型來源
-    assert project_store.load_project(pkg.copy_method("RN-2602_歐洲", [{"style": "RN-2604", "region": "歐洲"}])[0]).packaging.model_source == "a"
+    assert project_store.load_project(pkg.copy_method("310222 02_歐洲", [{"style": "31022204", "region": "歐洲"}])[0]).packaging.model_source == "a"
     row = pkg.update_steps("a", [{"index": 1, "name": "盒端貼紙", "label": "貼紙", "dwell": 0.3, "required": True},
                                  {"name": "鞋子放上", "label": "鞋子", "dwell": 0.5, "required": False}])
     p = project_store.load_project("a")
@@ -99,7 +99,7 @@ def test_copy_and_update_steps(base):
     with pytest.raises(ValueError, match="重複"):
         pkg.update_steps("a", [{"name": "x", "label": "貼紙", "dwell": 0.5}, {"name": "x", "label": "鞋子", "dwell": 0.5}])
     rows = pkg.list_methods({"a": ["包裝 1 線"]})
-    assert rows[0]["style"] == "RN-2601" and rows[0]["lines"] == ["包裝 1 線"]
+    assert rows[0]["style"] == "310222 01" and rows[0]["lines"] == ["包裝 1 線"]
 
 
 def test_lines_save_switch_mask_and_log(base, tmp_path):
@@ -131,3 +131,21 @@ def test_lines_save_switch_mask_and_log(base, tmp_path):
     line_store.delete_line(l2.id)
     assert [x.name for x in line_store.load_lines()] == ["包裝 1 線"]
     assert line_store.lines_by_project() == {"a": ["包裝 1 線"]}
+
+
+
+def test_normalize_style_follows_company_rule():
+    assert pkg.normalize_style("310222 01") == "310222 01"
+    assert pkg.normalize_style(" 31022201 ") == "310222 01"
+    assert pkg.normalize_style("310222-01") == "310222 01"
+    for bad in ["RN-2601", "31022", "3102220", "310222 1", "", "310222 012"]:
+        with pytest.raises(ValueError, match="6 碼"):
+            pkg.normalize_style(bad)
+
+
+def test_legacy_style_kept_until_changed(base):
+    _proj(base, "old", {"style": "123456", "region": "美國"})
+    pkg.set_packaging("old", {"style": "123456", "region": "日本"})           # 型體沒動：舊代碼照留
+    assert project_store.load_project("old").packaging.style == "123456"
+    with pytest.raises(ValueError, match="310222 01"):
+        pkg.set_packaging("old", {"style": "12345", "region": "日本"})

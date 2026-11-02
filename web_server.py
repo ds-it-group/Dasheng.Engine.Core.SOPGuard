@@ -319,6 +319,7 @@ class Handler(BaseHTTPRequestHandler):
         style = str(body.get("style", "")).strip(); region = str(body.get("region", "")).strip()
         if not style or not region:
             raise ValueError("型體和地區都要填")
+        style = pkg.normalize_style(style)
         other = pkg.find_method(style, region)
         name = pkg.wizard_name(style, region)
         if other and other != name:

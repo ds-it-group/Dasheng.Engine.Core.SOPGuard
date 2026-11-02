@@ -75,9 +75,9 @@
         <div class="card" id="s1">
           <div class="ttl"><span class="mi mark">rate_review</span><h4>1. 基本資料</h4><span class="sum" id="s1Sum"></span></div>
           <div class="body">
-            <p class="lead">型體（不含配色）＋地區是這個包裝方式的身分，不能跟現有的重複。專案名稱會自動用「型體_地區」。</p>
+            <p class="lead">型體照規定填「6 碼數字＋空一格＋2 碼數字」（例如 310222 01），型體＋地區是這個包裝方式的身分，不能跟現有的重複。專案名稱會自動用「型體_地區」。</p>
             <div class="frow" style="display:flex; gap:20px; flex-wrap:wrap">
-              <div class="fld w140"><label for="fStyle">型體 *</label><input id="fStyle" placeholder="例如 RN-2603"></div>
+              <div class="fld w140"><label for="fStyle">型體 *</label><input id="fStyle" placeholder="例如 310222 01"></div>
               <div class="fld w140"><label for="fRegion">地區 *</label><input id="fRegion" list="regionList" placeholder="例如 歐洲"></div>
               <div class="fld w200"><label for="fStyleName">型體名稱</label><input id="fStyleName"></div>
               <div class="fld w140"><label for="fCustomer">客戶</label><input id="fCustomer" list="custList"></div>
@@ -181,6 +181,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   EIP.compactToggle($("btnCompact"));
+  EIP.styleFmt($("fStyle"));
   const enc = encodeURIComponent;
   let name = new URLSearchParams(location.search).get("project") || "", st = null, srcSel = "", poll = null, recPoll = null;
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
