@@ -234,6 +234,68 @@ def copy_method(source: str, targets: list[dict]) -> list[str]:
     return made
 
 
+def wizard_name(style: str, region: str) -> str:
+    """精靈建專案時的資料夾名稱＝型體_地區（不合法的字元換成 -）。"""
+    raw = f"{style.strip()}_{region.strip()}"
+    return "".join("-" if c in '\\/:*?"<>|' else c for c in raw).strip(" .")
+
+
+def suggest_sources(target: str, limit: int = 8) -> list[dict]:
+    """「參照」候選：有步驟、有模型的包裝方式，依相似度排序——同客戶、型體代碼開頭相同的長度、同地區、有自己的模型、畫面大小一樣。"""
+    tgt = load_project(target); pk = tgt.packaging
+    out = []
+    for n in list_projects():
+        if n == target:
+            continue
+        p = _try_load(n)
+        if p is None or not p.steps:
+            continue
+        row = method_row(p)
+        if not row["model_trained_at"]:
+            continue
+        score = 0.0; why = []
+        if pk and p.packaging:
+            if pk.customer and pk.customer == p.packaging.customer:
+                score += 3; why.append("同客戶")
+            common = len(os.path.commonprefix([pk.style.upper(), p.packaging.style.upper()]))
+            if common >= 2:
+                score += min(common, 6) * 0.5; why.append(f"型體代碼前 {common} 碼相同")
+            if pk.region == p.packaging.region:
+                score += 1; why.append("同地區")
+        if row["own_model"]:
+            score += 1; why.append("有自己訓練的模型")
+        if list(p.resolution) == list(tgt.resolution):
+            score += 1; why.append("畫面大小一樣（桌面範圍可以直接用）")
+        verified = [c.name for c in p.packaging.colors if c.status == "verified"] if p.packaging else []
+        out.append({**row, "score": round(score, 1), "why": why, "verified_colors": verified,
+                    "step_names": [s.step_name for s in p.steps]})
+    out.sort(key=lambda r: (-r["score"], r["name"]))
+    return out[:limit]
+
+
+def wizard_state(name: str) -> dict:
+    """精靈要從哪一步繼續：1 基本資料／影片、2 參照、3 自動標記、4 確認。"""
+    import step_analysis
+    p = load_project(name)
+    seeds = items.ItemSeeds(p.dir_path)
+    an = step_analysis.load(p)
+    has_video = os.path.isfile(p.video_path)
+    row = method_row(p)
+    if p.packaging is None or not has_video:
+        step = 1
+    elif not p.steps or not row["model_trained_at"]:
+        step = 2
+    elif an is None or an.get("stale") or not seeds.seeds:
+        step = 3
+    else:
+        step = 4
+    rounds = (an or {}).get("rounds", [])
+    return {"name": name, "step": step, "method": row, "has_video": has_video, "resolution": list(p.resolution),
+            "boxes": len(seeds.seeds), "model_boxes": sum(1 for s in seeds.seeds if s.by_model), "refs": len(seeds.refs),
+            "analysis": None if an is None else {"stale": an.get("stale"), "analyzed_at": an.get("analyzed_at"), "rounds": rounds, "fps": an.get("fps"),
+                                                  "steps": an.get("steps", [])}}
+
+
 ADOPT_KEYS = ("steps", "cycle_end", "cycle_timeout_sec", "cycle_min_sec", "state_anchor", "state_rel", "state_every_n_frames",
               "anchors", "zones", "work_area", "detect_every_n_frames", "skip_alert_sec", "cycle_arm_clear_sec")
 

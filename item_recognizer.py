@@ -64,6 +64,7 @@ class Seed:
     rect: list[int]             # 畫面座標 [x, y, w, h]
     auto: bool = False          # True＝框選後自動往前後追出來的框（使用者看得到、可以刪），訓練時直接當標籤、不再延伸
     group: int = 0              # 同一次框選（手框的那一個＋它追出來的）共用一個編號；刪手框的那一個會連自動的一起刪
+    by_model: bool = False      # True＝「自動標記」用模型框的（不是人框的），預覽時標成「模型框」，要人看過
 
 
 class ItemSeeds:
@@ -92,7 +93,8 @@ class ItemSeeds:
             self.order = [s for s in d.get("order", []) if isinstance(s, str)]
             self.refs = sorted({int(x) for x in d.get("refs", [])})
             self.closed = sorted({int(x) for x in d.get("closed", [])})
-            self.seeds = [Seed(str(s["name"]), int(s["frame"]), [int(v) for v in s["rect"]], bool(s.get("auto", False)), int(s.get("group", 0) or 0))
+            self.seeds = [Seed(str(s["name"]), int(s["frame"]), [int(v) for v in s["rect"]], bool(s.get("auto", False)), int(s.get("group", 0) or 0),
+                               bool(s.get("by_model", False)))
                           for s in d.get("seeds", []) if isinstance(s, dict)]
             reg = d.get("region")
             self.region = [int(v) for v in reg] if isinstance(reg, list) and len(reg) == 4 else None
@@ -129,16 +131,17 @@ class ItemSeeds:
         if frame not in self.closed:
             self.closed = sorted(self.closed + [int(frame)]); self.save()
 
-    def add_seed(self, name: str, frame: int, rect: Rect, auto_rects: list | None = None) -> int:
-        """加一個手框的種子；auto_rects＝[(格, rect), ...] 是它往前後自動追出來的框，同一組。回傳組號。"""
+    def add_seed(self, name: str, frame: int, rect: Rect, auto_rects: list | None = None, by_model: bool = False, save: bool = True) -> int:
+        """加一個手框的種子；auto_rects＝[(格, rect), ...] 是它往前後自動追出來的框，同一組。by_model＝模型框的。回傳組號。"""
         name = name.strip()
         if name not in self.order:
             self.order.append(name)
         g = max([s.group for s in self.seeds] + [0]) + 1
-        self.seeds.append(Seed(name, int(frame), [int(v) for v in rect], False, g))
+        self.seeds.append(Seed(name, int(frame), [int(v) for v in rect], False, g, by_model))
         for f, r in auto_rects or []:
-            self.seeds.append(Seed(name, int(f), [int(v) for v in r], True, g))
-        self.save()
+            self.seeds.append(Seed(name, int(f), [int(v) for v in r], True, g, by_model))
+        if save:
+            self.save()
         return g
 
     def remove_seed(self, index: int) -> None:

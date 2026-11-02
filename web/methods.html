@@ -35,6 +35,7 @@
       <div class="grp">現場</div>
       <a href="/"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
       <div class="grp">設定</div>
+      <a href="/new"><span class="mi ico">add_circle_outline</span><span class="txt">新增包裝方式</span></a>
       <a href="/lines"><span class="mi ico">view_week</span><span class="txt">產線設定</span></a>
       <a href="/methods" class="on"><span class="mi ico">inventory</span><span class="txt">包裝方式設定</span></a>
       <a href="/label"><span class="mi ico">crop_free</span><span class="txt">標記物品</span></a>
@@ -920,7 +921,7 @@
       for (const ix of list) {
         const sd = pv.seeds[ix], c = el("div", "sd" + (sd.auto ? "" : " man") + (pv.gone.has(ix) ? " gone" : ""));
         const im = el("img"); im.loading = "lazy"; im.src = zoomUrl(sd); im.alt = name; c.appendChild(im);
-        const cap = el("div", "cap"); cap.appendChild(el("span", null, sd.auto ? "自動" : "手框")); cap.appendChild(el("span", null, (sd.frame / pv.m.fps).toFixed(1))); c.appendChild(cap);
+        const cap = el("div", "cap"); cap.appendChild(el("span", null, sd.by_model ? (sd.auto ? "模型追" : "模型框") : sd.auto ? "自動" : "手框")); cap.appendChild(el("span", null, (sd.frame / pv.m.fps).toFixed(1))); c.appendChild(cap);
         const x = el("button", "x"); x.appendChild(EIP.mi(pv.gone.has(ix) ? "undo" : "close")); x.title = pv.gone.has(ix) ? "復原（取消待刪）" : "標成待刪"; x.setAttribute("aria-label", x.title);
         x.onclick = (ev) => { ev.stopPropagation(); if (pv.gone.has(ix)) pv.gone.delete(ix); else pv.gone.add(ix); renderGallery(); renderPvList(); };
         c.appendChild(x);

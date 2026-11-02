@@ -75,7 +75,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):        # 串流每張都印會洗版
         msg = fmt % args
-        if "stream.mjpg" in msg or "/api/state" in msg or "/api/train/state" in msg or "/api/analysis/state" in msg or "/api/record/state" in msg or "/api/frame" in msg:
+        if "stream.mjpg" in msg or "/api/state" in msg or "/api/train/state" in msg or "/api/analysis/state" in msg or "/api/autolabel/state" in msg or "/api/record/state" in msg or "/api/frame" in msg:
             return
         super().log_message(fmt, *args)
 
@@ -143,6 +143,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._file(os.path.join(WEB_DIR, "label.html"), "text/html; charset=utf-8")
             elif path in ("/lines", "/methods"):
                 self._file(os.path.join(WEB_DIR, path.strip("/") + ".html"), "text/html; charset=utf-8")
+            elif path == "/new":
+                self._file(os.path.join(WEB_DIR, "wizard.html"), "text/html; charset=utf-8")
+            elif path == "/api/wizard/state":
+                import packing_methods as pkg
+                self._json(pkg.wizard_state(self._query().get("name", "")))
+            elif path == "/api/wizard/suggest":
+                import packing_methods as pkg
+                self._json({"sources": pkg.suggest_sources(self._query().get("name", ""))})
+            elif self.label is not None and path == "/api/autolabel/state":
+                self._json(self.label.autolabel.state())
             elif path == "/eip.css":
                 self._file(os.path.join(WEB_DIR, "eip.css"), "text/css; charset=utf-8")
             elif path == "/eip.js":
@@ -237,6 +247,12 @@ class Handler(BaseHTTPRequestHandler):
                 import training_material as tm
                 tm.set_video_color(load_project(str(body.get("project", ""))), str(body.get("color", "")))
                 self._json({"ok": True})
+            elif self.label is not None and path == "/api/wizard/create":
+                self._json({"ok": True, **self._wizard_create(body)})
+            elif self.label is not None and path == "/api/autolabel/start":
+                self._json({"ok": True, **self.label.autolabel.start(str(body.get("project", "")))})
+            elif self.label is not None and path == "/api/autolabel/cancel":
+                self.label.autolabel.cancel(); self._json({"ok": True})
             elif self.label is not None and path == "/api/analysis/start":
                 self._json({"ok": True, **self.label.analysis.start(str(body.get("project", "")))})
             elif self.label is not None and path == "/api/analysis/cancel":
@@ -295,6 +311,27 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/method/copy":
             return {"made": pkg.copy_method(name, body.get("targets") or [])}
         raise ValueError("沒有這個動作")
+
+    def _wizard_create(self, body: dict) -> dict:
+        """精靈第 1 步：用「型體_地區」建專案並設好型體地區。同名資料夾已經是同一個型體地區就直接接著用（重新整理不會失敗）。"""
+        import packing_methods as pkg
+        from project_store import projects_dir
+        style = str(body.get("style", "")).strip(); region = str(body.get("region", "")).strip()
+        if not style or not region:
+            raise ValueError("型體和地區都要填")
+        other = pkg.find_method(style, region)
+        name = pkg.wizard_name(style, region)
+        if other and other != name:
+            raise ValueError(f"型體 {style}／{region} 已經有包裝方式了（{other}）；要改它請到「包裝方式設定」")
+        if not os.path.isdir(os.path.join(projects_dir(), name)):
+            self.label.create(name)
+        data = {"style": style, "region": region}
+        for k in ("style_name", "customer"):                      # 沒填就不要蓋掉之前填過的
+            v = str(body.get(k, "") or "").strip()
+            if v:
+                data[k] = v
+        pkg.set_packaging(name, data)
+        return {"name": name, "resumed": bool(other)}
 
     def _import_model(self):
         """匯入 GPU 訓練好的 best.pt（multipart），驗證通過才換上。"""

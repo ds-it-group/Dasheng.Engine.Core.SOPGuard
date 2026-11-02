@@ -392,6 +392,37 @@ class AnalysisJob:
             self.done_n, self.total_n = a, b
 
 
+class AutoLabelJob(AnalysisJob):
+    """背景跑「自動標記」（auto_label.run：需要時先分析步驟，再用模型框好每一輪的每一步）。一次一個。"""
+
+    def state(self) -> dict:
+        d = super().state()
+        with self._lock:
+            d.update({"stage": getattr(self, "stage", ""), "result": getattr(self, "result", None)})
+        return d
+
+    def _begin(self, project_name: str) -> None:
+        with self._lock:
+            self.stage = "準備中"; self.result = None
+        super()._begin(project_name)
+
+    def _run(self, project_name: str) -> None:
+        import auto_label
+        try:
+            p = load_project(project_name)
+            res = auto_label.run(p, HAND_MODEL, YOLO_WEIGHTS, progress=self._stage_progress, should_stop=self._stop.is_set)
+            with self._lock:
+                self.result = res; self.finished = True; self.stage = "完成"
+        except Exception as e:
+            with self._lock:
+                self.error = str(e) if isinstance(e, (ValueError, RuntimeError)) else f"{type(e).__name__}: {e}"
+                self.stage = "失敗"
+
+    def _stage_progress(self, stage: str, a: int, b: int) -> None:
+        with self._lock:
+            self.stage = stage; self.done_n, self.total_n = a, b
+
+
 class RecordJob:
     """新增專案時錄示範影片：開相機、建專案（用相機的解析度／fps）、寫 demo.avi、給預覽 JPEG。"""
 
@@ -492,7 +523,7 @@ class LabelService:
         from collections import OrderedDict
         self._jpegs: OrderedDict = OrderedDict()
         self._lock = threading.Lock()
-        self.train = TrainJob(); self.record = RecordJob(); self.analysis = AnalysisJob()
+        self.train = TrainJob(); self.record = RecordJob(); self.analysis = AnalysisJob(); self.autolabel = AutoLabelJob()
 
     def _detector(self, project) -> items.ItemDetector:
         mp = items.model_path(project)
@@ -579,7 +610,8 @@ class LabelService:
         return {"order": list(seeds.order), "refs": list(seeds.refs), "closed": list(seeds.closed), "region": seeds.region,
                 "box_labels": list(seeds.box_labels), "hand_steps": list(seeds.hand_steps), "counts": seeds.counts(),
                 "auto_counts": seeds.auto_counts(),
-                "seeds": [{"name": s.name, "frame": s.frame, "rect": list(s.rect), "auto": s.auto, "group": s.group} for s in seeds.seeds]}
+                "seeds": [{"name": s.name, "frame": s.frame, "rect": list(s.rect), "auto": s.auto, "group": s.group, "by_model": s.by_model}
+                          for s in seeds.seeds]}
 
     # ---- 種子操作
 
