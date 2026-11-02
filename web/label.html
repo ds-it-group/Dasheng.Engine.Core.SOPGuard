@@ -236,10 +236,64 @@
   };
   let lastGroup = 0;
   $("btnDropAuto").onclick = async () => { if (lastGroup && await seedAct({ action: "remove_auto_group", group: lastGroup })) { msg("已刪除這次的自動框，只留手框的那一格。"); $("btnDropAuto").classList.add("hidden"); } };
+  function renderPreds() {
+    const r = $("predRow"); if (!r) return;
+    if (!preds.length) { r.classList.add("hidden"); r.innerHTML = ""; return; }
+    r.classList.remove("hidden");
+    r.innerHTML = `<span>模型預框：</span>` + preds.map((p, i) => `<button class="btn small" data-pi="${i}" title="點一下選取微調，或按 ✓ 直接加入">${p.name} (${p.conf})</button><button class="btn small primary" data-pa="${i}" title="直接採納這個預框並自動往前後追蹤">✓</button>`).join(" ") + (preds.length > 1 ? ` <button class="btn small primary" id="btnPredAll">✓ 全部採納 (${preds.length})</button>` : "");
+    r.querySelectorAll("button[data-pi]").forEach(b => b.onclick = () => {
+      const p = preds[parseInt(b.dataset.pi, 10)];
+      sel = [...p.rect]; $("itemName").value = p.name; draw();
+      msg(`已載入預框「${p.name}」（黃框），可直接按「加入框選的物品」或在畫面上重拉微調。`);
+    });
+    r.querySelectorAll("button[data-pa]").forEach(b => b.onclick = async () => {
+      const p = preds[parseInt(b.dataset.pa, 10)];
+      sel = [...p.rect]; $("itemName").value = p.name;
+      await $("btnAddSeed").onclick();
+      preds = preds.filter((_, idx) => idx !== parseInt(b.dataset.pa, 10)); renderPreds(); draw();
+    });
+    const allBtn = $("btnPredAll");
+    if (allBtn) allBtn.onclick = async () => {
+      const sec = parseFloat($("trackSec").value) || 0;
+      msg(`批次採納 ${preds.length} 個預框並追蹤前後 ${sec} 秒中…`);
+      const d = await seedAct({ action: "add_batch", boxes: preds, track_sec: sec });
+      if (d && d.seeds.batch_result) {
+        const br = d.seeds.batch_result;
+        preds = []; renderPreds(); draw();
+        msg(`已一次採納 ${br.added} 個預框，並自動追出 ${br.auto} 格！`);
+      }
+    };
+  }
+  async function runPredict(silent) {
+    if (!proj || !info || !info.has_model) { if (!silent) msg("這個專案還沒有訓練好的模型，請先手動框幾個樣本並訓練一次", true); return; }
+    if (!silent) msg("模型預框辨識中…");
+    const d = await api("/api/seeds", { project: proj, frame: n, action: "predict_frame" });
+    if (!d.ok) { if (!silent) msg(d.error, true); return; }
+    preds = d.seeds.predictions || [];
+    if (preds.length) {
+      sel = [...preds[0].rect]; $("itemName").value = preds[0].name;
+      if (!silent) msg(`模型在此格找到 ${preds.length} 個未標記物品（藍虛線／黃框），可按「✓」一鍵採納或微調後按「加入框選的物品」。`);
+    } else if (!silent) {
+      msg("模型在這格沒有找到新的物品（或這一格的物品都已經標過了）。");
+    }
+    renderPreds(); draw();
+  }
+  $("btnPredict").onclick = () => runPredict(false);
+  $("btnRetrack").onclick = async () => {
+    const sec = parseFloat($("trackSec").value) || 2.0;
+    msg(`正在用顏色與位置檢查重追全部手框（前後 ${sec} 秒）並清除重複／跑偏舊框…`);
+    const d = await seedAct({ action: "retrack_all", track_sec: sec });
+    if (d && d.seeds.retrack) {
+      const rt = d.seeds.retrack;
+      msg(`清理重追完成！保留 ${rt.manuals} 個手框，自動框由 ${rt.old_auto} 格整理為 ${rt.new_auto} 格（已剔除跑偏與同格重複框）。`);
+    }
+  };
   function jumpSeed(dir) {
-    if (!info) return; const fs = [...new Set(info.seeds.seeds.map(s => s.frame))].sort((a, b) => a - b);
+    if (!info) return;
+    const pool = selItem ? info.seeds.seeds.filter(s => s.name === selItem) : info.seeds.seeds;
+    const fs = [...new Set(pool.map(s => s.frame))].sort((a, b) => a - b);
     const t = dir > 0 ? fs.find(f => f > n) : fs.reverse().find(f => f < n);
-    if (t != null) goFrame(t); else msg(dir > 0 ? "後面沒有框了" : "前面沒有框了");
+    if (t != null) goFrame(t); else msg((selItem ? `「${selItem}」` : "") + (dir > 0 ? "後面沒有框了" : "前面沒有框了"));
   }
   $("btnPrevSeed").onclick = () => jumpSeed(-1); $("btnNextSeed").onclick = () => jumpSeed(1);
   $("chkFixed").onchange = async () => {
@@ -270,8 +324,9 @@
     const ul = $("items"); ul.innerHTML = ""; $("names").innerHTML = "";
     if (sd) {
       sd.order.forEach((name, i) => {
-        const li = document.createElement("li"); li.className = selItem === name ? "sel" : ""; li.onclick = () => { selItem = name; render(); };
-        li.innerHTML = `<span class="grow">${i + 1}. ${name}　已框 ${sd.counts[name] || 0} 次${(sd.auto_counts || {})[name] ? `＋自動 ${sd.auto_counts[name]} 格` : ""}${sd.box_labels.includes(name) ? "　［盒子的樣子］" : ""}</span>`;
+        const li = document.createElement("li"); li.className = selItem === name ? "sel" : "";
+        li.onclick = () => { selItem = (selItem === name ? null : name); if (selItem) $("itemName").value = selItem; render(); };
+        li.innerHTML = `<span class="grow" title="點一下只用「上一個框／下一個框」巡檢此物品">${i + 1}. ${name}　已框 ${sd.counts[name] || 0} 次${(sd.auto_counts || {})[name] ? `＋自動 ${sd.auto_counts[name]} 格` : ""}${sd.box_labels.includes(name) ? "　［盒子的樣子］" : ""}</span>`;
         if (sd.region) { const b = document.createElement("button"); b.className = "btn small"; b.textContent = sd.box_labels.includes(name) ? "取消盒子的樣子" : "盒子的樣子"; b.onclick = (e) => { e.stopPropagation(); seedAct({ action: "set_box_label", name, is_box: !sd.box_labels.includes(name) }); }; li.appendChild(b); }
         const d = document.createElement("button"); d.className = "btn small"; d.textContent = "刪除"; d.onclick = (e) => { e.stopPropagation(); if (confirm(`刪除物品「${name}」的全部框選？`)) seedAct({ action: "remove_item", name }); }; li.appendChild(d);
         ul.appendChild(li); const o = document.createElement("option"); o.value = name; $("names").appendChild(o);

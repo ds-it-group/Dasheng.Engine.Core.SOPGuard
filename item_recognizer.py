@@ -255,6 +255,110 @@ def track_seed(video_path: str, frame: int, rect: Rect, window_sec: float = 2.0,
     return out
 
 
+def retrack_seeds(video_path: str, seeds: ItemSeeds, window_sec: float = 2.0, fps: float | None = None,
+                  step: int = TRACK_STEP) -> dict:
+    """用目前的追蹤規則（含顏色檢查 TRACK_COLOR_MIN）一次重追全部手框種子，並清掉同一格同名稱重複或跑偏的自動框。
+    只循序讀一次影片涵蓋範圍，避免每個手框重開 mp4。"""
+    manuals = [s for s in seeds.seeds if not s.auto]
+    old_auto = sum(1 for s in seeds.seeds if s.auto)
+    if not manuals or window_sec <= 0 or not os.path.isfile(video_path):
+        seeds.seeds = list(manuals); seeds.save()
+        return {"manuals": len(manuals), "old_auto": old_auto, "new_auto": 0}
+    from video_recorder import open_video_oriented
+    from core_detector import roi_similarity
+    cap, rotate, W, H, vfps = open_video_oriented(video_path)
+    fps = float(fps or vfps or 30.0); n_total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    half = int(round(window_sec * fps))
+    needed: set[int] = set()
+    for m in manuals:
+        a = max(0, m.frame - half); b = min(max(n_total - 1, m.frame), m.frame + half)
+        for i in range(a, b + 1):
+            if (i - m.frame) % step == 0:
+                needed.add(i)
+    grays: dict[int, np.ndarray] = {}
+    smalls: dict[int, np.ndarray] = {}
+    lo, hi = min(needed), max(needed)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, lo); i = lo
+    while i <= hi:
+        ok, fr = cap.read()
+        if not ok:
+            break
+        if i in needed:
+            if rotate is not None:
+                fr = cv2.rotate(fr, rotate)
+            grays[i] = _gray(fr)
+            smalls[i] = cv2.resize(fr, (fr.shape[1] // 2, fr.shape[0] // 2), interpolation=cv2.INTER_AREA)
+        i += 1
+    cap.release()
+
+    def color(f, r):
+        rx, ry, rw, rh = r
+        return smalls[f][max(0, ry // 2):(ry + rh) // 2, max(0, rx // 2):(rx + rw) // 2]
+
+    manual_on_frame = {(m.name, m.frame) for m in manuals}
+    # (name, frame) -> (dist_to_manual, group, rect)
+    best_auto: dict[tuple[str, int], tuple[int, int, list[int]]] = {}
+    next_g = max([m.group for m in manuals] + [0]) + 1
+    for m in manuals:
+        if not m.group:
+            m.group = next_g; next_g += 1
+        if m.frame not in grays:
+            continue
+        x, y, w, h = [int(v) for v in m.rect]
+        tpl0 = grays[m.frame][max(0, y):y + h, max(0, x):x + w]
+        if tpl0.size == 0 or tpl0.shape[0] < 8 or tpl0.shape[1] < 8:
+            continue
+        col0 = color(m.frame, (x, y, w, h))
+        for direction in (1, -1):
+            last = (x, y, w, h); tpl_last = tpl0; misses = 0
+            f = m.frame + direction * step
+            while abs(f - m.frame) <= half and f in grays:
+                g = grays[f]; lx, ly, lw, lh = last
+                sx1, sy1 = max(0, int(lx - lw * 0.5)), max(0, int(ly - lh * 0.5))
+                sx2, sy2 = min(g.shape[1], int(lx + lw * 1.5)), min(g.shape[0], int(ly + lh * 1.5))
+                sub = g[sy1:sy2, sx1:sx2]
+                s0, r0 = _track(tpl0, sub)
+                s1, r1 = _track(tpl_last, sub)
+                pick = None
+                if s0 >= TRACK_KEEP_MIN and (s0 >= s1 or s1 < TRACK_KEEP_LAST):
+                    pick = r0
+                elif s1 >= TRACK_KEEP_LAST:
+                    pick = r1
+                if pick is not None:
+                    cand = [int(sx1 + pick[0]), int(sy1 + pick[1]), int(pick[2]), int(pick[3])]
+                    if roi_similarity(col0, color(f, cand)) < TRACK_COLOR_MIN:
+                        pick = None
+                if pick is None:
+                    misses += 1
+                    if misses >= 2:
+                        break
+                else:
+                    misses = 0
+                    nr = [int(sx1 + pick[0]), int(sy1 + pick[1]), int(pick[2]), int(pick[3])]
+                    last = tuple(nr)
+                    tpl_last = g[nr[1]:nr[1] + nr[3], nr[0]:nr[0] + nr[2]]
+                    if (m.name, f) not in manual_on_frame:
+                        dist = abs(f - m.frame)
+                        prev = best_auto.get((m.name, f))
+                        if prev is None or dist < prev[0]:
+                            best_auto[(m.name, f)] = (dist, m.group, nr)
+                f += direction * step
+
+    by_group: dict[int, list[tuple[int, list[int]]]] = {}
+    for (name, f), (_, grp, nr) in best_auto.items():
+        by_group.setdefault(grp, []).append((f, nr))
+    new_seeds: list[Seed] = []
+    for m in manuals:
+        new_seeds.append(Seed(m.name, int(m.frame), [int(v) for v in m.rect], False, m.group))
+        for f, nr in sorted(by_group.get(m.group, [])):
+            new_seeds.append(Seed(m.name, int(f), nr, True, m.group))
+    seeds._next_group = max([s.group for s in new_seeds] + [0]) + 1
+    seeds.seeds = new_seeds
+    seeds.save()
+    new_auto = sum(1 for s in seeds.seeds if s.auto)
+    return {"manuals": len(manuals), "old_auto": old_auto, "new_auto": new_auto}
+
+
 # ---------------------------------------------------------------- 追蹤（盒子＋手）
 
 def trace_fingerprint(video_path: str) -> str:
@@ -422,7 +526,7 @@ def _labels_fixed(project, status: dict, seeds: ItemSeeds, reader, progress=None
 
     def add(f, name, r, score):
         found = labels.setdefault(f, [])
-        dup = next((i for i, (n2, r2, s2) in enumerate(found) if n2 == name and _iou(r, r2) > 0.5), None)
+        dup = next((i for i, (n2, r2, s2) in enumerate(found) if n2 == name and _iou(r, r2) > 0.2), None)
         if dup is not None:
             if found[dup][2] >= score:
                 return
@@ -431,11 +535,30 @@ def _labels_fixed(project, status: dict, seeds: ItemSeeds, reader, progress=None
 
     for sd, _, _, expected in tpls:            # 種子格本身：照框選的位置標（不用比對）
         add(sd.frame, sd.name, expected, 2.0)
+    manual_frame = {sd.group: sd.frame for sd in direct if not sd.auto and sd.group}
     for sd in direct:                           # 框選當下就追好、使用者看過的框：直接當標籤，不再延伸（不然刪掉的錯框又會長回來）
         x, y, w, h = sd.rect
         r = _clip_rect((x - reg[0], y - reg[1], w, h), reg[2], reg[3])
         if r is not None:
-            add(sd.frame, sd.name, r, 1.5)
+            sc = 2.0 if not sd.auto else (1.5 - 0.002 * abs(sd.frame - manual_frame.get(sd.group, sd.frame)))
+            add(sd.frame, sd.name, r, sc)
+    # 補齊同時間出現但因 TRACK_STEP 取樣格數不同而錯開的共同物品（例如 1040 格標了盒底貼標，而盒底朝上追在 1039 與 1042 格）
+    by_name_f: dict[str, dict[int, tuple]] = {}
+    for f, found in list(labels.items()):
+        for name, r, _ in found:
+            by_name_f.setdefault(name, {})[f] = r
+    for name, fmap in by_name_f.items():
+        fs = sorted(fmap)
+        for i in range(len(fs) - 1):
+            f1, f2 = fs[i], fs[i + 1]
+            if 1 < f2 - f1 <= TRACK_STEP * 2:
+                r1, r2 = fmap[f1], fmap[f2]
+                if _iou(r1, r2) >= 0.3:
+                    for f in range(f1 + 1, f2):
+                        if f in labels and f not in seeds.refs and not any(n2 == name for n2, _, _ in labels[f]):
+                            t = (f - f1) / (f2 - f1)
+                            ri = tuple(int(round(a + t * (b - a))) for a, b in zip(r1, r2))
+                            add(f, name, ri, 1.2)
     todo = [f for f in frames_sorted if any(abs(f - sd.frame) <= win for sd, _, _, _ in tpls)]
     for k, f in enumerate(todo):
         g = _gray(_crop(reader.get_frame(f), reg))

@@ -12,6 +12,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+try:
+    import torch  # noqa: F401  Windows：torch 要在 Qt 之前載入，否則之後再載 c10.dll 會 WinError 1114
+except ImportError:
+    pass
+
 import core_detector  # noqa: E402
 from project_store import load_project  # noqa: E402
 from video_recorder import write_image  # noqa: E402
