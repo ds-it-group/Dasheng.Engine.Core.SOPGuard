@@ -67,17 +67,22 @@ class TrainJob:
             return {"running": self.running, "project": self.project_name, "stage": self.stage, "done": self.done_n, "total": self.total_n,
                     "lines": self.lines[-8:], "error": self.error, "finished": self.finished, "stats": self.stats,
                     "validation": getattr(self, "validation", None), "installed": getattr(self, "installed", None),
+                    "package": getattr(self, "package", None),
                     "elapsed": round(time.perf_counter() - self.started_at) if self.started_at and self.running else None}
 
     # ---- 挑素材訓練（可以跨型體地區、留片段驗證）
 
-    def start_material(self, target: str, selection: list[dict], epochs: int = 30) -> dict:
-        """selection：[{project, start, end}]（片段的起訖格）。回傳這次的計畫（訓練片段、驗證片段）。"""
+    def start_material(self, target: str, selection: list[dict], epochs: int = 30, recolor_classes: list[str] | None = None,
+                       where: str = "local") -> dict:
+        """selection：[{project, start, end}]（片段的起訖格）。recolor_classes：要合成配色的物品（空＝不做）。
+        where：local＝在這台訓練；gpu＝只做好資料集、打包成 GPU 訓練包（訓練完再匯入 best.pt 驗證）。回傳這次的計畫。"""
         import training_material as tm
         if self.running:
             raise ValueError("已經在訓練中，請等它跑完")
         if not selection:
             raise ValueError("請至少勾一段訓練素材")
+        if where not in ("local", "gpu"):
+            raise ValueError("where 只能是 local 或 gpu")
         if not os.path.isfile(YOLO_WEIGHTS):
             raise ValueError(f"找不到 {YOLO_WEIGHTS}，無法找盒子")
         tgt = load_project(target)
@@ -90,16 +95,19 @@ class TrainJob:
             plan.append({"project": name, "start": int(s["start"]), "end": int(s["end"]), "color": colors[name]})
         hold = tm.pick_holdout(plan)
         train = [s for s in plan if s not in hold]
+        self._reset_state(target)
+        self._thread = threading.Thread(target=self._run_material, args=(tgt.project_name, train, hold, epochs, list(recolor_classes or []), where),
+                                        daemon=True)
+        self._thread.start()
+        return {"train": train, "holdout": hold, "where": where, "recolor_classes": list(recolor_classes or [])}
+
+    def _reset_state(self, target: str) -> None:
         with self._lock:
             self.project_name = target; self.stage = "準備中"; self.done_n = self.total_n = 0; self.validation = None; self.installed = None
-            self.lines = []; self.error = None; self.finished = False; self.stats = None; self.started_at = time.perf_counter()
-        self._thread = threading.Thread(target=self._run_material, args=(tgt.project_name, train, hold, epochs), daemon=True); self._thread.start()
-        return {"train": train, "holdout": hold}
+            self.lines = []; self.error = None; self.finished = False; self.stats = None; self.started_at = time.perf_counter(); self.package = None
 
-    def _run_material(self, target: str, train: list[dict], hold: list[dict], epochs: int) -> None:
-        import shutil
-        from datetime import datetime
-        import packing_methods as pkg
+    def _run_material(self, target: str, train: list[dict], hold: list[dict], epochs: int, recolor_classes: list[str], where: str) -> None:
+        import json as _json
         import training_material as tm
         try:
             tgt = load_project(target)
@@ -119,7 +127,7 @@ class TrainJob:
                     continue
                 tag = f"（{k + 1}/{len(by_proj)} {name}）"
                 trace = items.build_trace(sp, HAND_MODEL, YOLO_WEIGHTS, progress=lambda a, b, t=tag: self._set(f"找盒子與手{t}：{a}/{b} 格", a, b))
-                st = items.build_dataset(sp, trace, seeds, progress=lambda a, b, t=tag: self._set(f"延伸框選{t}：{a}/{b}", a, b))
+                items.build_dataset(sp, trace, seeds, progress=lambda a, b, t=tag: self._set(f"延伸框選{t}：{a}/{b}", a, b))
                 parts.append((items.dataset_dir(sp), list(seeds.order)))
                 for n in seeds.order:
                     if n not in names:
@@ -128,14 +136,40 @@ class TrainJob:
                 raise ValueError("勾選的片段裡沒有任何框")
             mix = items.dataset_dir(tgt) + "_mix"
             stats = tm.merge_datasets(parts, mix, names)
-            with self._lock:
-                self.stats = {**stats, "train_segments": len(train), "holdout_segments": len(hold)}
             if stats["train"] == 0:
                 raise ValueError("延伸不出任何訓練圖")
-            tmp_model = os.path.join(tgt.dir_path, items.MODEL_DIR, "candidate.pt")
-            os.makedirs(os.path.dirname(tmp_model), exist_ok=True)
+            rc = {"added": 0, "per_mode": {}}
+            if recolor_classes:
+                self._set("合成配色中…")
+                rc = tm.recolor_augment(mix, names, recolor_classes)
+            with self._lock:
+                self.stats = {**stats, "train": stats["train"] + rc["added"], "recolor": rc, "recolor_classes": recolor_classes,
+                              "train_segments": len(train), "holdout_segments": len(hold)}
+            model_dir = os.path.join(tgt.dir_path, items.MODEL_DIR)
+            os.makedirs(model_dir, exist_ok=True)
+            tmp_model = os.path.join(model_dir, "candidate.pt")
             if os.path.isfile(tmp_model):
                 os.remove(tmp_model)
+            imgsz = items.FIXED_IMGSZ if items.is_fixed(tgt) else 640
+            plan = {"target": target, "names": names, "holdout": hold, "train": train, "epochs": epochs, "imgsz": imgsz,
+                    "recolor_classes": recolor_classes, "recolor_added": rc["added"], "train_images": stats["train"] + rc["added"],
+                    "val_images": stats["val"], "created_at": time.strftime("%Y/%m/%d %H:%M")}
+            with open(os.path.join(model_dir, "candidate_plan.json"), "w", encoding="utf-8") as f:
+                _json.dump(plan, f, ensure_ascii=False, indent=2)
+            if where == "gpu":
+                self._set("打包 GPU 訓練包中…")
+                out_dir = os.path.join(app_base_dir(), "cache", "gpu_pkg")
+                os.makedirs(out_dir, exist_ok=True)
+                import hashlib
+                safe = "".join(c for c in target if c.isascii() and (c.isalnum() or c in "-_"))   # 中文專案名換成短碼，Linux 好打
+                safe = (safe + "_" if safe else "p") + hashlib.md5(target.encode("utf-8")).hexdigest()[:6]
+                out = os.path.join(out_dir, f"sopg_train_{safe}_{time.strftime('%Y%m%d_%H%M')}.zip")
+                tm.write_gpu_package(mix, out, os.path.join(app_base_dir(), "models", "yolov8n.pt"),
+                                     os.path.join(app_base_dir(), "tools", "train_items.py"), plan, epochs, imgsz)
+                with self._lock:
+                    self.package = out; self.finished = True
+                    self.stage = f"GPU 訓練包已產生（{os.path.getsize(out) / 1048576:.0f} MB）：{out}"
+                return
             self._set("訓練模型中（約 20～60 分鐘）…")
             cmd = items.train_command(tgt, epochs=epochs, data_yaml=os.path.join(mix, "data.yaml"), copy_to=tmp_model)
             env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
@@ -151,44 +185,87 @@ class TrainJob:
             code = self._proc.wait()
             if code != 0 or not os.path.isfile(tmp_model):
                 raise RuntimeError(f"訓練失敗（結束碼 {code}）：" + " / ".join(self.lines[-3:]))
-            # 離線驗證：每個配色保留的那一段
-            results = []
-            for name, ranges in hold_by.items():
-                sp = load_project(name)
-                segs = [dict(s, color=next(h["color"] for h in hold if h["project"] == name and h["start"] == s["start"]))
-                        for s in tm.segments(sp) if (s["start"], s["end"]) in [tuple(r) for r in ranges]]
-                self._set(f"離線驗證（{name}）…")
-                for r in tm.validate_holdout(sp, tmp_model, segs):
-                    results.append({"project": name, **r})
-            passed = all(r["ok"] is not False for r in results)
-            with self._lock:
-                self.validation = results
-            tgt = load_project(target)
-            own = items.own_model_path(tgt)
-            if passed:
-                if os.path.isfile(own):
-                    shutil.copyfile(own, os.path.join(os.path.dirname(own), f"best_prev_{datetime.now():%Y%m%d_%H%M}.pt"))
-                os.replace(tmp_model, own)
-                if tgt.packaging is not None and tgt.packaging.model_source:
-                    tgt.packaging.model_source = None
-                    _save_config(tgt)
-            if tgt.packaging is not None:
-                for r in results:
-                    if r["ok"] is None or not r["color"]:
-                        continue
-                    note = "" if r["ok"] else "驗證漏看：" + "、".join(r["missing"])
-                    pkg.set_color(target, r["color"], "verified" if r["ok"] else "failed", note)
-            with self._lock:
-                self.installed = passed
-                self.finished = True
-                self.stage = ("訓練完成，驗證通過，已換上新模型" if results else "訓練完成（沒有保留片段可驗證），已換上新模型") if passed \
-                    else "訓練完成但驗證沒過，保留舊模型（新模型存成 candidate.pt）"
+            self._validate_install(target, tmp_model, hold)
         except Exception as e:
             with self._lock:
                 self.error = f"{type(e).__name__}: {e}" if not isinstance(e, (ValueError, RuntimeError)) else str(e)
                 self.stage = "失敗"
         finally:
             self._proc = None
+
+    def start_import(self, target: str, data: bytes) -> dict:
+        """匯入 GPU 訓練好的 best.pt：存成 candidate.pt，照當初打包時記下的保留段離線驗證，通過才換上。"""
+        import json as _json
+        if self.running:
+            raise ValueError("正在訓練或驗證中，請等它跑完")
+        tgt = load_project(target)
+        model_dir = os.path.join(tgt.dir_path, items.MODEL_DIR)
+        plan_path = os.path.join(model_dir, "candidate_plan.json")
+        if not os.path.isfile(plan_path):
+            raise ValueError("找不到這個包裝方式的 GPU 訓練計畫（candidate_plan.json），請先在這台產生 GPU 訓練包")
+        if len(data) < 100_000 or not data[:2] == b"PK":
+            raise ValueError("這不像 YOLO 的 best.pt（檔案太小或格式不對）")
+        with open(plan_path, "r", encoding="utf-8") as f:
+            plan = _json.load(f)
+        tmp_model = os.path.join(model_dir, "candidate.pt")
+        with open(tmp_model, "wb") as f:
+            f.write(data)
+        self._reset_state(target)
+        with self._lock:
+            self.stats = {"train": plan.get("train_images"), "val": plan.get("val_images"), "recolor": {"added": plan.get("recolor_added", 0)},
+                          "recolor_classes": plan.get("recolor_classes"), "holdout_segments": len(plan.get("holdout") or []), "imported": True}
+        self._thread = threading.Thread(target=self._run_import, args=(target, tmp_model, plan.get("holdout") or []), daemon=True)
+        self._thread.start()
+        return {"holdout": plan.get("holdout") or []}
+
+    def _run_import(self, target: str, tmp_model: str, hold: list[dict]) -> None:
+        try:
+            self._validate_install(target, tmp_model, hold)
+        except Exception as e:
+            with self._lock:
+                self.error = f"{type(e).__name__}: {e}" if not isinstance(e, (ValueError, RuntimeError)) else str(e)
+                self.stage = "失敗"
+
+    def _validate_install(self, target: str, tmp_model: str, hold: list[dict]) -> None:
+        """離線驗證每個配色保留的那一段；全部通過（或沒有保留段）才換上新模型，舊的備份成 best_prev_<時間>.pt；配色標已驗證／驗證判錯。"""
+        import shutil
+        from datetime import datetime
+        import packing_methods as pkg
+        import training_material as tm
+        hold_by: dict[str, list] = {}
+        for s in hold:
+            hold_by.setdefault(s["project"], []).append((s["start"], s["end"]))
+        results = []
+        for name, ranges in hold_by.items():
+            sp = load_project(name)
+            segs = [dict(s, color=next(h["color"] for h in hold if h["project"] == name and h["start"] == s["start"]))
+                    for s in tm.segments(sp) if (s["start"], s["end"]) in [tuple(r) for r in ranges]]
+            self._set(f"離線驗證（{name}）…")
+            for r in tm.validate_holdout(sp, tmp_model, segs):
+                results.append({"project": name, **r})
+        passed = all(r["ok"] is not False for r in results)
+        with self._lock:
+            self.validation = results
+        tgt = load_project(target)
+        own = items.own_model_path(tgt)
+        if passed:
+            if os.path.isfile(own):
+                shutil.copyfile(own, os.path.join(os.path.dirname(own), f"best_prev_{datetime.now():%Y%m%d_%H%M}.pt"))
+            os.replace(tmp_model, own)
+            if tgt.packaging is not None and tgt.packaging.model_source:
+                tgt.packaging.model_source = None
+                _save_config(tgt)
+        if tgt.packaging is not None:
+            for r in results:
+                if r["ok"] is None or not r["color"]:
+                    continue
+                note = "" if r["ok"] else "驗證漏看：" + "、".join(r["missing"])
+                pkg.set_color(target, r["color"], "verified" if r["ok"] else "failed", note)
+        with self._lock:
+            self.installed = passed
+            self.finished = True
+            self.stage = ("驗證通過，已換上新模型" if results else "沒有保留片段可驗證，已換上新模型") if passed \
+                else "驗證沒過，保留舊模型（新模型存成 candidate.pt）"
 
     def _set(self, stage: str, a: int = 0, b: int = 0) -> None:
         with self._lock:

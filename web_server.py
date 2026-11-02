@@ -208,6 +208,8 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path == "/api/project/upload":
             self._upload(); return
+        if path == "/api/train/import":
+            self._import_model(); return
         body = self._read_json()
         if body is None:
             self._json({"ok": False, "error": "內容不是 JSON"}, 400); return
@@ -240,7 +242,8 @@ class Handler(BaseHTTPRequestHandler):
             elif self.label is not None and path == "/api/analysis/cancel":
                 self.label.analysis.cancel(); self._json({"ok": True})
             elif self.label is not None and path == "/api/train/material":
-                plan = self.label.train.start_material(str(body.get("project", "")), body.get("selection") or [])
+                plan = self.label.train.start_material(str(body.get("project", "")), body.get("selection") or [],
+                                                       recolor_classes=body.get("recolor_classes") or [], where=str(body.get("where", "local")))
                 self._json({"ok": True, **plan})
             elif self.label is not None and path == "/api/train/start":
                 self.label.train.start(str(body.get("project", ""))); self._json({"ok": True})
@@ -289,6 +292,25 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/method/copy":
             return {"made": pkg.copy_method(name, body.get("targets") or [])}
         raise ValueError("沒有這個動作")
+
+    def _import_model(self):
+        """匯入 GPU 訓練好的 best.pt（multipart），驗證通過才換上。"""
+        if self.label is None:
+            self._json({"ok": False, "error": "沒有這個路徑"}, 404); return
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            if n <= 0 or n > 500 * 1024 ** 2:
+                raise ValueError("檔案大小不合理（上限 500 MB）")
+            part = parse_multipart(self.rfile.read(n), self.headers.get("Content-Type", ""))
+            if part is None:
+                raise ValueError("沒有收到檔案")
+            if not part[0].lower().endswith(".pt"):
+                raise ValueError("請選 best.pt")
+            self._json({"ok": True, **self.label.train.start_import(self._query().get("project", ""), part[1])})
+        except ValueError as e:
+            self._json({"ok": False, "error": str(e)}, 400)
+        except Exception as e:
+            self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
 
     def _upload(self):
         if self.label is None:

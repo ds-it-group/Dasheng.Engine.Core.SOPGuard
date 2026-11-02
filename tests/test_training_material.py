@@ -63,6 +63,53 @@ def test_merge_datasets_remaps_classes(tmp_path):
     assert "2: 鞋子" in (out / "data.yaml").read_text(encoding="utf-8")
 
 
+def test_recolor_augment_and_gpu_package(tmp_path):
+    import cv2, zipfile
+    d = tmp_path / "ds"
+    for s in ("train", "val"):
+        (d / "images" / s).mkdir(parents=True); (d / "labels" / s).mkdir(parents=True)
+    img = np.full((100, 100, 3), (200, 120, 30), np.uint8)          # 藍色背景（飽和）
+    img[30:70, 30:70] = (20, 20, 20)                                  # 黑鞋
+    cv2.imencode(".jpg", img)[1].tofile(str(d / "images" / "train" / "f1.jpg"))
+    (d / "labels" / "train" / "f1.txt").write_text("1 0.5 0.5 0.6 0.6\n", encoding="utf-8")
+    cv2.imencode(".jpg", img)[1].tofile(str(d / "images" / "train" / "f2.jpg"))
+    (d / "labels" / "train" / "f2.txt").write_text("0 0.5 0.5 0.2 0.2\n", encoding="utf-8")   # 沒有鞋子類 → 不做
+    r = tm.recolor_augment(str(d), ["盒", "鞋子在盒上"], ["鞋子在盒上"], per_image=2)
+    assert r["added"] == 2 and sum(r["per_mode"].values()) == 2
+    made = sorted(p.name for p in (d / "images" / "train").iterdir() if p.name.startswith("rc_"))
+    assert len(made) == 2 and all((d / "labels" / "train" / (os.path.splitext(m)[0] + ".txt")).is_file() for m in made)
+    out = cv2.imdecode(np.fromfile(str(d / "images" / "train" / made[0]), np.uint8), cv2.IMREAD_COLOR)
+    assert abs(int(out[50, 50].mean()) - 20) > 25                       # 鞋子顏色變了
+    assert np.abs(out[5, 5].astype(int) - np.array([200, 120, 30])).max() < 20     # 框外的藍色沒動
+    assert tm.recolor_augment(str(d), ["盒"], ["鞋子在盒上"])["added"] == 0
+    assert tm.default_recolor_classes(["藍盒", "鞋子在盒上", "檢查鞋舌"]) == ["鞋子在盒上"]
+    script = tmp_path / "train_items.py"; script.write_text("print(1)", encoding="utf-8")
+    z = tm.write_gpu_package(str(d), str(tmp_path / "pkg.zip"), str(tmp_path / "none.pt"), str(script),
+                             {"names": ["盒", "鞋子在盒上"], "holdout": [], "recolor_classes": ["鞋子在盒上"], "recolor_added": 2}, 30, 960)
+    with zipfile.ZipFile(z) as zf:
+        names = zf.namelist()
+        yaml = zf.read("dataset/data.yaml").decode("utf-8")
+    assert "dataset/images/train/f1.jpg" in names and "train_items.py" in names and "plan.json" in names and all("\\" not in n for n in names)
+    assert "path:" not in yaml and "1: 鞋子在盒上" in yaml
+
+
+def test_import_model_requires_plan(tmp_path, monkeypatch):
+    import label_service
+    d = tmp_path / "p"; (d / "items" / "model").mkdir(parents=True)
+    from types import SimpleNamespace as NS
+    monkeypatch.setattr(label_service, "load_project", lambda n: NS(project_name=n, dir_path=str(d), packaging=None))
+    job = label_service.TrainJob()
+    with pytest.raises(ValueError, match="計畫"):
+        job.start_import("p", b"PK" + b"x" * 200_000)
+    (d / "items" / "model" / "candidate_plan.json").write_text(json.dumps({"holdout": [], "train_images": 5}), encoding="utf-8")
+    with pytest.raises(ValueError, match="best.pt"):
+        job.start_import("p", b"not a model")
+    monkeypatch.setattr(label_service.TrainJob, "_validate_install", lambda self, t, m, h: None)
+    assert job.start_import("p", b"PK" + b"x" * 200_000) == {"holdout": []}
+    job._thread.join(2)
+    assert (d / "items" / "model" / "candidate.pt").is_file()
+
+
 def test_validate_holdout_with_fake_detector(tmp_path):
     class Det:
         def detect(self, crop):

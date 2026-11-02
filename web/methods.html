@@ -158,6 +158,24 @@
         <label style="display:inline-flex;align-items:center;gap:6px;padding-top:12px"><input type="checkbox" id="trOnlyLabeled" checked> 只列有框選的</label>
       </div>
       <div class="gridwrap" style="min-height:200px"><table class="grid" id="trGrid"></table></div>
+      <div class="card" style="padding:10px 14px; display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+          <label style="display:inline-flex;gap:6px;align-items:center;font-weight:500"><input type="checkbox" id="trRecolor"> 合成配色</label>
+          <span style="font-size:12.5px;color:var(--ink-2)">把框裡沒顏色的部分（黑／白／灰鞋）換成白、灰、紅、深藍、咖啡、米色，每張多做 2 份，讓模型不要只認一種顏色。要換的物品：</span>
+          <span id="trRecolorItems" style="display:inline-flex; gap:10px; flex-wrap:wrap"></span>
+        </div>
+        <div class="radios" role="radiogroup" aria-label="在哪裡訓練">
+          <span style="font-weight:500">在哪裡訓練：</span>
+          <label><input type="radio" name="trWhere" value="local" id="trLocal">在這台訓練（CPU 約 100 分鐘）</label>
+          <label><input type="radio" name="trWhere" value="gpu" id="trGpu" checked>產生 GPU 訓練包（拿到 GPU 電腦訓練，再匯入）</label>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+          <span style="font-weight:500">匯入 GPU 訓練好的模型：</span>
+          <input type="file" id="trImportFile" accept=".pt">
+          <button class="btn btn-secondary raised" id="trImportBtn" style="height:30px">匯入並驗證</button>
+          <span style="font-size:12.5px;color:var(--ink-2)">用 GPU 訓練包訓練出來的 out/best.pt；會用打包時保留的驗證段離線驗證，通過才換上。</span>
+        </div>
+      </div>
       <div class="note warn">每個配色會留「最後一段」不拿去訓練；訓練完用新模型掃那一段，標記過的物品都看到了才換上新模型，否則保留舊模型（新模型存成 candidate.pt）。某配色只勾一段就全部拿去訓練，這個配色這次無法驗證。配色欄可以直接改（整支影片同一個配色）。</div>
       <div class="note info" id="trProgress" hidden></div>
     </div>
@@ -517,6 +535,14 @@
     mats = d.materials || []; picked = {};
     for (const m of mats) if (m.project === target.name) for (const s of m.segments) picked[segKey(m.project, s)] = true;
     $("trSelf").checked = true;
+    const ri = $("trRecolorItems"); ri.innerHTML = "";
+    const shoeish = (n) => n.includes("鞋") && !n.includes("鞋舌");
+    for (const n of detail.model_items || []) {
+      const lb = el("label"); lb.style.cssText = "display:inline-flex;gap:4px;align-items:center";
+      const c = el("input"); c.type = "checkbox"; c.value = n; c.checked = shoeish(n); lb.appendChild(c); lb.appendChild(document.createTextNode(n)); ri.appendChild(lb);
+    }
+    $("trRecolor").checked = (detail.model_items || []).some(shoeish);
+    updWhere();
     $("trOnlyLabeled").checked = mats.some((m) => m.project === target.name && m.segments.length);   // 還沒框選的新影片：直接列出來
     fillFilters(); render();
     const st = await api("/api/train/state"); showProgress(st);
@@ -595,11 +621,24 @@
   $("trSelf").onchange = $("trRef").onchange = () => { fillFilters(); render(); };
   ["trStyle", "trRegion", "trColor", "trOnlyLabeled"].forEach((id) => { $(id).onchange = render; });
   $("trCancel").onclick = () => { $("trDlg").hidden = true; if (poll) { clearInterval(poll); poll = null; } };
+  function recolorClasses() { return $("trRecolor").checked ? [...$("trRecolorItems").querySelectorAll("input:checked")].map((x) => x.value) : []; }
+  function updWhere() { $("trOk").textContent = $("trGpu").checked ? "產生 GPU 訓練包" : "開始訓練"; }
+  $("trLocal").onchange = $("trGpu").onchange = updWhere;
   $("trOk").onclick = async () => {
     const sel = selection().map((x) => ({ project: x.project, start: x.start, end: x.end }));
-    const d = await api("/api/train/material", { project: target.name, selection: sel });
+    const where = $("trGpu").checked ? "gpu" : "local";
+    const d = await api("/api/train/material", { project: target.name, selection: sel, recolor_classes: recolorClasses(), where });
     if (!d.ok) { M.toast(d.error, true); return; }
-    M.toast(`開始訓練：訓練 ${d.train.length} 段、驗證 ${d.holdout.length} 段`); startPoll();
+    M.toast((where === "gpu" ? "開始產生 GPU 訓練包" : "開始訓練") + `：訓練 ${d.train.length} 段、驗證 ${d.holdout.length} 段` + (d.recolor_classes.length ? `，合成配色：${d.recolor_classes.join("、")}` : "")); startPoll();
+  };
+  $("trImportBtn").onclick = async () => {
+    const f = $("trImportFile").files[0]; if (!f) { M.toast("請先選 GPU 訓練出來的 best.pt", true); return; }
+    const fd = new FormData(); fd.append("file", f, f.name);
+    $("trImportBtn").disabled = true;
+    const r = await fetch("/api/train/import?project=" + enc(target.name), { method: "POST", body: fd }); const d = await r.json();
+    $("trImportBtn").disabled = false;
+    if (!d.ok) { M.toast(d.error, true); return; }
+    M.toast(`已匯入，開始離線驗證（保留段 ${d.holdout.length} 段）`); startPoll();
   };
   function startPoll() {
     if (poll) clearInterval(poll);
@@ -611,8 +650,10 @@
     p.hidden = false; p.className = "note " + (st.error ? "danger" : st.finished && st.installed === false ? "warn" : "info");
     let txt = (st.running ? "訓練中（" + (st.project || "") + "）：" : "") + (st.error ? "失敗：" + st.error : st.stage || "");
     if (st.elapsed) txt += `　已 ${Math.floor(st.elapsed / 60)} 分 ${st.elapsed % 60} 秒`;
+    if (st.stats && st.stats.recolor && st.stats.recolor.added) txt += `　合成配色多加 ${st.stats.recolor.added} 張`;
     if (st.validation && st.validation.length) txt += "　驗證：" + st.validation.map((v) => `${v.color || "（未填配色）"} ${v.ok === null ? "不支援" : v.ok ? "通過" : "漏看 " + v.missing.join("、")}`).join("；");
-    p.textContent = txt; $("trOk").disabled = !!st.running;
+    if (st.package && !st.running) txt += "\n把這個檔案複製到 GPU 電腦，解壓後照裡面的 README_GPU.txt 跑；訓練完把 out/best.pt 拷回來，按上面的「匯入並驗證」。";
+    p.textContent = txt; p.style.whiteSpace = "pre-line"; $("trOk").disabled = !!st.running;
   }
 
   // ---- 預覽：有步驟分析就以「輪」為單位（含沒框選的輪），沒有就以框選片段為單位
