@@ -11,6 +11,9 @@
   --lamp-run: #2e7d32; --lamp-wait: #f2a900; --lamp-alert: #d32f2f; --lamp-idle: #757575;
   --font: 'Roboto', 'Microsoft JhengHei', 'PingFang TC', 'Noto Sans TC', sans-serif;
 }
+@font-face { font-family: 'Material Icons'; font-style: normal; font-weight: 400; font-display: block; src: url('/fonts/MaterialIcons-Regular.ttf') format('truetype'); }
+.mi { font-family: 'Material Icons'; font-weight: normal; font-style: normal; font-size: 18px; line-height: 1; display: inline-block; letter-spacing: normal;
+      text-transform: none; white-space: nowrap; direction: ltr; -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga'; vertical-align: middle; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
@@ -94,6 +97,18 @@ table.grid { border-collapse: separate; border-spacing: 0; width: 100%; font-siz
 .grid td.ed input, .grid td.ed select { width: 100%; border: 0; background: transparent; font-size: 12px; height: 26px; outline: none; }
 .grid td.ed input.r { text-align: right; }
 .grid .empty td { color: var(--ink-3); text-align: center; height: 60px; }
+.grid thead tr:first-child th { overflow: visible; }
+.grid .rz { position: absolute; right: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 4; }
+.grid .rz:hover, .grid .rz.on { background: var(--primary); opacity: .35; }
+/* 選擇器欄位（PickerField 模式 A）：空值＝主色按鈕；已選＝值＋紅色 ✕ */
+.picker { display: inline-flex; flex-direction: column; padding-top: 4px; }
+.picker > label { font-size: 10.5px; color: var(--ink-2); white-space: nowrap; }
+.picker .pv { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); min-height: 30px; }
+.picker .pv .val { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker .pv .clr { color: var(--danger); cursor: pointer; border: 0; background: none; padding: 0; }
+.picker .btn { height: 30px; margin: 4px 0; }
+.grid tr.pick td { cursor: pointer; }
+.grid tr.pick.sel td { background: var(--primary-wash); }
 .ops { display: inline-flex; gap: 2px; }
 .ib { width: 26px; height: 26px; border: 0; background: none; border-radius: 50%; cursor: pointer; display: inline-grid; place-items: center; padding: 0; font-size: 15px; }
 .ib:hover { background: var(--hover); }

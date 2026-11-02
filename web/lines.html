@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SOP-Guard 產線設定</title>
 <link rel="stylesheet" href="/eip.css">
+<script src="/eip.js"></script>
 </head>
 <body>
 <div class="shell">
@@ -12,15 +13,15 @@
     <div class="brand"><span class="logo">S</span><span class="txt">SOP-Guard</span></div>
     <nav>
       <div class="grp">現場</div>
-      <a href="/"><span class="ico">▶</span><span class="txt">監控畫面</span></a>
+      <a href="/"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
       <div class="grp">設定</div>
-      <a href="/lines" class="on"><span class="ico">≡</span><span class="txt">產線設定</span></a>
-      <a href="/methods"><span class="ico">▦</span><span class="txt">包裝方式設定</span></a>
-      <a href="/label"><span class="ico">▣</span><span class="txt">標記物品</span></a>
+      <a href="/lines" class="on"><span class="mi ico">view_week</span><span class="txt">產線設定</span></a>
+      <a href="/methods"><span class="mi ico">inventory</span><span class="txt">包裝方式設定</span></a>
+      <a href="/label"><span class="mi ico">crop_free</span><span class="txt">標記物品</span></a>
     </nav>
   </aside>
   <div class="main">
-    <header class="topbar"><h1>產線設定</h1></header>
+    <header class="topbar"><h1>產線設定</h1><button id="btnCompact" title="收起／展開側欄" aria-label="收起／展開側欄"><span class="mi">menu</span></button></header>
     <div class="crumb"><b>SOP-Guard</b><span>/</span><span>產線設定</span></div>
     <section class="view">
       <div class="query">
@@ -29,14 +30,14 @@
         <button class="btn btn-primary raised icon" id="btnSearch" aria-label="查詢">查詢</button>
         <span class="spacer"></span>
         <div class="menuwrap">
-          <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 ▾</button>
+          <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden><button id="mAdd">新增產線</button></div>
         </div>
       </div>
       <div class="legend">
         <span><i style="background:var(--st-danger)"></i>停用</span>
         <span><i style="background:var(--st-warn)"></i>不能啟動監控（還沒指定包裝方式、模型沒訓練或沒有相機）</span>
-        <span>雙擊一列＝唯讀查看；編輯只走 ✎</span>
+        <span>雙擊一列＝唯讀查看；編輯只走 <span class="mi" style="font-size:14px;color:var(--teal)">edit</span>；表頭右緣可拖拉欄寬</span>
       </div>
       <div class="gridwrap" style="margin-top:8px"><table class="grid" id="grid"></table></div>
     </section>
@@ -45,9 +46,10 @@
 
 <!-- 產線編輯（openSmall） -->
 <div class="scrim" id="dlg" hidden>
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dTitle">
-    <div class="dt"><span class="mark">▍</span><h4 id="dTitle">產線</h4></div>
-    <div class="dc">
+  <div class="dialog large" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="dTitle">產線</h4></div>
+    <div class="dc" style="flex-direction:row; gap:20px">
+    <div style="flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:18px; overflow:auto">
       <div class="frow">
         <div class="fld w140"><label for="fName">產線名稱</label><input id="fName"></div>
         <div class="fld w140"><label for="fFactory">廠別</label><input id="fFactory"></div>
@@ -62,8 +64,19 @@
         <div class="fld w100"><label for="fW">寬</label><input id="fW" type="number" min="1"></div>
         <div class="fld w100"><label for="fH">高</label><input id="fH" type="number" min="1"></div>
       </div>
-      <div class="note info">桌面範圍跟著相機位置走，所以放在產線。四格都留空＝用包裝方式自己標記時的範圍（只有相機來源會套用產線的範圍；示範影片一律用包裝方式自己的）。</div>
+      <div class="note info">桌面範圍跟著相機位置走，所以放在產線。可以在右邊畫面上拖拉框選，或直接改數字；四格都留空＝用包裝方式自己標記時的範圍（只有相機來源會套用產線的範圍；示範影片一律用包裝方式自己的）。</div>
+      <div><button class="btn btn-cancel" id="fClear">清除桌面範圍（改用包裝方式的）</button></div>
       <div class="note danger" id="fErr" hidden></div>
+    </div>
+    <div style="flex:0 0 46%; min-width:0; display:flex; flex-direction:column; border:1px solid var(--line)">
+      <div class="ttl"><span class="mi mark">rate_review</span><h4>框選桌面範圍</h4><span class="sum" id="fSnapInfo"></span></div>
+      <div id="fStage" style="flex:1; min-height:200px; position:relative; background:#15181d; overflow:hidden">
+        <img id="fImg" alt="畫面" style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; user-select:none; -webkit-user-drag:none">
+        <canvas id="fCv" style="position:absolute; touch-action:none; cursor:crosshair"></canvas>
+        <div id="fNoImg" style="position:absolute; inset:0; display:grid; place-items:center; color:#aab3bc; padding:16px; text-align:center" hidden></div>
+      </div>
+      <div class="note" style="color:var(--ink-2)">畫面是這條線目前包裝方式的示範影片第一格（相機實際畫面要啟動監控才看得到）。橘框＝產線範圍、藍虛線＝包裝方式自己的範圍。</div>
+    </div>
     </div>
     <div class="da"><button class="btn btn-cancel" id="dCancel">取消</button><button class="btn btn-primary raised" id="dSave">儲存</button></div>
   </div>
@@ -72,7 +85,7 @@
 <!-- 刪除確認（380） -->
 <div class="scrim" id="del" hidden>
   <div class="dialog xs" role="dialog" aria-modal="true" aria-labelledby="delTitle">
-    <div class="dt"><span class="mark">▍</span><h4 id="delTitle">刪除產線</h4></div>
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="delTitle">刪除產線</h4></div>
     <div class="dc"><div id="delMsg"></div></div>
     <div class="da"><button class="btn btn-cancel" id="delCancel">取消</button><button class="btn btn-danger raised" id="delOk">刪除</button></div>
   </div>
@@ -82,6 +95,7 @@
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
+  EIP.compactToggle($("btnCompact"));
   let rows = [], editing = null, readOnly = false, delId = null;
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   async function api(path, body) { const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}); return r.json(); }
@@ -134,15 +148,15 @@
       if (r.problem) st.title = r.problem;
       tr.appendChild(st);
       const op = el("td", "pinR c"), box = el("span", "ops");
-      const b1 = el("button", "ib c-edit", "✎"); b1.title = "編輯"; b1.setAttribute("aria-label", "編輯"); b1.onclick = () => openEdit(r, false); box.appendChild(b1);
-      if (r.enabled) { const b2 = el("button", "ib c-sec", "⇄"); b2.title = "換包裝方式"; b2.setAttribute("aria-label", "換包裝方式"); b2.onclick = () => { location.href = "/?line=" + encodeURIComponent(r.id) + "&switch=1"; }; box.appendChild(b2); }
-      if (!running) { const b3 = el("button", "ib c-del", "✕"); b3.title = "刪除"; b3.setAttribute("aria-label", "刪除"); b3.onclick = () => openDel(r); box.appendChild(b3); }
+      box.appendChild(EIP.iconBtn("edit", "c-edit", "編輯", () => openEdit(r, false)));
+      if (r.enabled) box.appendChild(EIP.iconBtn("swap_horiz", "c-sec", "換包裝方式", () => { location.href = "/?line=" + encodeURIComponent(r.id) + "&switch=1"; }));
+      if (!running) box.appendChild(EIP.iconBtn("delete", "c-del", "刪除", () => openDel(r)));
       op.appendChild(box); tr.appendChild(op);
       tr.ondblclick = () => openEdit(r, true);
       tb.appendChild(tr);
     }
     if (!shown) { const tr = el("tr", "empty"), td = el("td", null, rows.length ? "沒有符合條件的產線" : "還沒有產線，按「操作 ▾ → 新增產線」"); td.colSpan = COLS.length; tr.appendChild(td); tb.appendChild(tr); }
-    t.appendChild(tb);
+    t.appendChild(tb); EIP.resizable(t, "lines");
   }
   function openEdit(r, ro) {
     editing = r; readOnly = ro;
@@ -151,9 +165,42 @@
     $("fCamera").value = r ? r.camera : "";
     const reg = r && r.table_region; ["fX", "fY", "fW", "fH"].forEach((id, k) => { $(id).value = reg ? reg[k] : ""; });
     ["fName", "fFactory", "fEnabled", "fCamera", "fX", "fY", "fW", "fH"].forEach((id) => { $(id).disabled = ro; });
-    $("dSave").hidden = ro; $("dCancel").textContent = ro ? "關閉" : "取消"; $("fErr").hidden = true;
+    $("dSave").hidden = ro; $("dCancel").textContent = ro ? "關閉" : "取消"; $("fErr").hidden = true; $("fClear").hidden = ro;
     $("dlg").hidden = false; if (!ro) $("fName").focus();
+    loadSnap(r);
   }
+  // ---- 在畫面上框桌面範圍
+  let snap = null, drag = null;     // snap：{w, h, projRegion}
+  const cv = () => $("fCv");
+  async function loadSnap(r) {
+    snap = null; $("fImg").removeAttribute("src"); $("fNoImg").hidden = true; drawRegion();
+    const pk = r && r.packaging;
+    if (!pk || !pk.has_video) { $("fNoImg").textContent = pk ? "這條線目前的包裝方式沒有示範影片，請直接輸入數字" : "還沒指定包裝方式，沒有畫面可以框；可以直接輸入數字"; $("fNoImg").hidden = false; $("fSnapInfo").textContent = ""; return; }
+    const det = await (await fetch("/api/method?name=" + encodeURIComponent(pk.name))).json();
+    snap = { w: det.resolution[0], h: det.resolution[1], projRegion: det.state_fixed };
+    $("fSnapInfo").textContent = `${pk.name}　${snap.w}×${snap.h}`;
+    $("fImg").onload = drawRegion; $("fImg").src = "/api/frame?project=" + encodeURIComponent(pk.name) + "&n=0&w=900";
+  }
+  function imgBox() {          // 圖片在框裡實際顯示的位置（object-fit: contain）
+    const st = $("fStage").getBoundingClientRect(); if (!snap) return null;
+    const s = Math.min(st.width / snap.w, st.height / snap.h), w = snap.w * s, h = snap.h * s;
+    return { x: (st.width - w) / 2, y: (st.height - h) / 2, w, h, s };
+  }
+  function curRegion() { const v = ["fX", "fY", "fW", "fH"].map((id) => $(id).value.trim()); return v.every((x) => x !== "") ? v.map(Number) : null; }
+  function drawRegion() {
+    const c = cv(), b = imgBox(); if (!b) { c.width = c.height = 0; return; }
+    c.style.left = b.x + "px"; c.style.top = b.y + "px"; c.width = b.w; c.height = b.h;
+    const g = c.getContext("2d"); g.clearRect(0, 0, c.width, c.height);
+    if (snap.projRegion) { const [x, y, w, h] = snap.projRegion; g.setLineDash([8, 6]); g.strokeStyle = "#7986cb"; g.lineWidth = 2; g.strokeRect(x * b.s, y * b.s, w * b.s, h * b.s); g.setLineDash([]); }
+    const r = curRegion(); if (r) { g.strokeStyle = "#ff9f1c"; g.lineWidth = 3; g.strokeRect(r[0] * b.s, r[1] * b.s, r[2] * b.s, r[3] * b.s); g.fillStyle = "#ff9f1c"; g.font = "bold 14px sans-serif"; g.fillText("產線桌面範圍", r[0] * b.s + 4, Math.max(14, r[1] * b.s - 4)); }
+  }
+  function toImg(e) { const b = imgBox(), rc = cv().getBoundingClientRect(); return [Math.round(Math.min(snap.w, Math.max(0, (e.clientX - rc.left) / b.s))), Math.round(Math.min(snap.h, Math.max(0, (e.clientY - rc.top) / b.s)))]; }
+  cv().onpointerdown = (e) => { if (!snap || readOnly) return; cv().setPointerCapture(e.pointerId); drag = toImg(e); };
+  cv().onpointermove = (e) => { if (!drag) return; const p = toImg(e); const r = [Math.min(drag[0], p[0]), Math.min(drag[1], p[1]), Math.abs(p[0] - drag[0]), Math.abs(p[1] - drag[1])]; ["fX", "fY", "fW", "fH"].forEach((id, k) => { $(id).value = r[k]; }); drawRegion(); };
+  cv().onpointerup = () => { drag = null; const r = curRegion(); if (r && (r[2] < 20 || r[3] < 20)) { ["fX", "fY", "fW", "fH"].forEach((id) => { $(id).value = ""; }); drawRegion(); } };
+  ["fX", "fY", "fW", "fH"].forEach((id) => { $(id).oninput = drawRegion; });
+  $("fClear").onclick = () => { ["fX", "fY", "fW", "fH"].forEach((id) => { $(id).value = ""; }); drawRegion(); };
+  window.addEventListener("resize", drawRegion);
   $("dCancel").onclick = () => { $("dlg").hidden = true; };
   $("dSave").onclick = async () => {
     const reg = ["fX", "fY", "fW", "fH"].map((id) => $(id).value.trim());
@@ -175,7 +222,7 @@
   $("btnSearch").onclick = () => load();
   $("qKey").onkeydown = (ev) => { if (ev.key === "Enter") load(); };
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { $("dlg").hidden = true; $("del").hidden = true; } });
-  load();
+  load().then(() => { const e = new URLSearchParams(location.search).get("edit"); const r = rows.find((x) => x.id === e); if (r) openEdit(r, false); });
 })();
 </script>
 </body>

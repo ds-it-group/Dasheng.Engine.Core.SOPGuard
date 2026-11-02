@@ -242,13 +242,24 @@ class FrameReader:
         self.frame_count = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         self._cache_index = None
         self._cache_frame = None
+        self._next = None           # 下一個 read() 會讀到第幾格（往後不遠就循序讀，不 seek）
+
+    FORWARD_READ_MAX = 45           # 往後 45 格內循序讀：HEVC 每次 seek 都要從關鍵格重新解碼，預覽連續幾格時慢好幾倍
 
     def get_frame(self, n: int):
         if self._cache_index == n and self._cache_frame is not None:
             return self._cache_frame
         n = max(0, n)
-        self._cap.set(cv2.CAP_PROP_POS_FRAMES, n)
-        ok, frame = self._cap.read()
+        ok, frame = False, None
+        if self._next is not None and 0 <= n - self._next <= self.FORWARD_READ_MAX:
+            for _ in range(n - self._next):
+                if not self._cap.grab():
+                    break
+            else:
+                ok, frame = self._cap.read()
+        if not ok:
+            self._cap.set(cv2.CAP_PROP_POS_FRAMES, n)
+            ok, frame = self._cap.read()
         if not ok or int(self._cap.get(cv2.CAP_PROP_POS_FRAMES)) != n + 1:
             self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             frame = None
@@ -258,6 +269,7 @@ class FrameReader:
                     break
             if frame is None:
                 raise IOError(f"讀不到第 {n} 格：{self.path}")
+        self._next = n + 1
         if self._rotate is not None:
             frame = cv2.rotate(frame, self._rotate)
         self._cache_index, self._cache_frame = n, frame

@@ -145,6 +145,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._file(os.path.join(WEB_DIR, path.strip("/") + ".html"), "text/html; charset=utf-8")
             elif path == "/eip.css":
                 self._file(os.path.join(WEB_DIR, "eip.css"), "text/css; charset=utf-8")
+            elif path == "/eip.js":
+                self._file(os.path.join(WEB_DIR, "eip.js"), "application/javascript; charset=utf-8")
+            elif path == "/fonts/MaterialIcons-Regular.ttf":
+                self._file(os.path.join(WEB_DIR, "fonts", "MaterialIcons-Regular.ttf"), "font/ttf")
             elif path == "/api/lines":
                 import lines as line_store
                 ls = line_store.load_lines()

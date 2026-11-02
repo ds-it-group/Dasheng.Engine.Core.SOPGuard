@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SOP-Guard 包裝方式設定</title>
 <link rel="stylesheet" href="/eip.css">
+<script src="/eip.js"></script>
 <style>
   /* SFTT05 左右主從：左＝型體地區清單、右＝步驟清單／辨識模型 */
   .split { flex: 1; min-height: 0; display: flex; gap: 8px; padding-top: 8px; }
@@ -32,15 +33,15 @@
     <div class="brand"><span class="logo">S</span><span class="txt">SOP-Guard</span></div>
     <nav>
       <div class="grp">現場</div>
-      <a href="/"><span class="ico">▶</span><span class="txt">監控畫面</span></a>
+      <a href="/"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
       <div class="grp">設定</div>
-      <a href="/lines"><span class="ico">≡</span><span class="txt">產線設定</span></a>
-      <a href="/methods" class="on"><span class="ico">▦</span><span class="txt">包裝方式設定</span></a>
-      <a href="/label"><span class="ico">▣</span><span class="txt">標記物品</span></a>
+      <a href="/lines"><span class="mi ico">view_week</span><span class="txt">產線設定</span></a>
+      <a href="/methods" class="on"><span class="mi ico">inventory</span><span class="txt">包裝方式設定</span></a>
+      <a href="/label"><span class="mi ico">crop_free</span><span class="txt">標記物品</span></a>
     </nav>
   </aside>
   <div class="main">
-    <header class="topbar"><h1>包裝方式設定</h1></header>
+    <header class="topbar"><h1>包裝方式設定</h1><button id="btnCompact" title="收起／展開側欄" aria-label="收起／展開側欄"><span class="mi">menu</span></button></header>
     <div class="crumb"><b>SOP-Guard</b><span>/</span><span>包裝方式設定</span></div>
     <section class="view">
       <div class="query">
@@ -50,7 +51,7 @@
         <button class="btn btn-primary raised icon" id="btnSearch" aria-label="查詢">查詢</button>
         <span class="spacer"></span>
         <div class="menuwrap">
-          <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 ▾</button>
+          <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden>
             <button id="mCopy">複製到其他型體（可多筆）</button>
             <button id="mAddStep">新增步驟</button>
@@ -98,7 +99,7 @@
 <!-- 型體地區（openSmall） -->
 <div class="scrim" id="pkDlg" hidden>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pkTitle">
-    <div class="dt"><span class="mark">▍</span><h4 id="pkTitle">型體地區</h4></div>
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="pkTitle">型體地區</h4></div>
     <div class="dc">
       <div class="note info">主鍵＝型體（不含配色）＋地區，兩個合起來不能重複。客戶只是顯示用。</div>
       <div class="frow">
@@ -122,7 +123,7 @@
 <!-- 複製到其他型體（openSmall） -->
 <div class="scrim" id="cpDlg" hidden>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="cpTitle">
-    <div class="dt"><span class="mark">▍</span><h4 id="cpTitle">複製到其他型體</h4><span class="sum" id="cpSum"></span></div>
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="cpTitle">複製到其他型體</h4><span class="sum" id="cpSum"></span></div>
     <div class="dc">
       <div class="note info" id="cpInfo"></div>
       <div class="gridwrap tgt" style="min-height:180px"><table class="grid" id="cpGrid"></table></div>
@@ -136,7 +137,7 @@
 <!-- 離開提醒（380） -->
 <div class="scrim" id="leave" hidden>
   <div class="dialog xs" role="dialog" aria-modal="true" aria-labelledby="lvTitle">
-    <div class="dt"><span class="mark">▍</span><h4 id="lvTitle">步驟清單還沒儲存</h4></div>
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="lvTitle">步驟清單還沒儲存</h4></div>
     <div class="dc"><div>切換包裝方式會丟掉剛剛的修改。</div></div>
     <div class="da"><button class="btn btn-cancel" id="lvCancel">取消</button><button class="btn btn-danger raised" id="lvOk">丟掉修改</button></div>
   </div>
@@ -144,7 +145,7 @@
 <!-- 訓練辨識模型（openLarge） -->
 <div class="scrim" id="trDlg" hidden>
   <div class="dialog large" role="dialog" aria-modal="true" aria-labelledby="trTitle">
-    <div class="dt"><span class="mark">▍</span><h4 id="trTitle">訓練辨識模型</h4><span class="sum n" id="trSum"></span></div>
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="trTitle">訓練辨識模型</h4><span class="sum n" id="trSum"></span></div>
     <div class="dc">
       <div class="radios" role="radiogroup" aria-label="訓練素材範圍">
         <label><input type="radio" name="trScope" value="self" id="trSelf" checked>只用本型體地區的素材</label>
@@ -167,7 +168,7 @@
 <!-- 訓練素材預覽（openLarge，第二層） -->
 <div class="scrim" id="pvDlg" hidden style="z-index:55">
   <div class="dialog large" role="dialog" aria-modal="true" aria-labelledby="pvTitle">
-    <div class="dt"><span class="mark">▍</span><h4 id="pvTitle">訓練素材預覽</h4><span class="sum n" id="pvSum"></span></div>
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="pvTitle">訓練素材預覽</h4><span class="sum n" id="pvSum"></span></div>
     <div class="dc" style="flex-direction:row; gap:16px; overflow:hidden">
       <div class="gridwrap" id="pvList" style="flex:1 1 0; min-width:0"></div>
       <div style="flex:0 0 520px; min-width:0; display:flex; flex-direction:column; border:1px solid var(--line)">
@@ -221,6 +222,7 @@
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
+  EIP.compactToggle($("btnCompact"));
   let methods = [], sel = null, detail = null, stepsEdit = null, dirty = false, tab = "steps", pkEditing = null, pendingSel = null;
   const filters = {};
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -277,13 +279,12 @@
       const tr = el("tr", tone + (m.name === sel ? " sel" : ""));
       v.forEach((x, j) => tr.appendChild(el("td", j === 0 ? "pinL" : j === 5 ? "r n" : "", x)));
       const op = el("td", "pinR c"), box = el("span", "ops");
-      const b1 = el("button", "ib c-edit", "✎"); b1.title = m.has_packaging ? "編輯型體地區" : "設定型體地區"; b1.setAttribute("aria-label", b1.title); b1.onclick = (e) => { e.stopPropagation(); openPk(m, false); };
-      const b2 = el("button", "ib c-ink", "⧉"); b2.title = "複製到其他型體"; b2.setAttribute("aria-label", b2.title); b2.disabled = !m.has_packaging; b2.onclick = (e) => { e.stopPropagation(); openCopy(m); };
+      const b1 = EIP.iconBtn("edit", "c-edit", m.has_packaging ? "編輯型體地區" : "設定型體地區", (e) => { e.stopPropagation(); openPk(m, false); });
+      const b2 = EIP.iconBtn("content_copy", "c-ink", "複製到其他型體", (e) => { e.stopPropagation(); openCopy(m); }); b2.disabled = !m.has_packaging;
       box.appendChild(b1); box.appendChild(b2);
       if (m.has_packaging) {
-        const b3 = el("button", "ib " + (m.enabled ? "c-del" : "c-edit"), m.enabled ? "⊘" : "↺"); b3.title = m.enabled ? "停用" : "啟用"; b3.setAttribute("aria-label", b3.title);
-        b3.onclick = async (e) => { e.stopPropagation(); const d = await api("/api/method/packaging", { name: m.name, packaging: { enabled: !m.enabled } }); if (!d.ok) toast(d.error, true); else load(m.name); };
-        box.appendChild(b3);
+        box.appendChild(EIP.iconBtn(m.enabled ? "block" : "restore", m.enabled ? "c-del" : "c-edit", m.enabled ? "停用" : "啟用", async (e) => {
+          e.stopPropagation(); const d = await api("/api/method/packaging", { name: m.name, packaging: { enabled: !m.enabled } }); if (!d.ok) toast(d.error, true); else load(m.name); }));
       }
       op.appendChild(box); tr.appendChild(op);
       tr.onclick = () => askSelect(m.name);
@@ -291,7 +292,7 @@
       tb.appendChild(tr);
     }
     if (!shown) { const tr = el("tr", "empty"), td = el("td", null, methods.length ? "沒有符合條件的包裝方式" : "還沒有任何專案，先到「標記物品」新增"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
-    t.appendChild(tb);
+    t.appendChild(tb); EIP.resizable(t, "methods");
   }
   function askSelect(name) { if (name === sel) return; if (dirty) { pendingSel = name; $("leave").hidden = false; return; } select(name); }
   $("lvCancel").onclick = () => { $("leave").hidden = true; pendingSel = null; };
@@ -337,10 +338,10 @@
       const c3 = el("td", "ed"), b = el("input", "r n"); b.value = s.dwell; b.setAttribute("aria-label", "停留秒數"); b.oninput = () => { s.dwell = b.value; mark(s, tr); }; c3.appendChild(b); tr.appendChild(c3);
       const c4 = el("td", "c"), ck = el("input"); ck.type = "checkbox"; ck.checked = s.required; ck.setAttribute("aria-label", "必要"); ck.onchange = () => { s.required = ck.checked; mark(s, tr); }; c4.appendChild(ck); tr.appendChild(c4);
       const c5 = el("td", "pinR c"), box = el("span", "ops");
-      const up = el("button", "ib c-ink", "↑"); up.title = "往上移"; up.disabled = i === 0; up.onclick = () => { [stepsEdit[i - 1], stepsEdit[i]] = [stepsEdit[i], stepsEdit[i - 1]]; dirty = true; renderSteps(); };
-      const dn = el("button", "ib c-ink", "↓"); dn.title = "往下移"; dn.disabled = i === stepsEdit.length - 1; dn.onclick = () => { [stepsEdit[i + 1], stepsEdit[i]] = [stepsEdit[i], stepsEdit[i + 1]]; dirty = true; renderSteps(); };
-      const del = el("button", "ib c-del", "✕"); del.title = "刪除這一步"; del.onclick = () => { stepsEdit.splice(i, 1); dirty = true; renderSteps(); };
-      [up, dn, del].forEach((x) => { x.setAttribute("aria-label", x.title); box.appendChild(x); });
+      const up = EIP.iconBtn("arrow_upward", "c-ink", "往上移", () => { [stepsEdit[i - 1], stepsEdit[i]] = [stepsEdit[i], stepsEdit[i - 1]]; dirty = true; renderSteps(); }); up.disabled = i === 0;
+      const dn = EIP.iconBtn("arrow_downward", "c-ink", "往下移", () => { [stepsEdit[i + 1], stepsEdit[i]] = [stepsEdit[i], stepsEdit[i + 1]]; dirty = true; renderSteps(); }); dn.disabled = i === stepsEdit.length - 1;
+      const del = EIP.iconBtn("delete", "c-del", "刪除這一步", () => { stepsEdit.splice(i, 1); dirty = true; renderSteps(); });
+      [up, dn, del].forEach((x) => box.appendChild(x));
       c5.appendChild(box); tr.appendChild(c5);
       tb.appendChild(tr);
     });
@@ -382,10 +383,8 @@
       tr.appendChild(el("td", "n", c.checked_at || ""));
       tr.appendChild(el("td", null, c.note || (c.status === "verified" ? "可以直接上線" : c.status === "failed" ? "補標記這個配色的畫面後重新訓練" : "上線前先錄 2～3 輪做離線驗證；在那之前監控算試跑")));
       const op = el("td", "pinR c"), box = el("span", "ops");
-      for (const [g, s, tip, cls] of [["✓", "verified", "標成已驗證", "c-edit"], ["✗", "failed", "標成驗證判錯", "c-warn"], ["✕", "remove", "從清單移除", "c-del"]]) {
-        const b = el("button", "ib " + cls, g); b.title = tip; b.setAttribute("aria-label", tip);
-        b.onclick = async () => { const r = await api("/api/method/color", { name: d.name, color: c.name, status: s }); if (!r.ok) toast(r.error, true); else { toast("已更新配色「" + c.name + "」"); select(d.name); } };
-        box.appendChild(b);
+      for (const [g, s, tip, cls] of [["done", "verified", "標成已驗證", "c-edit"], ["highlight_off", "failed", "標成驗證判錯", "c-warn"], ["delete", "remove", "從清單移除", "c-del"]]) {
+        box.appendChild(EIP.iconBtn(g, cls, tip, async () => { const r = await api("/api/method/color", { name: d.name, color: c.name, status: s }); if (!r.ok) toast(r.error, true); else { toast("已更新配色「" + c.name + "」"); select(d.name); } }));
       }
       op.appendChild(box); tr.appendChild(op); tb.appendChild(tr);
     }
@@ -446,7 +445,7 @@
     cpRows.forEach((r, i) => {
       const tr = el("tr");
       for (const k of ["style", "region", "style_name"]) { const td = el("td", "ed"), inp = el("input"); inp.value = r[k]; inp.setAttribute("aria-label", k); if (k === "region") inp.setAttribute("list", "regionList"); inp.oninput = () => { r[k] = inp.value; }; td.appendChild(inp); tr.appendChild(td); }
-      const op = el("td", "pinR c"), b = el("button", "ib c-del", "✕"); b.title = "移除這一筆"; b.setAttribute("aria-label", b.title); b.disabled = cpRows.length === 1; b.onclick = () => { cpRows.splice(i, 1); renderCp(); };
+      const op = el("td", "pinR c"), b = EIP.iconBtn("delete", "c-del", "移除這一筆", () => { cpRows.splice(i, 1); renderCp(); }); b.disabled = cpRows.length === 1;
       op.appendChild(b); tr.appendChild(op); tb.appendChild(tr);
     });
     t.appendChild(tb); $("cpSum").textContent = `共 ${cpRows.length} 筆`;
@@ -469,7 +468,10 @@
   window.sopgMethods = { get detail() { return detail; }, get methods() { return methods; }, reload: () => load(sel), toast };
   const q = new URLSearchParams(location.search);  // select() 會改網址，先記下來
   load().then(async () => {                      // ?train=1 直接開訓練燈箱；&preview=段號 再開那一段的預覽
-    if (q.get("train") === "1" && window.openTrain) { await window.openTrain(detail); if (q.get("preview") && window.openTrainPreview) window.openTrainPreview(detail.name, Number(q.get("preview"))); }
+    if (q.get("tab") === "model") setTab("model");
+    if (q.get("dlg") === "pk") openPk(methods.find((m) => m.name === sel), false);
+    if (q.get("dlg") === "copy") openCopy(null);
+    if (q.get("train") === "1" && window.openTrain) { await window.openTrain(detail); if (q.get("preview") && window.openTrainPreview) { await window.openTrainPreview(detail.name, Number(q.get("preview"))); if (q.get("pvtab") === "seeds") document.querySelector('#pvTabs [data-pv="seeds"]').click(); } }
   });
 })();
 </script>
@@ -536,7 +538,7 @@
         const tr = el("tr", "t-warn"); tr.appendChild(el("td", "pinL c", ""));
         [m.style || "（未設定）", m.region || "", m.project].forEach((v) => tr.appendChild(el("td", null, v)));
         const td = el("td", null, m.has_video ? "有影片、還沒框選，不能拿來訓練" : "沒有影片"); td.colSpan = 6; tr.appendChild(td);
-        const op = el("td", "pinR c"), a = el("a", null, "去標記"); a.href = "/label?project=" + enc(m.project); op.appendChild(a); tr.appendChild(op);
+        const op = el("td", "pinR c"), a = el("a", null, "去標記"); a.href = "/label?project=" + enc(m.project) + "&predict=1"; a.title = "到標記頁，用目前模型先預框"; op.appendChild(a); tr.appendChild(op);
         tb.appendChild(tr); rowsShown++; continue;
       }
       for (const s of m.segments) {
@@ -553,13 +555,12 @@
         tr.appendChild(el("td", "r n", s.manual + "／" + (s.n - s.manual)));
         tr.appendChild(el("td", null, Object.keys(s.items).join("、")));
         tr.appendChild(el("td", "c", picked[k] ? (isHold ? "驗證用" : "訓練") : ""));
-        const op = el("td", "pinR c"), b = el("button", "ib c-sec", "◉"); b.title = "預覽（逐段看畫面、刪錯框）"; b.setAttribute("aria-label", b.title);
-        b.onclick = () => openPreview(m, s.no); op.appendChild(b); tr.appendChild(op);
+        const op = el("td", "pinR c"); op.appendChild(EIP.iconBtn("visibility", "c-sec", "預覽（逐段看畫面、刪錯框）", () => openPreview(m, s.no))); tr.appendChild(op);
         tb.appendChild(tr); rowsShown++;
       }
     }
     if (!rowsShown) { const tr = el("tr", "empty"), td = el("td", null, "沒有可用的素材。先到「標記物品」錄影或上傳影片並框選。"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
-    t.appendChild(tb);
+    t.appendChild(tb); EIP.resizable(t, "train-material");
     const nBox = sel.reduce((a, x) => a + x.s.n, 0), colors = [...new Set(sel.map((x) => x.color || "（未填）"))];
     $("trSum").textContent = `已選 ${sel.length} 段（訓練 ${sel.length - hold.size}、驗證 ${hold.size}），共 ${nBox} 框；配色：${colors.join("、") || "–"}`;
     $("trOk").disabled = !sel.length;
@@ -589,7 +590,7 @@
 
   // ---- 預覽
   let pv = null;   // {m, segs, seeds, cur, frame, gone:Set, timer}
-  window.openTrainPreview = (project, segNo) => { const m = mats.find((x) => x.project === project); if (m && m.segments.length) openPreview(m, segNo || 1); };
+  window.openTrainPreview = async (project, segNo) => { const m = mats.find((x) => x.project === project); if (m && m.segments.length) await openPreview(m, segNo || 1); };
   async function openPreview(m, segNo) {
     const info = await api("/api/project?name=" + enc(m.project));
     if (info.error) { M.toast(info.error, true); return; }
@@ -665,7 +666,7 @@
         const sd = pv.seeds[ix], c = el("div", "sd" + (sd.auto ? "" : " man") + (pv.gone.has(ix) ? " gone" : ""));
         const im = el("img"); im.loading = "lazy"; im.src = zoomUrl(sd); im.alt = name; c.appendChild(im);
         const cap = el("div", "cap"); cap.appendChild(el("span", null, sd.auto ? "自動" : "手框")); cap.appendChild(el("span", null, (sd.frame / pv.m.fps).toFixed(1))); c.appendChild(cap);
-        const x = el("button", "x", pv.gone.has(ix) ? "↺" : "✕"); x.title = pv.gone.has(ix) ? "復原（取消待刪）" : "標成待刪"; x.setAttribute("aria-label", x.title);
+        const x = el("button", "x"); x.appendChild(EIP.mi(pv.gone.has(ix) ? "undo" : "close")); x.title = pv.gone.has(ix) ? "復原（取消待刪）" : "標成待刪"; x.setAttribute("aria-label", x.title);
         x.onclick = (ev) => { ev.stopPropagation(); if (pv.gone.has(ix)) pv.gone.delete(ix); else pv.gone.add(ix); renderGallery(); renderPvList(); };
         c.appendChild(x);
         c.onclick = () => { setPvTab("frames"); seekFrame(sd.frame); };

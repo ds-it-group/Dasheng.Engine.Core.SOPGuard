@@ -472,7 +472,7 @@ $W="models\yolov8s-worldv2.pt"
 | `packing_methods.py` | 包裝方式目錄：型體＋地區主鍵、模型參考、配色驗證、複製、改步驟 |
 | `lines.py` | 產線設定（lines.json）、換線與換線紀錄 |
 | `training_material.py` | 訓練素材分段、跨專案合併資料集、留片段離線驗證 |
-| `web/` | `index.html` 監控、`lines.html` 產線設定、`methods.html` 包裝方式設定＋訓練、`label.html` 標記、`eip.css` 共用樣式 |
+| `web/` | `index.html` 監控、`lines.html` 產線設定、`methods.html` 包裝方式設定＋訓練、`label.html` 標記、`eip.css`／`eip.js` 共用樣式與小工具（圖示、grid 欄寬拖拉並記在瀏覽器）、`fonts/MaterialIcons-Regular.ttf`（Google Material Icons，Apache License 2.0，放本機是因為現場可能沒網路） |
 | `tests/` | 39 條（v1 14、v2 14、live 3、gesture_data 4、training 3、ui 1） |
 | `sop_projects/` | `範例_外盒`（schema 1）、`_v2a`／`_v2`（依序）、`_v3a`／`_v3`（清單）、`範例_內盒`（schema 1）、`_v2`（依序）、`_v3`／`_v3b`（清單） |
 | `cache/` | `outer.npz`、`inner.npz`、`outer_labels.csv`、各次執行 log |

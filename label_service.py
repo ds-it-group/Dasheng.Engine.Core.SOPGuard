@@ -20,6 +20,7 @@ from project_store import (ProjectConfigError, app_base_dir, load_project, proje
 from video_recorder import CameraSource, FrameReader, Recorder, import_demo_video
 
 PREVIEW_W = 640
+JPEG_CACHE_MAX = 600        # 預覽縮圖約 10～40 KB 一張，600 張約十幾 MB
 
 
 def create_project(name: str, width: int = 1280, height: int = 720, fps: float = 30.0) -> str:
@@ -348,6 +349,8 @@ class LabelService:
     def __init__(self):
         self._readers: dict[str, FrameReader] = {}
         self._detectors: dict[str, tuple[float, items.ItemDetector]] = {}
+        from collections import OrderedDict
+        self._jpegs: OrderedDict = OrderedDict()
         self._lock = threading.Lock()
         self.train = TrainJob(); self.record = RecordJob()
 
@@ -385,10 +388,25 @@ class LabelService:
                     pass
 
     def frame_jpeg(self, project_name: str, n: int, max_w: int | None = None, region: bool = False, box=None, zoom: bool = False) -> bytes | None:
-        """影格 JPEG。region：裁到桌面範圍；box=[x,y,w,h]：畫框；zoom：以框為中心放大（框外留一倍，10:9）。"""
+        """影格 JPEG。region：裁到桌面範圍；box=[x,y,w,h]：畫框；zoom：以框為中心放大（框外留一倍，10:9）。
+        做過的 JPEG 留在記憶體（最多 JPEG_CACHE_MAX 張）：預覽燈箱來回切換同一段不用重新解碼。"""
         p = load_project(project_name); r = self._reader(p)
         if r is None:
             return None
+        key = (p.video_path, os.path.getmtime(p.video_path), n, max_w, region, tuple(box) if box else None, zoom)
+        with self._lock:
+            hit = self._jpegs.get(key)
+            if hit is not None:
+                self._jpegs.move_to_end(key)
+                return hit
+        out = self._render_frame(p, r, n, max_w, region, box, zoom)
+        with self._lock:
+            self._jpegs[key] = out
+            while len(self._jpegs) > JPEG_CACHE_MAX:
+                self._jpegs.popitem(last=False)
+        return out
+
+    def _render_frame(self, p, r, n, max_w, region, box, zoom) -> bytes:
         with self._lock:
             fr = r.get_frame(max(0, min(n, max(r.frame_count - 1, 0)))).copy()
         if box is not None:

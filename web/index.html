@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SOP-Guard 監控</title>
 <link rel="stylesheet" href="/eip.css">
+<script src="/eip.js"></script>
 <style>
   /* 監控畫面：特殊版型，沿用共用骨架（側欄／topbar／麵包屑／查詢列／顏色註記列），中央改監控版面 */
   .pk { flex: none; margin: 8px 8px 0; }
@@ -80,15 +81,15 @@
     <div class="brand"><span class="logo">S</span><span class="txt">SOP-Guard</span></div>
     <nav>
       <div class="grp">現場</div>
-      <a href="/" class="on"><span class="ico">▶</span><span class="txt">監控畫面</span></a>
+      <a href="/" class="on"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
       <div class="grp">設定</div>
-      <a href="/lines"><span class="ico">≡</span><span class="txt">產線設定</span></a>
-      <a href="/methods"><span class="ico">▦</span><span class="txt">包裝方式設定</span></a>
-      <a href="/label"><span class="ico">▣</span><span class="txt">標記物品</span></a>
+      <a href="/lines"><span class="mi ico">view_week</span><span class="txt">產線設定</span></a>
+      <a href="/methods"><span class="mi ico">inventory</span><span class="txt">包裝方式設定</span></a>
+      <a href="/label"><span class="mi ico">crop_free</span><span class="txt">標記物品</span></a>
     </nav>
   </aside>
   <div class="main">
-    <header class="topbar"><h1>監控畫面</h1><button id="btnCompact" title="收起／展開側欄（掛在產線旁的螢幕可以收起來）">側欄</button></header>
+    <header class="topbar"><h1>監控畫面</h1><button id="btnCompact" title="收起／展開側欄（掛在產線旁的螢幕可以收起來）" aria-label="收起／展開側欄"><span class="mi">menu</span></button></header>
     <div class="crumb"><b>SOP-Guard</b><span>/</span><span>監控畫面</span></div>
     <section class="view">
       <div class="query">
@@ -97,7 +98,7 @@
         <span class="err" id="err"></span>
         <span class="spacer"></span>
         <div class="menuwrap">
-          <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 ▾</button>
+          <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden>
             <button id="mStart">啟動監控</button>
             <button id="mSwitch">換包裝方式</button>
@@ -116,7 +117,7 @@
       </div>
 
       <div class="pk card">
-        <div class="ttl"><span class="mark">▍</span><h4>目前包裝方式</h4><span class="when n" id="pkWhen"></span></div>
+        <div class="ttl"><span class="mi mark">rate_review</span><h4>目前包裝方式</h4><span class="when n" id="pkWhen"></span></div>
         <div class="row">
           <div class="kv"><div class="k">產線</div><div class="v" id="pkLine">–</div><div class="s" id="pkCam"></div></div>
           <div class="kv"><div class="k">型體</div><div class="v big" id="pkStyle">–</div><div class="s" id="pkStyleInfo"></div></div>
@@ -145,21 +146,21 @@
           </div>
         </div>
         <div class="pane">
-          <div class="ttl"><span class="mark">▍</span><h4>本輪步驟</h4><span class="sum n" id="stepSum"></span></div>
+          <div class="ttl"><span class="mi mark">rate_review</span><h4>本輪步驟</h4><span class="sum n" id="stepSum"></span></div>
           <ol class="steps" id="steps"><li class="none">尚未啟動</li></ol>
         </div>
         <div class="pane" style="overflow:auto">
           <div class="sec" id="warnBlock" hidden>
-            <div class="ttl"><span class="mark">▍</span><h4>需要注意</h4></div>
+            <div class="ttl"><span class="mi mark">rate_review</span><h4>需要注意</h4></div>
             <ul class="warns" id="warns"></ul>
           </div>
           <div class="sec">
-            <div class="ttl"><span class="mark">▍</span><h4>最近輪次</h4><span class="sum" id="histSum"></span></div>
+            <div class="ttl"><span class="mi mark">rate_review</span><h4>最近輪次</h4><span class="sum" id="histSum"></span></div>
             <div class="runs" id="strip"></div>
             <div class="none" id="noRuns">還沒有完成任何一輪</div>
           </div>
           <div class="sec">
-            <div class="ttl"><span class="mark">▍</span><h4>漏做次數</h4><span class="sum n" id="errTotal"></span></div>
+            <div class="ttl"><span class="mi mark">rate_review</span><h4>漏做次數</h4><span class="sum n" id="errTotal"></span></div>
             <div class="chart" id="errChart"></div>
             <div class="none n" id="kinds"></div>
           </div>
@@ -172,14 +173,14 @@
 <!-- 換包裝方式（openSmall 700×600） -->
 <div class="scrim" id="dlg" hidden>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
-    <div class="dt"><span class="mark">▍</span><h4 id="dlgTitle">換包裝方式</h4></div>
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="dlgTitle">換包裝方式</h4></div>
     <div class="dc">
       <div class="frow">
         <div class="fld w140"><label>產線</label><div class="ro" id="dLine"></div></div>
         <div class="fld w320"><label>目前</label><div class="ro" id="dNow"></div></div>
       </div>
       <div class="frow">
-        <div class="fld w140"><label for="dStyle">型體</label><select id="dStyle"></select></div>
+        <div class="picker w200"><label>型體</label><div class="pv" id="dStylePv"></div></div>
         <div class="fld w140"><label for="dRegion">地區</label><select id="dRegion"></select></div>
         <div class="fld w200"><label>型體名稱／客戶</label><div class="ro" id="dStyleInfo"></div></div>
       </div>
@@ -199,6 +200,20 @@
     </div>
   </div>
 </div>
+<!-- 選擇型體（共用選取燈箱，openSmall） -->
+<div class="scrim" id="pk" hidden style="z-index:56">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pkTitle">
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="pkTitle">選擇型體</h4><span class="sum n" id="pkSum"></span></div>
+    <div class="dc">
+      <div class="frow">
+        <div class="fld w180"><label for="pkKey">型體（代碼／名稱／客戶）</label><input id="pkKey"></div>
+        <button class="btn btn-primary raised icon" id="pkSearch" aria-label="查詢"><span class="mi">search</span></button>
+      </div>
+      <div class="gridwrap"><table class="grid" id="pkGrid"></table></div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="pkCancel">取消</button><button class="btn btn-primary raised" id="pkOk">確定</button></div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -209,8 +224,7 @@
   const startedAt = { t: null };
   const NEW = "__new";
 
-  try { if (localStorage.getItem("sopg-compact") === "1") document.body.classList.add("compact"); } catch (e) {}
-  $("btnCompact").onclick = () => { document.body.classList.toggle("compact"); try { localStorage.setItem("sopg-compact", document.body.classList.contains("compact") ? "1" : "0"); } catch (e) {} };
+  EIP.compactToggle($("btnCompact"));
 
   function toast(text, bad) { const t = $("toast"); t.textContent = text; t.className = "toast" + (bad ? " bad" : ""); t.hidden = false; clearTimeout(toast._h); toast._h = setTimeout(() => { t.hidden = true; }, 4000); }
   function beep() {
@@ -379,18 +393,58 @@
     $("dLine").textContent = l.name;
     const pk = l.packaging;
     $("dNow").textContent = pk ? `${pk.style || pk.name}／${pk.region || "–"}　配色 ${colorText(l.color)}` : "（未指定）";
-    const ds = $("dStyle"); ds.innerHTML = "";
-    const keys = [...new Set(withPk().map(styleKey))];
-    for (const k of keys) { const o = el("option", null, k); o.value = k; ds.appendChild(o); }
-    if (!keys.length) { const o = el("option", null, "（沒有可用的包裝方式）"); o.value = ""; ds.appendChild(o); }
-    ds.value = pk ? styleKey(pk) : keys[0] || "";
+    curStyle = pk && withPk().some((m) => styleKey(m) === styleKey(pk)) ? styleKey(pk) : "";
+    renderStylePicker();
     fillRegions(pk ? pk.name : null, l.color);
     $("dCycle").hidden = !(running && runningLine === l.id) && !(running && lastState.line && lastState.line.id === l.id);
-    $("dlg").hidden = false; ds.focus();
+    $("dlg").hidden = false;
   }
+  // 型體＝選擇器欄位（規範 §3.8 模式 A）：空值顯示主色按鈕開共用選取燈箱；已選顯示值＋紅色 ✕ 清除
+  let curStyle = "", pkSel = "";
+  function renderStylePicker() {
+    const pv = $("dStylePv"); pv.innerHTML = "";
+    if (curStyle) {
+      const m = withPk().find((x) => styleKey(x) === curStyle);
+      pv.appendChild(el("span", "val", curStyle + (m && m.style_name ? "｜" + m.style_name : "")));
+      const x = el("button", "clr"); x.appendChild(EIP.mi("close")); x.title = "清除重選"; x.setAttribute("aria-label", "清除型體");
+      x.onclick = () => { curStyle = ""; renderStylePicker(); fillRegions(null, null); }; pv.appendChild(x);
+      pv.title = "點一下重新選擇"; pv.onclick = (ev) => { if (!ev.target.closest(".clr")) openPicker(); }; pv.style.cursor = "pointer";
+    } else {
+      const b = el("button", "btn btn-primary raised", "選擇型體"); b.onclick = openPicker; pv.appendChild(b); pv.onclick = null; pv.style.cursor = "";
+    }
+  }
+  function pickerRows() {
+    const by = {};
+    for (const m of withPk()) { const k = styleKey(m); (by[k] = by[k] || { key: k, name: m.style_name, cust: m.customer, regions: [] }).regions.push(m.region || "–"); }
+    return Object.values(by);
+  }
+  function openPicker() { pkSel = curStyle; $("pkKey").value = ""; renderPicker(); $("pk").hidden = false; $("pkKey").focus(); }
+  function renderPicker() {
+    const t = $("pkGrid"); t.innerHTML = "";
+    const th = el("thead"), tr0 = el("tr");
+    [["型體", 120], ["型體名稱", 200], ["客戶", 100], ["地區", 155]].forEach(([n, w], i) => { const h = el("th", i === 0 ? "pinL" : "", n); h.style.minWidth = w + "px"; if (i === 1) h.style.width = "100%"; tr0.appendChild(h); });
+    th.appendChild(tr0); t.appendChild(th);
+    const q = $("pkKey").value.trim(), tb = el("tbody"); let n = 0;
+    for (const r of pickerRows()) {
+      if (q && ![r.key, r.name || "", r.cust || ""].some((v) => v.includes(q))) continue;
+      n++;
+      const tr = el("tr", "pick" + (r.key === pkSel ? " sel" : ""));
+      [r.key, r.name || "", r.cust || "", r.regions.join("、")].forEach((v, i) => tr.appendChild(el("td", i === 0 ? "pinL" : "", v)));
+      tr.onclick = () => { pkSel = r.key; renderPicker(); };
+      tr.ondblclick = () => { pkSel = r.key; $("pkOk").onclick(); };
+      tb.appendChild(tr);
+    }
+    if (!n) { const tr = el("tr", "empty"), td = el("td", null, "沒有符合的型體"); td.colSpan = 4; tr.appendChild(td); tb.appendChild(tr); }
+    t.appendChild(tb); EIP.resizable(t, "pick-style");
+    $("pkSum").textContent = `共 ${n} 個型體`; $("pkOk").disabled = !pkSel;
+  }
+  $("pkSearch").onclick = renderPicker; $("pkKey").onkeydown = (ev) => { if (ev.key === "Enter") renderPicker(); };
+  $("pkCancel").onclick = () => { $("pk").hidden = true; };
+  $("pkOk").onclick = () => { if (!pkSel) return; curStyle = pkSel; $("pk").hidden = true; renderStylePicker(); fillRegions(null, null); };
   function fillRegions(keepName, keepColor) {
     const dr = $("dRegion"); dr.innerHTML = "";
-    for (const m of withPk().filter((m) => styleKey(m) === $("dStyle").value)) { const o = el("option", null, m.region || "–"); o.value = m.name; dr.appendChild(o); }
+    for (const m of withPk().filter((m) => styleKey(m) === curStyle)) { const o = el("option", null, m.region || "–"); o.value = m.name; dr.appendChild(o); }
+    if (!dr.options.length) { const o = el("option", null, curStyle ? "（沒有可用的地區）" : "（先選型體）"); o.value = ""; dr.appendChild(o); }
     if (keepName && [...dr.options].some((o) => o.value === keepName)) dr.value = keepName;
     fillColors(keepColor); renderPreview();
   }
@@ -432,11 +486,10 @@
       $("dPrevHead").textContent = `${m.name} 的步驟（${(det.step_rows || []).length} 步${diff ? "，跟目前不同的有 " + diff + " 步" : ""}）`;
     });
   }
-  $("dStyle").onchange = () => fillRegions(null, null);
   $("dRegion").onchange = () => { fillColors(null); renderPreview(); };
   $("dColor").onchange = renderPreview;
   $("dCancel").onclick = () => { $("dlg").hidden = true; };
-  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("dlg").hidden = true; });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { if (!$("pk").hidden) $("pk").hidden = true; else $("dlg").hidden = true; } });
   $("dOk").onclick = async () => {
     const l = curLine(); let color = $("dColor").value;
     if (color === NEW && $("dColorNew").value.trim()) color = $("dColorNew").value.trim();

@@ -4,149 +4,205 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SOP-Guard 標記物品</title>
+<link rel="stylesheet" href="/eip.css">
+<script src="/eip.js"></script>
 <style>
-  :root { --bg:#f3f4f6; --card:#fff; --text:#1f2937; --muted:#6b7280; --ok:#16a34a; --warn:#dc2626; --accent:#2563eb; --line:#e5e7eb; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font-family:"Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif; font-size:16px; }
-  header { display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); flex-wrap:wrap; }
-  header h1 { font-size:20px; margin:0; }
-  header select { padding:8px; font:inherit; min-width:200px; }
-  /* 整頁固定在瀏覽器視窗大小內：影格依剩餘空間縮放，右欄太長時在右欄裡面捲動 */
-  html, body { height:100%; }
-  body { display:flex; flex-direction:column; overflow:hidden; }
-  header { flex:none; }
-  main { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 420px; grid-template-rows:minmax(0,1fr); gap:12px; padding:12px 16px; }
-  main > section { display:flex; flex-direction:column; min-height:0; min-width:0; overflow-y:auto; }
-  #labelArea { flex:1; min-height:0; display:flex; flex-direction:column; }
-  #labelArea .view { flex:1; min-height:0; align-items:center; }
-  #labelArea .view img { max-height:100%; object-fit:contain; }
-  main > aside { min-height:0; overflow-y:auto; }
-  @media (max-width: 1000px) {
-    body { overflow:auto; display:block; height:auto; }
-    main { grid-template-columns:1fr; grid-template-rows:auto; }
-    main > section, main > aside { overflow:visible; }
-    #labelArea .view { min-height:300px; } #labelArea .view img { max-height:70vh; }
-  }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px; }
-  .card h2 { font-size:15px; margin:0 0 8px; color:var(--muted); font-weight:600; }
-  .view { position:relative; background:#111; border-radius:8px; display:flex; justify-content:center; min-height:300px; }
-  .view img { max-width:100%; display:block; user-select:none; -webkit-user-drag:none; }
-  .view canvas { position:absolute; left:0; top:0; touch-action:none; cursor:crosshair; }
-  .ctl { display:flex; gap:6px; align-items:center; margin-top:8px; flex-wrap:wrap; }
-  .ctl input[type=range] { flex:1; min-width:200px; }
-  button, input, select { font:inherit; }
-  .btn { padding:9px 14px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; }
-  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); font-size:17px; }
-  .btn.go { background:#2d7; color:#111; border-color:#2d7; font-size:18px; padding:14px 18px; }
-  .btn.blue { background:#6cf; color:#111; border-color:#6cf; font-size:18px; padding:14px 18px; }
-  .btn:disabled { opacity:.5; cursor:default; }
-  .btn.small { padding:4px 8px; font-size:13px; }
-  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
-  input[type=text], input[type=number] { padding:8px; border:1px solid var(--line); border-radius:6px; }
-  .wiz h2 { font-size:17px; color:var(--text); }
-  .hint { color:#555; white-space:pre-line; font-size:14px; line-height:1.5; }
-  ul.items { list-style:none; margin:8px 0 0; padding:0; }
-  ul.items li { display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid var(--line); cursor:pointer; }
-  ul.items li.sel { background:#eef2ff; }
-  ul.items li .grow { flex:1; }
-  #msg { margin-top:8px; min-height:44px; color:#374151; background:#f9fafb; border:1px solid var(--line); border-radius:6px; padding:8px; font-size:14px; white-space:pre-line; }
-  #msg.err { color:var(--warn); }
-  .bar { height:12px; background:#e5e7eb; border-radius:6px; overflow:hidden; margin-top:8px; }
-  .bar div { height:100%; background:var(--accent); width:0; transition:width .3s; }
-  pre.log { background:#111; color:#ddd; padding:8px; border-radius:6px; font-size:12px; max-height:200px; overflow:auto; white-space:pre-wrap; }
-  .nav { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
-  .hidden { display:none !important; }
-  .frames { font-size:13px; color:var(--muted); margin-top:6px; }
-  .frames button { margin-left:6px; }
+  /* 標記頁：沿用共用骨架；中央左＝影格＋框選、右＝三步精靈。整頁固定在視窗內，影格依剩餘空間縮放 */
+  .lbody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 8px; padding: 8px; }
+  .lbody > section { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow-y: auto; gap: 8px; }
+  .lbody > aside { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+  .stage { position: relative; flex: 1; min-height: 300px; background: #15181d; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+  .stage img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; user-select: none; -webkit-user-drag: none; }
+  .stage canvas { position: absolute; left: 0; top: 0; touch-action: none; cursor: crosshair; }
+  .ctl { flex: none; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; padding: 6px 8px; background: var(--card); border: 1px solid var(--line); }
+  .ctl input[type=range] { flex: 1; min-width: 200px; accent-color: var(--primary); }
+  .ctl .btn { height: 32px; padding: 0 8px; }
+  .fbar { flex: none; font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 8px; background: var(--card); border: 1px solid var(--line); }
+  .fbar .chipx { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 2px; padding: 0 2px 0 6px; background: var(--page); }
+  .wiz .body { padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .hint { color: var(--ink-2); white-space: pre-line; font-size: 13px; line-height: 1.6; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row input[type=text], .row input[type=number] { border: 0; border-bottom: 1px solid var(--line); padding: 4px 0; background: transparent; }
+  .row input:focus { outline: none; border-bottom: 2px solid var(--primary); }
+  .btn-big { height: 44px; font-size: 16px; padding: 0 20px; }
+  ul.items { list-style: none; margin: 0; padding: 0; }
+  ul.items li { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--line-soft); cursor: pointer; font-size: 13px; }
+  ul.items li.sel { background: var(--primary-wash); }
+  ul.items li .grow { flex: 1; min-width: 0; }
+  #msg { margin: 10px 14px 14px; min-height: 44px; font-size: 13px; white-space: pre-line; }
+  .bar { height: 8px; background: var(--line-soft); border-radius: 4px; overflow: hidden; }
+  .bar div { height: 100%; background: var(--primary); width: 0; transition: width .3s; }
+  pre.log { background: #1e2129; color: #ddd; padding: 8px; border-radius: 2px; font-size: 12px; max-height: 180px; overflow: auto; white-space: pre-wrap; margin: 0; }
+  .nav { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
+  #predRow .btn { height: 28px; padding: 0 8px; font-size: 12px; }
+  .setup .body { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .setup .stage { min-height: 160px; flex: none; height: 320px; }
+  @media (max-width: 1100px) { .lbody { grid-template-columns: minmax(0, 1fr); } .lbody > section, .lbody > aside { overflow: visible; } .stage img { max-height: 70vh; } }
 </style>
 </head>
 <body>
-<header>
-  <h1>SOP-Guard 標記物品</h1>
-  <select id="project"></select>
-  <button class="btn" id="btnNew">新增專案</button>
-  <a class="btn" href="/" style="text-decoration:none;margin-left:auto">前往監控頁</a>
-</header>
-<main>
-  <section>
-    <div class="card hidden" id="setup">
-      <h2>這個專案還沒有示範影片，先用下面任一種方式準備</h2>
-      <div class="row"><b>A. 用相機錄一段</b>（把整套動作完整做幾遍）</div>
-      <div class="row">
-        <input type="text" id="camSrc" placeholder="相機來源（留空＝伺服器記住的那一台）" style="min-width:320px">
-        <button class="btn" id="btnCamOpen">開啟相機預覽</button>
-        <button class="btn primary" id="btnRecBegin" disabled>開始錄製</button>
-        <button class="btn" id="btnRecStop" disabled>停止錄製，存成示範影片</button>
-      </div>
-      <div class="view" style="min-height:120px;margin-top:8px"><img id="recPreview" alt="" style="display:none"></div>
-      <div class="frames" id="recInfo"></div>
-      <div class="row" style="margin-top:16px"><b>B. 上傳已經拍好的影片</b>（mp4／avi／mov／mkv）</div>
-      <div class="row"><input type="file" id="file" accept=".mp4,.avi,.mov,.mkv"><button class="btn" id="btnUpload">上傳</button><span id="upInfo"></span></div>
-    </div>
-    <div id="labelArea" class="hidden">
-      <div class="view"><img id="frame" alt=""><canvas id="ov"></canvas></div>
-      <div class="ctl">
-        <button class="btn" data-d="-30">◀◀◀</button><button class="btn" data-d="-5">◀◀</button><button class="btn" data-d="-1">◀</button>
-        <input type="range" id="slider" min="0" max="0" value="0">
-        <button class="btn" data-d="1">▶</button><button class="btn" data-d="5">▶▶</button><button class="btn" data-d="30">▶▶▶</button>
-      </div>
-      <div class="frames"><button class="btn small" id="btnPrevSeed">◀ 上一個框</button><button class="btn small" id="btnNextSeed">下一個框 ▶</button>　<span id="frameLabel">第 0 格</span>　<span id="frameSeeds"></span></div>
-    </div>
-  </section>
-  <aside class="card wiz">
-    <h2 id="stepTitle">請先選專案</h2>
-    <div class="hint" id="stepHint"></div>
-    <div id="step1" class="hidden">
-      <div class="row">
-        <button class="btn primary" id="btnRef">這一格是空盒</button>
-        <button class="btn" id="btnClosed">這一格是蓋著的盒子</button>
-      </div>
-      <div class="row">
-        <span>框選的物品叫：</span><input type="text" id="itemName" list="names" style="width:150px"><datalist id="names"></datalist>
-        <button class="btn primary" id="btnAddSeed">加入框選的物品</button>
-      </div>
-      <div class="row">
-        <span>加入後自動往前後追</span><input type="number" id="trackSec" value="2" min="0" max="5" step="0.5" style="width:70px"><span>秒（0＝不追）</span>
-        <button class="btn hidden" id="btnDropAuto">刪除這次的自動框</button>
-      </div>
-      <div class="row">
-        <label><input type="checkbox" id="chkFixed"> 看整張桌面（固定範圍，不跟著盒子）</label>
-        <button class="btn hidden" id="btnRegion">把框選設為桌面範圍</button>
-      </div>
-      <div class="row hidden" id="handRow">
-        <span>手停在物件上：名稱</span><input type="text" id="handName" placeholder="例如 檢查鞋舌" style="width:120px">
-        <span>物件(英文)</span><input type="text" id="handPrompt" value="shoe" style="width:80px">
-        <span>連續</span><input type="number" id="handDwell" value="0.7" step="0.1" min="0.2" max="10" style="width:70px">秒
-        <button class="btn" id="btnAddHand">加入</button>
-      </div>
-    </div>
-    <div id="step2" class="hidden">
-      <div class="row"><button class="btn go" id="btnTrain">開始訓練（約 20～60 分鐘）</button></div>
-      <div class="bar"><div id="trainBar"></div></div>
-      <div class="frames" id="trainStage"></div>
-      <pre class="log" id="trainLog"></pre>
-    </div>
-    <div id="step3" class="hidden">
-      <div class="row"><button class="btn blue" id="btnGen">產生步驟，前往監控</button></div>
-    </div>
-    <div class="nav" id="nav"><button class="btn" id="btnPrev">◀ 上一步</button><button class="btn primary" id="btnNext">下一步 ▶</button></div>
-    <h2 style="margin-top:14px">已標的物品</h2>
-    <ul class="items" id="items"></ul>
-    <div id="msg"></div>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><span class="logo">S</span><span class="txt">SOP-Guard</span></div>
+    <nav>
+      <div class="grp">現場</div>
+      <a href="/"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
+      <div class="grp">設定</div>
+      <a href="/lines"><span class="mi ico">view_week</span><span class="txt">產線設定</span></a>
+      <a href="/methods"><span class="mi ico">inventory</span><span class="txt">包裝方式設定</span></a>
+      <a href="/label" class="on"><span class="mi ico">crop_free</span><span class="txt">標記物品</span></a>
+    </nav>
   </aside>
-</main>
+  <div class="main">
+    <header class="topbar"><h1>標記物品</h1><button id="btnCompact" title="收起／展開側欄" aria-label="收起／展開側欄"><span class="mi">menu</span></button></header>
+    <div class="crumb"><b>SOP-Guard</b><span>/</span><span>標記物品</span><span id="crumbProj"></span></div>
+    <section class="view">
+      <div class="query">
+        <div class="fld w200"><label for="project">專案（包裝方式）</label><select id="project"></select></div>
+        <span class="spacer"></span>
+        <div class="menuwrap">
+          <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
+          <div class="menu" id="opMenu" hidden>
+            <button id="btnNew">新增專案</button>
+            <a id="lnkMethod" href="/methods">到包裝方式設定</a>
+            <a href="/">到監控畫面</a>
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i style="background:#22c55e"></i>手框</span>
+        <span><i style="background:#86efac"></i>自動追出來的框（虛線）</span>
+        <span><i style="background:#facc15"></i>正在拉的框／模型預框</span>
+        <span><i style="background:#ff9f1c"></i>桌面範圍</span>
+      </div>
+      <div class="lbody">
+        <section>
+          <div class="card setup" id="setup" hidden>
+            <div class="ttl"><span class="mi mark">rate_review</span><h4>這個專案還沒有示範影片，先用下面任一種方式準備</h4></div>
+            <div class="body">
+              <div><b>A. 用相機錄一段</b>（把整套動作完整做幾遍）</div>
+              <div class="row">
+                <span class="fld w320"><label for="camSrc">相機來源（留空＝伺服器記住的那一台）</label><input type="text" id="camSrc"></span>
+                <button class="btn btn-cancel" id="btnCamOpen">開啟相機預覽</button>
+                <button class="btn btn-primary raised" id="btnRecBegin" disabled>開始錄製</button>
+                <button class="btn btn-cancel" id="btnRecStop" disabled>停止錄製，存成示範影片</button>
+              </div>
+              <div class="stage"><img id="recPreview" alt="" hidden></div>
+              <div class="hint" id="recInfo"></div>
+              <div><b>B. 上傳已經拍好的影片</b>（mp4／avi／mov／mkv）</div>
+              <div class="row"><input type="file" id="file" accept=".mp4,.avi,.mov,.mkv"><button class="btn btn-primary raised" id="btnUpload">上傳</button><span id="upInfo" class="hint"></span></div>
+            </div>
+          </div>
+          <div id="labelArea" hidden style="display:flex; flex-direction:column; gap:8px; flex:1; min-height:0">
+            <div class="stage"><img id="frame" alt=""><canvas id="ov"></canvas></div>
+            <div class="ctl">
+              <button class="btn btn-cancel" data-d="-30" title="往前 30 格"><span class="mi">fast_rewind</span></button><button class="btn btn-cancel" data-d="-5" title="往前 5 格"><span class="mi">chevron_left</span><span class="mi" style="margin-left:-10px">chevron_left</span></button><button class="btn btn-cancel" data-d="-1" title="往前 1 格"><span class="mi">chevron_left</span></button>
+              <input type="range" id="slider" min="0" max="0" value="0" aria-label="影格">
+              <button class="btn btn-cancel" data-d="1" title="往後 1 格"><span class="mi">chevron_right</span></button><button class="btn btn-cancel" data-d="5" title="往後 5 格"><span class="mi">chevron_right</span><span class="mi" style="margin-left:-10px">chevron_right</span></button><button class="btn btn-cancel" data-d="30" title="往後 30 格"><span class="mi">fast_forward</span></button>
+            </div>
+            <div class="fbar"><button class="btn btn-cancel" id="btnPrevSeed" style="height:28px">上一個框</button><button class="btn btn-cancel" id="btnNextSeed" style="height:28px">下一個框</button><span id="frameLabel" class="n">第 0 格</span><span id="frameSeeds"></span></div>
+          </div>
+        </section>
+        <aside class="card wiz">
+          <div class="ttl"><span class="mi mark">rate_review</span><h4 id="stepTitle">請先選專案</h4></div>
+          <div class="body">
+            <div class="hint" id="stepHint"></div>
+            <div id="step1" hidden style="display:flex; flex-direction:column; gap:10px">
+              <div class="row">
+                <button class="btn btn-primary raised" id="btnRef">這一格是空盒</button>
+                <button class="btn btn-cancel" id="btnClosed">這一格是蓋著的盒子</button>
+              </div>
+              <div class="row">
+                <span class="fld w140"><label for="itemName">框選的物品叫</label><input type="text" id="itemName" list="names"></span><datalist id="names"></datalist>
+                <button class="btn btn-primary raised" id="btnAddSeed">加入框選的物品</button>
+              </div>
+              <div class="row">
+                <button class="btn btn-secondary raised" id="btnPredict" title="用目前的模型在這一格先框好，你只要確認或微調">模型預框這一格</button>
+                <button class="btn btn-cancel" id="btnRetrack" title="用顏色與位置檢查，把全部手框重新往前後追一次">全部重新追蹤</button>
+              </div>
+              <div class="row" id="predRow" hidden></div>
+              <div class="row">
+                <span>加入後自動往前後追</span><input type="number" id="trackSec" value="2" min="0" max="5" step="0.5" style="width:60px" aria-label="追蹤秒數"><span>秒（0＝不追）</span>
+                <button class="btn btn-cancel" id="btnDropAuto" hidden>刪除這次的自動框</button>
+              </div>
+              <div class="row">
+                <label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="chkFixed"> 看整張桌面（固定範圍，不跟著盒子）</label>
+                <button class="btn btn-cancel" id="btnRegion" hidden>把框選設為桌面範圍</button>
+              </div>
+              <div class="row" id="handRow" hidden>
+                <span class="fld w120"><label for="handName">手停在物件上：名稱</label><input type="text" id="handName" placeholder="例如 檢查鞋舌"></span>
+                <span class="fld w100"><label for="handPrompt">物件（英文）</label><input type="text" id="handPrompt" value="shoe"></span>
+                <span class="fld w100"><label for="handDwell">連續秒數</label><input type="number" id="handDwell" value="0.7" step="0.1" min="0.2" max="10"></span>
+                <button class="btn btn-cancel" id="btnAddHand">加入</button>
+              </div>
+            </div>
+            <div id="step2" hidden style="display:flex; flex-direction:column; gap:10px">
+              <div class="row"><button class="btn btn-primary raised btn-big" id="btnTrain">開始訓練（約 20～60 分鐘）</button></div>
+              <div class="note info">要挑片段、加入別的型體地區素材、或訓練完自動驗證，請到「包裝方式設定 → 操作 ▾ → 訓練辨識模型」。</div>
+              <div class="bar"><div id="trainBar"></div></div>
+              <div class="hint" id="trainStage"></div>
+              <pre class="log" id="trainLog"></pre>
+            </div>
+            <div id="step3" hidden>
+              <div class="row"><button class="btn btn-primary raised btn-big" id="btnGen">產生步驟，前往監控</button></div>
+            </div>
+          </div>
+          <div class="nav" id="nav"><button class="btn btn-cancel" id="btnPrev">上一步</button><button class="btn btn-primary raised" id="btnNext">下一步</button></div>
+          <div class="ttl" style="border-top:1px solid var(--line)"><span class="mi mark">rate_review</span><h4>已標的物品</h4></div>
+          <ul class="items" id="items"></ul>
+          <div class="note info" id="msg"></div>
+        </aside>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- 新增專案（openSmall） -->
+<div class="scrim" id="newDlg" hidden>
+  <div class="dialog xs" role="dialog" aria-modal="true" aria-labelledby="newTitle">
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="newTitle">新增專案</h4></div>
+    <div class="dc">
+      <div class="fld" style="width:100%"><label for="newName">專案名稱（之後到「包裝方式設定」設型體與地區）</label><input id="newName"></div>
+      <div class="note danger" id="newErr" hidden></div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="newCancel">取消</button><button class="btn btn-primary raised" id="newOk">建立</button></div>
+  </div>
+</div>
+<!-- 確認（380） -->
+<div class="scrim" id="cfDlg" hidden>
+  <div class="dialog xs" role="dialog" aria-modal="true" aria-labelledby="cfTitle">
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="cfTitle">確認</h4></div>
+    <div class="dc"><div id="cfMsg"></div></div>
+    <div class="da"><button class="btn btn-cancel" id="cfCancel">取消</button><button class="btn btn-danger raised" id="cfOk">刪除</button></div>
+  </div>
+</div>
+
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  let proj = "", info = null, n = 0, sel = null, drag = null, step = 0, selItem = null, loadTimer = null, trainTimer = null, recTimer = null;
+  EIP.compactToggle($("btnCompact"));
+  let proj = "", info = null, n = 0, sel = null, drag = null, step = 0, selItem = null, loadTimer = null, trainTimer = null, recTimer = null, preds = [];
   const img = $("frame"), ov = $("ov"), ctx = ov.getContext("2d");
   const enc = encodeURIComponent;
+  document.addEventListener("click", (ev) => {
+    const t = ev.target.closest("[data-menu]");
+    document.querySelectorAll(".menu").forEach((m) => { if (!t || m.id !== t.dataset.menu) m.hidden = true; });
+    if (t) { const m = $(t.dataset.menu); m.hidden = !m.hidden; }
+  });
 
   async function api(path, body) {
     const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
     return r.json();
   }
-  function msg(t, err) { $("msg").textContent = t || ""; $("msg").className = err ? "err" : ""; }
+  function msg(t, err) { $("msg").textContent = t || ""; $("msg").className = "note " + (err ? "danger" : "info"); $("msg").hidden = !t; }
+  /* 規範 §3.13：刪除確認用燈箱，不用瀏覽器的 confirm() */
+  function confirmBox(text, okText) {
+    return new Promise((resolve) => {
+      $("cfMsg").textContent = text; $("cfOk").textContent = okText || "刪除"; $("cfDlg").hidden = false;
+      $("cfOk").onclick = () => { $("cfDlg").hidden = true; resolve(true); };
+      $("cfCancel").onclick = () => { $("cfDlg").hidden = true; resolve(false); };
+    });
+  }
 
   // ---- 專案
   async function loadProjects(keep) {
@@ -155,11 +211,13 @@
     if (keep) s.value = keep;
   }
   async function openProject(name) {
-    proj = name; sel = null; selItem = null;
-    if (!name) { info = null; $("setup").classList.add("hidden"); $("labelArea").classList.add("hidden"); render(); return; }
+    proj = name; sel = null; selItem = null; preds = []; renderPreds();
+    $("crumbProj").textContent = name ? "／" + name : "";
+    $("lnkMethod").href = name ? "/methods?project=" + enc(name) : "/methods";
+    if (!name) { info = null; $("setup").hidden = true; $("labelArea").hidden = true; render(); return; }
     info = await api("/api/project?name=" + enc(name));
     if (info.error) { msg(info.error, true); return; }
-    $("setup").classList.toggle("hidden", info.has_video); $("labelArea").classList.toggle("hidden", !info.has_video);
+    $("setup").hidden = info.has_video; $("labelArea").hidden = !info.has_video;
     if (info.has_video) { $("slider").max = Math.max(info.frame_count - 1, 0); n = Math.min(n, info.frame_count - 1); goFrame(0); }
     step = info.item_steps ? 2 : (info.has_model ? 1 : 0);
     render();
@@ -179,6 +237,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
     if (e.key === "ArrowLeft") goFrame(n - (e.shiftKey ? 30 : 1)); else if (e.key === "ArrowRight") goFrame(n + (e.shiftKey ? 30 : 1));
+    else if (e.key === "Escape") { $("newDlg").hidden = true; $("cfCancel").click(); }
   });
   img.addEventListener("load", draw); window.addEventListener("resize", draw);
 
@@ -192,16 +251,21 @@
       if (x.auto) { ctx.setLineDash([8, 6]); rect(x.rect, "#86efac", x.name + "（自動）"); ctx.setLineDash([]); }
       else rect(x.rect, "#22c55e", x.name);
     }
+    ctx.setLineDash([6, 4]); for (const p of preds) rect(p.rect, "#60a5fa", p.name + " " + p.conf); ctx.setLineDash([]);
     let tag = []; if (sd.refs.includes(n)) tag.push(sd.region ? "空桌面參考" : "空盒參考"); if (sd.closed.includes(n)) tag.push("蓋著的盒子");
     if (tag.length) { ctx.fillStyle = "#ffb703"; ctx.font = "bold 22px sans-serif"; ctx.fillText(tag.join("、"), 12, 32); }
     if (sel) rect(sel, "#facc15");
     const here = sd.seeds.map((x, i) => ({ x, i })).filter(o => o.x.frame === n);
-    $("frameSeeds").innerHTML = here.length ? "這一格的框選：" + here.map(o => `${o.x.name}${o.x.auto ? "（自動）" : ""} <button class="btn small" data-rm="${o.i}" title="${o.x.auto ? "只刪這一格的自動框" : "刪掉這個框和它自動追出來的全部框"}">✕</button>`).join(" ") : "";
-    $("frameSeeds").querySelectorAll("button[data-rm]").forEach(b => b.onclick = () => {
-      const s = sd.seeds[parseInt(b.dataset.rm, 10)];
-      if (!s.auto && sd.seeds.some(o => o.auto && o.group === s.group) && !confirm("這個框自動追出來的框也會一起刪，確定？")) return;
-      seedAct({ action: "remove_seed", index: parseInt(b.dataset.rm, 10) });
-    });
+    const fs = $("frameSeeds"); fs.innerHTML = "";
+    if (here.length) fs.appendChild(document.createTextNode("這一格的框選："));
+    for (const o of here) {
+      const c = document.createElement("span"); c.className = "chipx"; c.textContent = o.x.name + (o.x.auto ? "（自動）" : "");
+      c.appendChild(EIP.iconBtn("close", "c-del", o.x.auto ? "只刪這一格的自動框" : "刪掉這個框和它自動追出來的全部框", async () => {
+        if (!o.x.auto && sd.seeds.some(q => q.auto && q.group === o.x.group) && !(await confirmBox("這個框自動追出來的框也會一起刪，確定？"))) return;
+        seedAct({ action: "remove_seed", index: o.i });
+      }));
+      fs.appendChild(c);
+    }
   }
   function toFrame(e) { const r = ov.getBoundingClientRect(); const s = scale(); return [Math.round((e.clientX - r.left) / s), Math.round((e.clientY - r.top) / s)]; }
   ov.addEventListener("pointerdown", (e) => { if (!info || !info.has_video) return; ov.setPointerCapture(e.pointerId); drag = toFrame(e); sel = null; });
@@ -227,66 +291,53 @@
     const t = d.seeds.last_track || { found: 0, frames: [] };
     if (sec > 0 && t.found) {
       const fs = t.frames, a = (fs[0] / info.fps).toFixed(1), b = (fs[fs.length - 1] / info.fps).toFixed(1);
-      msg(`已加入「${name}」（第 ${n} 格），並自動在 ${a}～${b} 秒找到 ${t.found} 格（虛線框）。\n用「◀ 上一個框／下一個框 ▶」逐格檢查，框錯的那一格按下方 ✕ 刪掉；整批不要就按「刪除這次的自動框」。`);
-      lastGroup = t.group; $("btnDropAuto").classList.remove("hidden");
+      msg(`已加入「${name}」（第 ${n} 格），並自動在 ${a}～${b} 秒找到 ${t.found} 格（虛線框）。\n用「上一個框／下一個框」逐格檢查，框錯的那一格按下方 ✕ 刪掉；整批不要就按「刪除這次的自動框」。`);
+      lastGroup = t.group; $("btnDropAuto").hidden = false;
     } else {
       msg(`已加入「${name}」（第 ${n} 格）。` + (sec > 0 ? "前後沒有追到相同的東西（可能一閃而過或被遮住），這一輪多框幾格會比較好。" : ""));
-      $("btnDropAuto").classList.add("hidden");
+      $("btnDropAuto").hidden = true;
     }
   };
   let lastGroup = 0;
-  $("btnDropAuto").onclick = async () => { if (lastGroup && await seedAct({ action: "remove_auto_group", group: lastGroup })) { msg("已刪除這次的自動框，只留手框的那一格。"); $("btnDropAuto").classList.add("hidden"); } };
+  $("btnDropAuto").onclick = async () => { if (lastGroup && await seedAct({ action: "remove_auto_group", group: lastGroup })) { msg("已刪除這次的自動框，只留手框的那一格。"); $("btnDropAuto").hidden = true; } };
   function renderPreds() {
-    const r = $("predRow"); if (!r) return;
-    if (!preds.length) { r.classList.add("hidden"); r.innerHTML = ""; return; }
-    r.classList.remove("hidden");
-    r.innerHTML = `<span>模型預框：</span>` + preds.map((p, i) => `<button class="btn small" data-pi="${i}" title="點一下選取微調，或按 ✓ 直接加入">${p.name} (${p.conf})</button><button class="btn small primary" data-pa="${i}" title="直接採納這個預框並自動往前後追蹤">✓</button>`).join(" ") + (preds.length > 1 ? ` <button class="btn small primary" id="btnPredAll">✓ 全部採納 (${preds.length})</button>` : "");
-    r.querySelectorAll("button[data-pi]").forEach(b => b.onclick = () => {
-      const p = preds[parseInt(b.dataset.pi, 10)];
-      sel = [...p.rect]; $("itemName").value = p.name; draw();
-      msg(`已載入預框「${p.name}」（黃框），可直接按「加入框選的物品」或在畫面上重拉微調。`);
+    const r = $("predRow");
+    r.innerHTML = ""; r.hidden = !preds.length; if (!preds.length) return;
+    r.appendChild(document.createTextNode("模型預框："));
+    preds.forEach((p, i) => {
+      const b = document.createElement("button"); b.className = "btn btn-cancel"; b.textContent = `${p.name} (${p.conf})`; b.title = "點一下選取微調";
+      b.onclick = () => { sel = [...p.rect]; $("itemName").value = p.name; draw(); msg(`已載入預框「${p.name}」（黃框），可直接按「加入框選的物品」或在畫面上重拉微調。`); };
+      const a = document.createElement("button"); a.className = "btn btn-primary"; a.textContent = "採納"; a.title = "直接採納這個預框並自動往前後追蹤";
+      a.onclick = async () => { sel = [...p.rect]; $("itemName").value = p.name; await $("btnAddSeed").onclick(); preds = preds.filter((_, k) => k !== i); renderPreds(); draw(); };
+      r.appendChild(b); r.appendChild(a);
     });
-    r.querySelectorAll("button[data-pa]").forEach(b => b.onclick = async () => {
-      const p = preds[parseInt(b.dataset.pa, 10)];
-      sel = [...p.rect]; $("itemName").value = p.name;
-      await $("btnAddSeed").onclick();
-      preds = preds.filter((_, idx) => idx !== parseInt(b.dataset.pa, 10)); renderPreds(); draw();
-    });
-    const allBtn = $("btnPredAll");
-    if (allBtn) allBtn.onclick = async () => {
-      const sec = parseFloat($("trackSec").value) || 0;
-      msg(`批次採納 ${preds.length} 個預框並追蹤前後 ${sec} 秒中…`);
-      const d = await seedAct({ action: "add_batch", boxes: preds, track_sec: sec });
-      if (d && d.seeds.batch_result) {
-        const br = d.seeds.batch_result;
-        preds = []; renderPreds(); draw();
-        msg(`已一次採納 ${br.added} 個預框，並自動追出 ${br.auto} 格！`);
-      }
-    };
+    if (preds.length > 1) {
+      const all = document.createElement("button"); all.className = "btn btn-primary"; all.textContent = `全部採納 (${preds.length})`;
+      all.onclick = async () => {
+        const sec = parseFloat($("trackSec").value) || 0;
+        msg(`批次採納 ${preds.length} 個預框並追蹤前後 ${sec} 秒中…`);
+        const d = await seedAct({ action: "add_batch", boxes: preds, track_sec: sec });
+        if (d && d.seeds.batch_result) { const br = d.seeds.batch_result; preds = []; renderPreds(); draw(); msg(`已一次採納 ${br.added} 個預框，並自動追出 ${br.auto} 格。`); }
+      };
+      r.appendChild(all);
+    }
   }
   async function runPredict(silent) {
-    if (!proj || !info || !info.has_model) { if (!silent) msg("這個專案還沒有訓練好的模型，請先手動框幾個樣本並訓練一次", true); return; }
+    if (!proj || !info || !info.has_model) { if (!silent) msg("這個專案還沒有可用的模型（自己的或參考的），請先手動框幾個樣本並訓練一次", true); return; }
     if (!silent) msg("模型預框辨識中…");
     const d = await api("/api/seeds", { project: proj, frame: n, action: "predict_frame" });
     if (!d.ok) { if (!silent) msg(d.error, true); return; }
     preds = d.seeds.predictions || [];
-    if (preds.length) {
-      sel = [...preds[0].rect]; $("itemName").value = preds[0].name;
-      if (!silent) msg(`模型在此格找到 ${preds.length} 個未標記物品（藍虛線／黃框），可按「✓」一鍵採納或微調後按「加入框選的物品」。`);
-    } else if (!silent) {
-      msg("模型在這格沒有找到新的物品（或這一格的物品都已經標過了）。");
-    }
+    if (preds.length) { sel = [...preds[0].rect]; $("itemName").value = preds[0].name; if (!silent) msg(`模型在這一格找到 ${preds.length} 個還沒標的物品（藍虛線），按「採納」一鍵加入，或點名稱微調後按「加入框選的物品」。`); }
+    else if (!silent) msg("模型在這格沒有找到新的物品（或這一格的物品都已經標過了）。");
     renderPreds(); draw();
   }
   $("btnPredict").onclick = () => runPredict(false);
   $("btnRetrack").onclick = async () => {
     const sec = parseFloat($("trackSec").value) || 2.0;
-    msg(`正在用顏色與位置檢查重追全部手框（前後 ${sec} 秒）並清除重複／跑偏舊框…`);
+    msg(`正在用顏色與位置檢查重追全部手框（前後 ${sec} 秒）並清除重複／跑偏的舊框…`);
     const d = await seedAct({ action: "retrack_all", track_sec: sec });
-    if (d && d.seeds.retrack) {
-      const rt = d.seeds.retrack;
-      msg(`清理重追完成！保留 ${rt.manuals} 個手框，自動框由 ${rt.old_auto} 格整理為 ${rt.new_auto} 格（已剔除跑偏與同格重複框）。`);
-    }
+    if (d && d.seeds.retrack) { const rt = d.seeds.retrack; msg(`重追完成：保留 ${rt.manuals} 個手框，自動框由 ${rt.old_auto} 格整理為 ${rt.new_auto} 格。`); }
   };
   function jumpSeed(dir) {
     if (!info) return;
@@ -297,7 +348,7 @@
   }
   $("btnPrevSeed").onclick = () => jumpSeed(-1); $("btnNextSeed").onclick = () => jumpSeed(1);
   $("chkFixed").onchange = async () => {
-    if ($("chkFixed").checked) { $("btnRegion").classList.remove("hidden"); $("handRow").classList.remove("hidden"); msg("在畫面上拖拉框住整個工作桌面（盒子會出現的地方都要包到），再按「把框選設為桌面範圍」。"); }
+    if ($("chkFixed").checked) { $("btnRegion").hidden = false; $("handRow").hidden = false; msg("在畫面上拖拉框住整個工作桌面（盒子會出現的地方都要包到），再按「把框選設為桌面範圍」。"); }
     else { await seedAct({ action: "set_region", rect: null }); }
     render();
   };
@@ -309,16 +360,17 @@
     const hasVideo = !!(info && info.has_video); const sd = info ? info.seeds : null;
     const nItems = sd ? sd.order.length : 0, nHand = sd ? sd.hand_steps.length : 0, hasModel = !!(info && info.has_model);
     $("btnRef").textContent = sd && sd.region ? "這一格是空桌面" : "這一格是空盒";
-    $("btnClosed").classList.toggle("hidden", !!(sd && sd.region));
-    $("chkFixed").checked = !!(sd && sd.region); $("btnRegion").classList.toggle("hidden", !$("chkFixed").checked); $("handRow").classList.toggle("hidden", !$("chkFixed").checked);
+    $("btnClosed").hidden = !!(sd && sd.region);
+    $("chkFixed").checked = !!(sd && sd.region); $("btnRegion").hidden = !$("chkFixed").checked; $("handRow").hidden = !$("chkFixed").checked;
+    $("btnPredict").disabled = !hasModel;
     const titles = ["第 1 步／3　標記：每一輪按一次「空盒」、每樣物品框一次", "第 2 步／3　訓練：一顆按鈕，等它跑完", "第 3 步／3　完成：產生步驟，到監控試"];
-    const hints = ["每一輪做兩件事：\n(1) 拉到盒子放好、還沒放東西的那一格 → 按「這一格是空盒」。\n(2) 拉到東西放好的那一格 → 在畫面上拖拉框住它 → 輸入名稱 → 按「加入框選的物品」，每樣東西各一次。\n流程最後會蓋上蓋子的話，拉到蓋好的那一格按「這一格是蓋著的盒子」（2～3 格）。\n東西不是放進盒子裡（例如先檢查鞋子、再把鞋放在盒子上）就勾「看整張桌面」，框一次桌面範圍；做完沒痕跡的動作用「手停在物件上」。\n鍵盤 ← → 可逐格，Shift+← → 一次 30 格。全部輪次做完再按「下一步」。",
+    const hints = ["每一輪做兩件事：\n(1) 拉到盒子放好、還沒放東西的那一格 → 按「這一格是空盒」。\n(2) 拉到東西放好的那一格 → 在畫面上拖拉框住它 → 輸入名稱 → 按「加入框選的物品」，每樣東西各一次。已經有模型的話，按「模型預框這一格」讓它先框，你只要採納或微調。\n流程最後會蓋上蓋子的話，拉到蓋好的那一格按「這一格是蓋著的盒子」（2～3 格）。\n東西不是放進盒子裡（例如先檢查鞋子、再把鞋放在盒子上）就勾「看整張桌面」，框一次桌面範圍；做完沒痕跡的動作用「手停在物件上」。\n鍵盤 ← → 可逐格，Shift+← → 一次 30 格。全部輪次做完再按「下一步」。",
       "按「開始訓練」會自動接著做：整支影片找盒子和手（第一次約影片長度的 1～2 倍時間）→ 把框選延伸成訓練資料 → 在伺服器訓練小模型。\n訓練時伺服器會很忙，不要同時監控；看到「訓練完成」再按「下一步」。",
       "每樣物品會變成一個必做步驟（一輪內看到過就算），盒子被推走／拿走算一輪結束。按下去就會到監控頁。"];
     $("stepTitle").textContent = info ? titles[step] + (step === 0 && nItems ? `（目前 ${nItems} 樣物品、${Object.values(sd.counts).reduce((a, b) => a + b, 0)} 次框選）` : "") : "請先選專案";
-    $("stepHint").textContent = info ? hints[step] : "右上角選一個專案，或按「新增專案」。";
-    $("step1").classList.toggle("hidden", !(hasVideo && step === 0)); $("step2").classList.toggle("hidden", !(hasVideo && step === 1)); $("step3").classList.toggle("hidden", !(hasVideo && step === 2));
-    $("nav").classList.toggle("hidden", !hasVideo);
+    $("stepHint").textContent = info ? hints[step] : "上方選一個專案，或按「操作 ▾ → 新增專案」。";
+    $("step1").hidden = !(hasVideo && step === 0); $("step2").hidden = !(hasVideo && step === 1); $("step3").hidden = !(hasVideo && step === 2);
+    $("nav").hidden = !hasVideo;
     $("btnPrev").disabled = step === 0; $("btnNext").disabled = !((step === 0 && (nItems || nHand)) || (step === 1 && (hasModel || (!nItems && nHand))));
     $("btnTrain").disabled = !nItems || ($("trainStage").dataset.running === "1");
     const ul = $("items"); ul.innerHTML = ""; $("names").innerHTML = "";
@@ -326,17 +378,19 @@
       sd.order.forEach((name, i) => {
         const li = document.createElement("li"); li.className = selItem === name ? "sel" : "";
         li.onclick = () => { selItem = (selItem === name ? null : name); if (selItem) $("itemName").value = selItem; render(); };
-        li.innerHTML = `<span class="grow" title="點一下只用「上一個框／下一個框」巡檢此物品">${i + 1}. ${name}　已框 ${sd.counts[name] || 0} 次${(sd.auto_counts || {})[name] ? `＋自動 ${sd.auto_counts[name]} 格` : ""}${sd.box_labels.includes(name) ? "　［盒子的樣子］" : ""}</span>`;
-        if (sd.region) { const b = document.createElement("button"); b.className = "btn small"; b.textContent = sd.box_labels.includes(name) ? "取消盒子的樣子" : "盒子的樣子"; b.onclick = (e) => { e.stopPropagation(); seedAct({ action: "set_box_label", name, is_box: !sd.box_labels.includes(name) }); }; li.appendChild(b); }
-        const d = document.createElement("button"); d.className = "btn small"; d.textContent = "刪除"; d.onclick = (e) => { e.stopPropagation(); if (confirm(`刪除物品「${name}」的全部框選？`)) seedAct({ action: "remove_item", name }); }; li.appendChild(d);
+        const g = document.createElement("span"); g.className = "grow"; g.title = "點一下只用「上一個框／下一個框」巡檢這個物品";
+        g.textContent = `${i + 1}. ${name}　已框 ${sd.counts[name] || 0} 次${(sd.auto_counts || {})[name] ? `＋自動 ${sd.auto_counts[name]} 格` : ""}${sd.box_labels.includes(name) ? "　［盒子的樣子］" : ""}`;
+        li.appendChild(g);
+        if (sd.region) { const b = document.createElement("button"); b.className = "btn btn-cancel"; b.style.height = "28px"; b.textContent = sd.box_labels.includes(name) ? "取消盒子的樣子" : "盒子的樣子"; b.onclick = (e) => { e.stopPropagation(); seedAct({ action: "set_box_label", name, is_box: !sd.box_labels.includes(name) }); }; li.appendChild(b); }
+        li.appendChild(EIP.iconBtn("delete", "c-del", "刪除這個物品的全部框選", async (e) => { e.stopPropagation(); if (await confirmBox(`刪除物品「${name}」的全部框選？`)) seedAct({ action: "remove_item", name }); }));
         ul.appendChild(li); const o = document.createElement("option"); o.value = name; $("names").appendChild(o);
       });
       for (const h of sd.hand_steps) {
-        const li = document.createElement("li"); li.innerHTML = `<span class="grow">手停在「${h.prompt}」上 ${h.dwell.toFixed(1)} 秒 → ${h.name}</span>`;
-        const d = document.createElement("button"); d.className = "btn small"; d.textContent = "刪除"; d.onclick = () => seedAct({ action: "remove_hand_step", name: h.name }); li.appendChild(d); ul.appendChild(li);
+        const li = document.createElement("li"); const g = document.createElement("span"); g.className = "grow"; g.textContent = `手停在「${h.prompt}」上 ${h.dwell.toFixed(1)} 秒 → ${h.name}`; li.appendChild(g);
+        li.appendChild(EIP.iconBtn("delete", "c-del", "刪除這個手部步驟", () => seedAct({ action: "remove_hand_step", name: h.name }))); ul.appendChild(li);
       }
-      const li = document.createElement("li"); li.style.cursor = "default";
-      li.textContent = `${sd.region ? "空桌面參考" : "空盒參考"} ${sd.refs.length} 格　蓋著的盒子 ${sd.closed.length} 格　模型：${hasModel ? "已訓練" : "尚未訓練"}${sd.region ? `　桌面範圍 ${sd.region[2]}×${sd.region[3]}` : ""}`; ul.appendChild(li);
+      const li = document.createElement("li"); li.style.cursor = "default"; li.style.color = "var(--ink-2)";
+      li.textContent = `${sd.region ? "空桌面參考" : "空盒參考"} ${sd.refs.length} 格　蓋著的盒子 ${sd.closed.length} 格　模型：${hasModel ? "可用" : "尚未訓練"}${sd.region ? `　桌面範圍 ${sd.region[2]}×${sd.region[3]}` : ""}`; ul.appendChild(li);
     }
   }
   $("btnPrev").onclick = () => { step = Math.max(0, step - 1); render(); };
@@ -360,21 +414,24 @@
   $("btnGen").onclick = async () => { const d = await api("/api/steps/generate", { project: proj }); if (!d.ok) { msg(d.error, true); return; } msg("已產生步驟：" + d.steps.join("、")); location.href = "/"; };
 
   // ---- 新增專案／錄製／上傳
-  $("btnNew").onclick = async () => {
-    const name = prompt("專案名稱："); if (!name || !name.trim()) return;
-    const d = await api("/api/project/create", { name: name.trim() }); if (!d.ok) { msg(d.error, true); return; }
-    await loadProjects(d.name); openProject(d.name);
+  $("btnNew").onclick = () => { $("newName").value = ""; $("newErr").hidden = true; $("newDlg").hidden = false; $("newName").focus(); };
+  $("newCancel").onclick = () => { $("newDlg").hidden = true; };
+  $("newOk").onclick = async () => {
+    const name = $("newName").value.trim(); if (!name) { $("newErr").textContent = "請輸入專案名稱"; $("newErr").hidden = false; return; }
+    const d = await api("/api/project/create", { name }); if (!d.ok) { $("newErr").textContent = d.error; $("newErr").hidden = false; return; }
+    $("newDlg").hidden = true; await loadProjects(d.name); openProject(d.name);
   };
+  $("newName").onkeydown = (ev) => { if (ev.key === "Enter") $("newOk").click(); };
   async function pollRec() {
     clearTimeout(recTimer); const s = await api("/api/record/state");
     $("recInfo").textContent = s.error ? "錯誤：" + s.error : (s.info || "") + (s.recording ? `　錄製中 ${s.frames} 格` : "");
     $("btnRecBegin").disabled = !(s.running && !s.error && !s.recording); $("btnRecStop").disabled = !s.recording;
-    if (s.running && s.frame_id > 0 && $("recPreview").style.display === "none") { $("recPreview").src = "/api/record/stream.mjpg?t=" + Date.now(); $("recPreview").style.display = "block"; }
+    if (s.running && s.frame_id > 0 && $("recPreview").hidden) { $("recPreview").src = "/api/record/stream.mjpg?t=" + Date.now(); $("recPreview").hidden = false; }
     if (s.running) recTimer = setTimeout(pollRec, 1000);
   }
   $("btnCamOpen").onclick = async () => { const d = await api("/api/record/start", { project: proj, source: $("camSrc").value.trim() || null }); if (!d.ok) { msg(d.error, true); return; } pollRec(); };
   $("btnRecBegin").onclick = async () => { const d = await api("/api/record/begin", {}); if (!d.ok) msg(d.error, true); pollRec(); };
-  $("btnRecStop").onclick = async () => { const d = await api("/api/record/stop", {}); if (!d.ok) { msg(d.error, true); return; } msg(`錄好了：${d.frames} 格。`); $("recPreview").style.display = "none"; await loadProjects(proj); openProject(proj); };
+  $("btnRecStop").onclick = async () => { const d = await api("/api/record/stop", {}); if (!d.ok) { msg(d.error, true); return; } msg(`錄好了：${d.frames} 格。`); $("recPreview").hidden = true; await loadProjects(proj); openProject(proj); };
   $("btnUpload").onclick = async () => {
     const f = $("file").files[0]; if (!f) { msg("請先選影片檔", true); return; }
     $("upInfo").textContent = "上傳中…"; const fd = new FormData(); fd.append("file", f, f.name);
@@ -383,8 +440,16 @@
     $("upInfo").textContent = `已匯入 ${d.video}（${d.resolution[0]}x${d.resolution[1]} @ ${d.fps.toFixed(1)} fps）`; await loadProjects(proj); openProject(proj);
   };
 
-  $("project").onchange = () => openProject($("project").value);
-  loadProjects().then(() => { const u = new URLSearchParams(location.search); if (u.get("project")) { $("project").value = u.get("project"); openProject(u.get("project")); } else render(); });
+  $("project").onchange = () => { openProject($("project").value); history.replaceState(null, "", $("project").value ? "/label?project=" + enc($("project").value) : "/label"); };
+  msg("");
+  // ?project=名稱［&frame=格數］［&predict=1］：從訓練燈箱的「去標記」過來，直接跳到那一格並用模型先預框
+  loadProjects().then(async () => {
+    const u = new URLSearchParams(location.search);
+    if (!u.get("project")) { render(); return; }
+    $("project").value = u.get("project"); await openProject(u.get("project"));
+    if (info && info.has_video && u.get("frame")) goFrame(parseInt(u.get("frame"), 10) || 0);
+    if (u.get("predict") === "1") { step = 0; render(); setTimeout(() => runPredict(false), 300); }   // 預框工具在第 1 步
+  });
 })();
 </script>
 </body>
