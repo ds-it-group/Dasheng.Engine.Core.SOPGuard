@@ -437,13 +437,22 @@ def apply_item_steps(project: Project, names: list[str], dwell_sec: float = 0.5)
             continue
         steps.append(Step(step_index=0, step_name=n, dwell_time_sec=dwell_sec, timeout_sec=120.0, type="item", label=n, required=True))
     for h in seeds.hand_steps:
-        if not any(a.name == h["prompt"] for a in project.anchors):
-            # min_conf 0.15：通用提示對黑鞋信心偏低（現場影片第 2 輪檢查時 shoe 只有 0.10～0.23，0.25 整段沒錨點、整輪報漏做）；
-            # 有工作範圍、面積下限、而且手還要落在框內，低門檻不會亂算
-            project.anchors.append(AnchorSpec(name=h["prompt"], prompt=h["prompt"], min_conf=0.15, pick="largest", max_count=2,
-                                              min_area=8000.0, max_age_sec=2.5))
+        if h.get("item"):
+            # 物件是自己訓練的物品（標記頁時間軸的「動作」）：監控時區域＝那個物品的框（BoxStateRunner.with_items 併進 anchors），
+            # 不加 YOLO-World 錨點；那個物品本身也要是步驟（框選的東西就是要達成的項目），沒有的話補上
+            obj = h["item"]
+            if obj not in [s.step_name for s in steps] and obj in seeds.order:
+                steps.append(Step(step_index=0, step_name=obj, dwell_time_sec=dwell_sec, timeout_sec=120.0, type="item", label=obj, required=True))
+                names = [n for n in names if n != obj] + [obj]
+        else:
+            obj = h["prompt"]
+            if not any(a.name == obj for a in project.anchors):
+                # min_conf 0.15：通用提示對黑鞋信心偏低（現場影片第 2 輪檢查時 shoe 只有 0.10～0.23，0.25 整段沒錨點、整輪報漏做）；
+                # 有工作範圍、面積下限、而且手還要落在框內，低門檻不會亂算
+                project.anchors.append(AnchorSpec(name=obj, prompt=obj, min_conf=0.15, pick="largest", max_count=2,
+                                                  min_area=8000.0, max_age_sec=2.5))
         steps.append(Step(step_index=0, step_name=h["name"], dwell_time_sec=float(h["dwell"]), timeout_sec=120.0, type="hand_on_object",
-                          object=h["prompt"], required=True, continuous=True))
+                          object=obj, required=True, continuous=True))
         names = [n for n in names if n != h["name"]] + [h["name"]]
     project.gesture_model = None; project.gesture_anchors = []
     for i, s in enumerate(steps):

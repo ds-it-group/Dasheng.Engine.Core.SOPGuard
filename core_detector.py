@@ -30,6 +30,7 @@ DETECT_LONG_SIDE = 640           # 送進 HandLandmarker 前，影格長邊縮�
 DETECT_EVERY_N_FRAMES = 2        # 相機來源每 N 格做一次手部偵測，其餘格沿用上次結果（處理夠快時）
 MONITOR_TORCH_THREADS = 1        # 監控時 PyTorch（YOLO-World）只用 1 個執行緒：手部、物品模型（OpenVINO）、YOLO-World 同時跑會互搶 CPU，
                                  # i5-1235U 實測 torch 1/2/4/6 執行緒 → 10.5～11.3／9.9～10.3／9.8／9.0 fps（離線訓練、建資料集不受影響）
+ITEM_BOX_KEEP_SEC = 1.0          # 「手碰到物品」步驟用的物品框：沒偵測到時沿用最近一次的位置最多這麼久（手握住鞋子時模型會掉框）
 
 
 def limit_torch_threads(n: int = MONITOR_TORCH_THREADS) -> None:
@@ -192,6 +193,9 @@ class BoxStateRunner:
         self.fixed_items = is_fixed(project)      # 有物品模型時才真的用到（沒有模型就走原本的盒內狀態路徑）
         self.box_labels: set[str] = set(seeds.box_labels)
         self.box_seen = False
+        # 「手碰到物品」的步驟（hand_on_object 的 object 是自己訓練的物品）要物品的框：最近 ITEM_BOX_KEEP_SEC 秒內看到的都留著
+        self._item_seen: dict[str, tuple[float, list]] = {}
+        self._item_names = {s.object for s in project.steps if s.type == "hand_on_object" and s.object}
         if os.path.isfile(mp) and any(s.type == "item" for s in project.steps):
             self.items = ItemDetector(mp)
             if not self.fixed_items:
@@ -206,6 +210,33 @@ class BoxStateRunner:
     @property
     def enabled(self) -> bool:
         return bool(self.lib.examples) or self.items is not None
+
+    def _remember_items(self, t_now: float | None) -> None:
+        """這一格物品偵測的結果（換算成畫面座標）記下來給 with_items 用。"""
+        if not self._item_names or self.region is None:
+            return
+        t = t_now if t_now is not None else self._n / float(self.project.fps or 30.0)
+        rx, ry = self.region[0], self.region[1]
+        found: dict[str, list] = {}
+        for h in self.item_hits:
+            if h.name in self._item_names:
+                x, y, w, hh = h.rect
+                found.setdefault(h.name, []).append((int(rx + x), int(ry + y), int(w), int(hh)))
+        for name, rects in found.items():
+            self._item_seen[name] = (t, rects)
+
+    def with_items(self, anchors: dict, t_now: float | None = None) -> dict:
+        """把訓練出來的物品框併進錨點字典（給狀態機的 FrameContext.anchors）：hand_on_object 的 object 是物品名時
+        就用它的框當區域。物品偵測每幾格一次、手握住時會掉框，最近 ITEM_BOX_KEEP_SEC 秒內看過的沿用；同名的錨點優先。"""
+        if not self._item_seen:
+            return anchors
+        t = t_now if t_now is not None else self._n / float(self.project.fps or 30.0)
+        out = {}
+        for name, (t0, rects) in self._item_seen.items():
+            if t - t0 <= ITEM_BOX_KEEP_SEC:
+                out[name] = list(rects)
+        out.update(anchors)
+        return out
 
     def _due(self, t_now: float | None) -> bool:
         """這一格要不要跑偵測：有來源時間就以「每 every 格 ÷ fps 秒」為間隔（處理慢、相機丟格時自動變成每格都跑，
@@ -233,6 +264,7 @@ class BoxStateRunner:
             self.item_hits = self.items.detect(crop_roi(frame_bgr, self.region))
             self.items_present = {h.name: h.conf for h in self.item_hits}
             self.box_seen = any(h.name in self.box_labels for h in self.item_hits)
+            self._remember_items(t_now)
             self.debug = {"why": "judged", "items": "|".join(sorted(self.items_present)), "box_seen": self.box_seen}
             return self.stream.current
         new = state_region(self.project, anchors)
@@ -283,6 +315,7 @@ class BoxStateRunner:
             # 看得到的照認；步驟要連續 0.5 秒看到才算，手上拿著晃過去的通常撐不到。蓋著的盒子裡面看不到，不跑
             self.item_hits = self.items.detect(crop)
             self.items_present = {h.name: h.conf for h in self.item_hits}
+            self._remember_items(t_now)
         elif self.box_open is False:
             self.item_hits = []; self.items_present = {}
         if hands_inside:
@@ -1014,6 +1047,7 @@ def _main(argv=None) -> int:
             if state_runner is not None:
                 age = scene.age(project.state_anchor, t_now) if project.state_anchor else None
                 box_state = state_runner.update(frame, anchors, points, anchor_age=age, t_now=t_now)
+                anchors = state_runner.with_items(anchors, t_now)
                 if state_f is not None and state_runner.debug is not None:
                     d = state_runner.debug; reg = state_runner.region
                     state_f.write(f"{frames},{t_now:.2f},{d['why']},{'' if reg is None else ' '.join(str(int(v)) for v in reg)},"

@@ -191,6 +191,7 @@ def analyze(project, hand_model: str, yolo_weights: str, progress=None, should_s
             if runner is not None:
                 age = scene.age(project.state_anchor, t_now) if project.state_anchor else None
                 box_state = runner.update(frame, anchors, points, anchor_age=age, t_now=t_now)
+                anchors = runner.with_items(anchors, t_now)
             ctx = FrameContext(hand_points=points, hands_xy=tracker.last_hands_xy if tracker else [], anchors=anchors, gesture_probs=probs,
                                box_state=box_state, items_present=set(runner.items_present) if runner is not None else set(),
                                box_open=runner.box_open if runner is not None else None,

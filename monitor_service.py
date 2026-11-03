@@ -475,6 +475,7 @@ class MonitorService:
                 if state_runner is not None:
                     age = scene.age(p.state_anchor, t_now) if p.state_anchor else None
                     box_state = state_runner.update(frame, anchors, points, anchor_age=age, t_now=t_now)
+                    anchors = state_runner.with_items(anchors, t_now)      # 「手碰到物品」步驟：物品框併進錨點
                 ctx = FrameContext(hand_points=points, hands_xy=tracker.last_hands_xy, anchors=anchors, gesture_probs=probs, box_state=box_state,
                                    items_present=set(state_runner.items_present) if state_runner is not None else set(),
                                    box_open=state_runner.box_open if state_runner is not None else None,

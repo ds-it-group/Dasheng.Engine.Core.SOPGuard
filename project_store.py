@@ -243,15 +243,20 @@ def _parse_zones(raw, anchor_names: set[str], res) -> list[ZoneSpec]:
 
 
 def _parse_condition_fields(s: dict, where: str, stype: str, step: Step, zones: list[ZoneSpec], anchor_names: set[str],
-                            gesture_model) -> None:
-    """hand_dwell / object_in_zone / gesture / object_absent 共用的欄位檢查。"""
+                            gesture_model, item_labels: set[str] = frozenset()) -> None:
+    """hand_dwell / object_in_zone / gesture / object_absent 共用的欄位檢查。item_labels：同一份設定裡 item 步驟的物品名。"""
     if stype in ("hand_dwell", "object_in_zone"):
         z = s.get("zone")
         _require(isinstance(z, str) and any(zz.name == z for zz in zones), f"{where}.zone「{z}」不存在於 zones")
         step.zone = z
     if stype in ("object_in_zone", "object_absent", "hand_on_object"):
         obj = s.get("object")
-        _require(isinstance(obj, str) and obj in anchor_names, f"{where}.object「{obj}」不存在於 anchors")
+        if stype == "hand_on_object":
+            # 物件可以是 YOLO-World 錨點，也可以是自己訓練的物品（同一份設定裡的 item 步驟；監控時物品框會併進 anchors）
+            _require(isinstance(obj, str) and (obj in anchor_names or obj in item_labels),
+                     f"{where}.object「{obj}」不存在於 anchors，也不是任何 item 步驟的物品")
+        else:
+            _require(isinstance(obj, str) and obj in anchor_names, f"{where}.object「{obj}」不存在於 anchors")
         step.object = obj
     if stype == "object_in_zone":
         mo = s.get("min_overlap", 0.5)
@@ -373,6 +378,7 @@ def project_from_dict(data: dict, dir_path: str = "") -> Project:
 
     raw_steps = data.get("steps")
     _require(isinstance(raw_steps, list), "steps 必須是陣列")
+    item_labels = {s.get("label") for s in raw_steps if isinstance(s, dict) and s.get("type") == "item" and isinstance(s.get("label"), str)}
     steps: list[Step] = []
     for pos, s in enumerate(raw_steps):
         _require(isinstance(s, dict), f"steps[{pos}] 必須是物件")
@@ -403,7 +409,7 @@ def project_from_dict(data: dict, dir_path: str = "") -> Project:
             zones.append(ZoneSpec(name=zname, anchor=None, fixed=roi))
             step.zone = zname
         else:
-            _parse_condition_fields(s, f"steps[{pos}]", stype, step, zones, anchor_names, gesture_model)
+            _parse_condition_fields(s, f"steps[{pos}]", stype, step, zones, anchor_names, gesture_model, item_labels)
             _require(mode == "hand_only" or stype == "hand_dwell", f"steps[{pos}] 只有 hand_dwell 可以用 hand_and_visual")
             req = s.get("required", True)
             _require(isinstance(req, bool), f"steps[{pos}].required 必須是 true/false")

@@ -99,8 +99,10 @@ class ItemSeeds:
             reg = d.get("region")
             self.region = [int(v) for v in reg] if isinstance(reg, list) and len(reg) == 4 else None
             self.box_labels = [s for s in d.get("box_labels", []) if isinstance(s, str) and s in self.order]
-            self.hand_steps = [{"name": str(h["name"]), "prompt": str(h["prompt"]), "dwell": float(h.get("dwell", 0.7))}
-                               for h in d.get("hand_steps", []) if isinstance(h, dict) and h.get("name") and h.get("prompt")]
+            # prompt＝用 YOLO-World 的英文提示找物件（舊做法）；item＝用自己訓練的物品框（標記頁時間軸的「動作」）
+            self.hand_steps = [dict({"name": str(h["name"]), "prompt": str(h.get("prompt") or ""), "dwell": float(h.get("dwell", 0.7))},
+                                    **({"item": str(h["item"])} if h.get("item") else {}))
+                               for h in d.get("hand_steps", []) if isinstance(h, dict) and h.get("name") and (h.get("prompt") or h.get("item"))]
 
     def save(self) -> None:
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
@@ -108,10 +110,16 @@ class ItemSeeds:
             json.dump({"order": self.order, "refs": self.refs, "closed": self.closed, "seeds": [s.__dict__ for s in self.seeds],
                        "region": self.region, "box_labels": self.box_labels, "hand_steps": self.hand_steps}, f, ensure_ascii=False, indent=2)
 
-    def add_hand_step(self, name: str, prompt: str, dwell: float = 0.7) -> None:
-        """「手停在某個物件上」的步驟：物件用 YOLO-World 的英文提示找（例如 shoe），不用框、不用訓練、換款式不用改。"""
-        name = name.strip(); prompt = prompt.strip()
-        self.hand_steps = [h for h in self.hand_steps if h["name"] != name] + [{"name": name, "prompt": prompt, "dwell": float(dwell)}]
+    def add_hand_step(self, name: str, prompt: str = "", dwell: float = 0.7, item: str | None = None) -> None:
+        """「手停在某個物件上」的步驟。prompt：物件用 YOLO-World 的英文提示找（例如 shoe），不用框、不用訓練；
+        item：物件是自己訓練的物品（例如 鞋子），監控時用它的框。兩個至少給一個。"""
+        name = name.strip(); prompt = (prompt or "").strip(); item = (item or "").strip() or None
+        if not prompt and not item:
+            raise ValueError("手部步驟要指定物件（英文提示或已框的物品）")
+        row = {"name": name, "prompt": prompt, "dwell": float(dwell)}
+        if item:
+            row["item"] = item
+        self.hand_steps = [h for h in self.hand_steps if h["name"] != name] + [row]
         self.save()
 
     def remove_hand_step(self, name: str) -> None:

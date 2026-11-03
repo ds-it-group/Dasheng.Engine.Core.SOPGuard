@@ -23,6 +23,12 @@ PREVIEW_W = 640
 JPEG_CACHE_MAX = 600        # 預覽縮圖約 10～40 KB 一張，600 張約十幾 MB
 
 
+def ls_name(name: str, kind: str, index: int):
+    """label_segments.NameDef，顏色照順序從調色盤取。"""
+    import label_segments as ls
+    return ls.NameDef(name, kind, ls.PALETTE[index % len(ls.PALETTE)])
+
+
 def create_project(name: str, width: int = 1280, height: int = 720, fps: float = 30.0) -> str:
     """schema 2 空專案（與 main_ui.create_project_with_defaults 相同）；解析度在匯入影片／錄製後會被覆蓋。回傳資料夾。"""
     validate_project_name(name)
@@ -599,11 +605,168 @@ class LabelService:
     # ---- 專案資訊
 
     def project_info(self, project_name: str) -> dict:
+        import label_segments as ls
         p = load_project(project_name); r = self._reader(p); seeds = items.ItemSeeds(p.dir_path)
+        segs = ls.Segments(p.dir_path); self._sync_names(segs, seeds)
         return {"name": p.project_name, "resolution": list(p.resolution), "fps": p.fps, "has_video": r is not None,
                 "frame_count": r.frame_count if r else 0, "has_model": os.path.isfile(items.model_path(p)),
                 "steps": [s.step_name for s in p.steps], "item_steps": any(s.type in ("item", "hand_on_object") for s in p.steps),
-                "seeds": self._seeds_dict(seeds)}
+                "seeds": self._seeds_dict(seeds), "segments": self._segments_dict(segs)}
+
+    # ---- 時間軸（名稱／段落）：見 label_segments.py
+
+    @staticmethod
+    def _segments_dict(segs) -> dict:
+        d = segs.to_dict(); d.update(segs.counts())
+        return d
+
+    @staticmethod
+    def _sync_names(segs, seeds: items.ItemSeeds) -> None:
+        """舊專案（只有 seeds.json）第一次打開時間軸：框過的物品、手部步驟自動變成名稱，不用重新輸入。"""
+        changed = False
+        for name in seeds.order:
+            if segs.name(name) is None:
+                segs.names.append(ls_name(name, "object", len(segs.names))); changed = True
+        for h in seeds.hand_steps:
+            if segs.name(h["name"]) is None:
+                nd = ls_name(h["name"], "action", len(segs.names)); nd.touch = h.get("item") or h.get("prompt") or None
+                segs.names.append(nd); changed = True
+        if changed:
+            segs.save()
+
+    def segment_action(self, project_name: str, body: dict) -> dict:
+        import label_segments as ls
+        p = load_project(project_name); seeds = items.ItemSeeds(p.dir_path); segs = ls.Segments(p.dir_path)
+        self._sync_names(segs, seeds)
+        act = body.get("action"); r = self._reader(p); n_frames = r.frame_count if r else 0
+        extra: dict = {}
+        if act == "add_name":
+            extra["name"] = segs.add_name(str(body.get("name", "")), str(body.get("kind", "object"))).name
+        elif act == "remove_name":
+            name = str(body.get("name", ""))
+            segs.remove_name(name); seeds.remove_item(name); seeds.remove_hand_step(name)
+        elif act == "add_segment":
+            extra["segment"] = segs.add(str(body.get("name", "")), int(body.get("start", 0)), int(body.get("end", 0)), n_frames).id
+        elif act == "update_range":
+            s, changed = segs.update_range(int(body.get("id", 0)), int(body.get("start", 0)), int(body.get("end", 0)), n_frames)
+            if changed and s.group:
+                # 已存檔的物品段改了範圍：範圍外追出來的框先丟掉（不然訓練還是會用到）；拉長的部分要重新存檔才會補追
+                seeds.seeds = [x for x in seeds.seeds if not (x.group == s.group and not (s.start <= x.frame <= s.end))]; seeds.save()
+            extra["changed"] = changed
+        elif act == "set_box":
+            rect = body.get("rect")
+            segs.set_box(int(body.get("id", 0)), body.get("frame"), None if rect is None else [int(v) for v in rect])
+        elif act == "save_segment":
+            extra.update(self._save_segment(p, seeds, segs, int(body.get("id", 0))))
+        elif act == "remove_segment":
+            s = segs.get(int(body.get("id", 0)))
+            rows = [dict(x.__dict__) for x in seeds.seeds if s.group and x.group == s.group]
+            if rows:
+                seeds.seeds = [x for x in seeds.seeds if x.group != s.group]; seeds.save()
+            segs.remove(s.id, rows)
+            nd = segs.name(s.name)
+            if nd is not None and nd.kind == "action" and not any(x.saved for x in segs.by_name(s.name)):
+                seeds.remove_hand_step(s.name); nd.touch = None; segs.save()
+        elif act == "restore_segment":
+            s, rows = segs.restore(n_frames)
+            if rows:
+                seeds.seeds.extend(items.Seed(str(x["name"]), int(x["frame"]), [int(v) for v in x["rect"]], bool(x.get("auto")), int(x.get("group", 0) or 0),
+                                              bool(x.get("by_model"))) for x in rows)
+                if s.name not in seeds.order:
+                    seeds.order.append(s.name)
+                seeds.save()
+            nd = segs.name(s.name)
+            if nd is not None and nd.kind == "action" and s.saved and s.touch:
+                seeds.add_hand_step(s.name, item=s.touch, dwell=ls.ACTION_DWELL_SEC); nd.touch = s.touch; segs.save()
+            extra["segment"] = s.id
+        elif act == "set_box_label":
+            seeds.set_box_label(str(body.get("name", "")), bool(body.get("is_box", True)))
+        elif act == "set_region":
+            rect = body.get("rect")
+            if rect is not None and not (isinstance(rect, list) and len(rect) == 4):
+                raise ValueError("桌面範圍要是 [x, y, w, h]")
+            seeds.set_region(None if rect is None else tuple(int(v) for v in rect))
+        else:
+            raise ValueError(f"不認得的動作：{act}")
+        return {"segments": self._segments_dict(segs), "seeds": self._seeds_dict(seeds), **extra}
+
+    def _save_segment(self, p, seeds: items.ItemSeeds, segs, sid: int) -> dict:
+        """物品：把框沿整段追出來寫進 seeds（同一組）；動作：看手碰到哪個已框物品，寫成 hand_steps（item）。"""
+        import label_segments as ls
+        s = segs.get(sid); nd = segs.name(s.name)
+        if nd is None:
+            raise ValueError(f"名稱「{s.name}」不存在，請重新整理")
+        if nd.kind == "action":
+            frames = [f for f in range(s.start, s.end + 1) if f % items.TRACE_STEP == 0] or [s.start]
+            boxes = self._object_boxes(segs, seeds, frames)
+            cands = sorted({name for d in boxes.values() for name in d})
+            hands = self._hands_for_frames(p, frames) if cands else {f: [] for f in frames}
+            touch, stats = ls.infer_touch(hands, boxes)
+            if not touch:
+                raise ValueError(ls.touch_reason(stats, cands))
+            segs.mark_saved(sid, touch=touch); nd.touch = touch; segs.save()
+            seeds.add_hand_step(s.name, item=touch, dwell=ls.ACTION_DWELL_SEC)
+            return {"touch": touch, "stats": stats}
+        if not s.box or s.box_frame is None:
+            raise ValueError(f"這一段還沒畫框。把時間移到這一段裡面，在畫面上拖拉框住「{s.name}」")
+        region_set = False
+        if seeds.region is None:
+            W, H = p.resolution
+            seeds.set_region((0, 0, int(W), int(H))); region_set = True     # 沒設桌面範圍就看整個畫面（之後可在「操作」裡框一次）
+        if s.group:
+            seeds.seeds = [x for x in seeds.seeds if x.group != s.group]
+        auto = ls.track_segment(p.video_path, s.start, s.end, s.box_frame, s.box, step=items.TRACK_STEP)
+        g = seeds.add_seed(s.name, s.box_frame, tuple(s.box), auto)
+        segs.mark_saved(sid, group=g, tracked=1 + len(auto))
+        return {"tracked": 1 + len(auto), "expected": (s.end - s.start) // items.TRACK_STEP + 1, "region_set": region_set}
+
+    @staticmethod
+    def _object_boxes(segs, seeds: items.ItemSeeds, frames: list[int]) -> dict[int, dict[str, list]]:
+        """取樣格 → {物品名: [框...]}：已框物品（含舊版框選）在那一格附近（±TRACK_STEP）的位置。"""
+        objects = {nd.name for nd in segs.names if nd.kind == "object"}
+        by_name: dict[str, list] = {}
+        for x in seeds.seeds:
+            if x.name in objects:
+                by_name.setdefault(x.name, []).append(x)
+        out: dict[int, dict[str, list]] = {}
+        for f in frames:
+            row: dict[str, list] = {}
+            for name, rows in by_name.items():
+                best = min((abs(x.frame - f) for x in rows), default=None)
+                if best is not None and best <= items.TRACK_STEP:
+                    row[name] = [tuple(x.rect) for x in rows if abs(x.frame - f) == best]
+            if row:
+                out[f] = row
+        return out
+
+    def _hands_for_frames(self, p, frames: list[int]) -> dict[int, list]:
+        """取樣格的手部判定點（每手 4 點）。訓練時留下的 trace.json 指紋相同就直接用；不然只對這些格跑 MediaPipe。"""
+        path = os.path.join(p.dir_path, items.TRACE_FILE)
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    d = json.load(f)
+                if d.get("fingerprint") == items.trace_fingerprint(p.video_path):
+                    rows = {r["f"]: r["hands"] for r in d["rows"] if "hands" in r}
+                    if all(f in rows for f in frames):
+                        return {f: [tuple(pt) for pt in rows[f]] for f in frames}
+            except Exception:
+                pass
+        if not os.path.isfile(HAND_MODEL):
+            raise ValueError(f"找不到手部模型 {HAND_MODEL}，無法判斷這個動作碰到什麼")
+        from core_detector import HandTracker
+        r = self._reader(p)
+        if r is None:
+            raise ValueError("找不到示範影片")
+        tracker = HandTracker(HAND_MODEL); out: dict[int, list] = {}
+        try:
+            for f in frames:
+                with self._lock:
+                    fr = r.get_frame(f)
+                out[f] = list(tracker.detect(fr, int(f / float(p.fps or 30.0) * 1000)))
+        finally:
+            tracker.close()
+        return out
 
     @staticmethod
     def _seeds_dict(seeds: items.ItemSeeds) -> dict:

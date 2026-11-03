@@ -241,6 +241,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": out is not None, "path": out, "error": None if out else "還沒有監控畫面"})
             elif self.label is not None and path == "/api/seeds":
                 self._json({"ok": True, "seeds": self.label.seed_action(str(body.get("project", "")), body)})
+            elif self.label is not None and path == "/api/segments":
+                self._json({"ok": True, **self.label.segment_action(str(body.get("project", "")), body)})
             elif self.label is not None and path == "/api/project/create":
                 self._json({"ok": True, **self.label.create(str(body.get("name", "")))})
             elif path == "/api/material/color":
