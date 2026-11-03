@@ -209,53 +209,6 @@ def update_steps(project_name: str, rows: list[dict]) -> dict:
     return method_row(p)
 
 
-def copy_method(source: str, targets: list[dict]) -> list[str]:
-    """把來源的步驟清單複製到其他型體地區（可多筆）。新專案先參考來源的模型（來源自己沒有就沿用來源的參考），
-    不複製影片與框選，之後要自己訓練再到標記頁錄影或上傳。回傳新專案名稱。"""
-    src = load_project(source)
-    if src.packaging is None:
-        raise ValueError("來源還沒設定型體地區")
-    if not targets:
-        raise ValueError("請至少選一個要複製到的型體地區")
-    model_src = source if os.path.isfile(items.own_model_path(src)) else src.packaging.model_source
-    with open(os.path.join(src.dir_path, "config.json"), "r", encoding="utf-8-sig") as f:
-        base_cfg = json.load(f)
-    plan = []
-    for t in targets:
-        style = str(t.get("style", "")).strip(); region = str(t.get("region", "")).strip()
-        if not style or not region:
-            raise ValueError("每一筆都要有型體和地區")
-        style = normalize_style(style)
-        other = find_method(style, region)
-        if other:
-            raise ValueError(f"型體 {style}／{region} 已經有包裝方式了（{other}）")
-        name = str(t.get("name") or f"{style}_{region}").strip()
-        validate_project_name(name)
-        if os.path.exists(os.path.join(projects_dir(), name)) or name in [n for n, _ in plan]:
-            raise ValueError(f"專案名稱「{name}」已經存在")
-        if (style, region) in [(c["packaging"]["style"], c["packaging"]["region"]) for _, c in plan]:
-            raise ValueError(f"型體 {style}／{region} 重複")
-        cfg = dict(base_cfg)
-        cfg["project_name"] = name
-        cfg["packaging"] = {"style": style, "region": region, "style_name": str(t.get("style_name", "")).strip(),
-                            "customer": str(t.get("customer", src.packaging.customer)).strip(), "model_source": model_src,
-                            "enabled": True, "colors": []}
-        plan.append((name, cfg))
-    made = []
-    for name, cfg in plan:
-        d = os.path.join(projects_dir(), name)
-        os.makedirs(os.path.join(d, "error_logs"), exist_ok=True)
-        with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
-        try:
-            load_project(name)
-        except Exception:
-            shutil.rmtree(d, ignore_errors=True)
-            raise
-        made.append(name)
-    return made
-
-
 def wizard_name(style: str, region: str) -> str:
     """精靈建專案時的資料夾名稱＝型體_地區（不合法的字元換成 -）。"""
     raw = f"{style.strip()}_{region.strip()}"
@@ -274,8 +227,11 @@ def wizard_state(name: str) -> dict:
 def method_detail(project_name: str, lines_by_project: dict | None = None) -> dict:
     p = load_project(project_name)
     row = method_row(p, lines_by_project)
+    from training import first_segment_starts
+    starts = first_segment_starts(p); fps = float(p.fps or 30.0)
     row["step_rows"] = [{"index": s.step_index, "name": s.step_name, "type": s.type, "label": s.label or s.object or "",
-                         "dwell": s.dwell_time_sec, "required": s.required} for s in p.steps]
+                         "dwell": s.dwell_time_sec, "required": s.required,
+                         "start_t": round(starts[s.step_name] / fps, 1) if s.step_name in starts else None} for s in p.steps]
     row["model_items"] = model_items(p)
     row["cycle_end"] = p.cycle_end.type if p.cycle_end else None
     row["state_fixed"] = p.state_fixed

@@ -403,6 +403,30 @@ def apply_state_steps(project: Project, order: list[str], dwell_sec: float = 0.5
     return names
 
 
+def first_segment_starts(project: Project) -> dict[str, int]:
+    """標記頁時間軸：每個名稱「已儲存的第 1 段」從哪一格開始。沒有 segments.json（舊專案）回空 dict。"""
+    from label_segments import Segments
+    try:
+        segs = Segments(project.dir_path)
+    except Exception:
+        return {}
+    out: dict[str, int] = {}
+    for s in segs.segs:
+        if s.saved and (s.name not in out or s.start < out[s.name]):
+            out[s.name] = s.start
+    return out
+
+
+def order_steps_by_segments(project: Project, steps: list) -> list:
+    """步驟順序＝示範影片裡第一次出現的先後（每個名稱已儲存的第 1 段開始格）；同一格先物品後動作；
+    沒有段落的（舊版框選）排最後、照原本順序。這樣監控的「跳步」判斷跟示範影片一致，不用再到設定頁手排。"""
+    starts = first_segment_starts(project)
+    if not starts:
+        return steps
+    pos = {id(s): i for i, s in enumerate(steps)}
+    return sorted(steps, key=lambda s: (starts.get(s.step_name, 10 ** 9), 0 if s.type == "item" else 1, pos[id(s)]))
+
+
 def apply_item_steps(project: Project, names: list[str], dwell_sec: float = 0.5) -> list[str]:
     """物件版：每一樣物品一個必做步驟（type item，監控時在盒內看到過就算），一輪結束＝盒子被拿走 2 秒。保留非 item 步驟。"""
     from project_store import Step
@@ -455,6 +479,7 @@ def apply_item_steps(project: Project, names: list[str], dwell_sec: float = 0.5)
                           object=obj, required=True, continuous=True))
         names = [n for n in names if n != h["name"]] + [h["name"]]
     project.gesture_model = None; project.gesture_anchors = []
+    steps = order_steps_by_segments(project, steps)
     for i, s in enumerate(steps):
         s.step_index = i
     project.steps = steps

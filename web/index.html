@@ -127,6 +127,7 @@
           <div class="kv"><div class="k">步驟</div><div class="v n" id="pkSteps">–</div><div class="s" id="pkReq"></div></div>
           <div class="kv"><div class="k">辨識模型</div><div class="v sm n" id="pkModel">–</div><div class="s" id="pkModelInfo"></div></div>
         </div>
+        <div id="pkHint" hidden style="margin:0 14px 10px;padding:8px 12px;background:var(--st-warn);border-left:4px solid var(--accent);font-size:13px"></div>
       </div>
       <div class="trialbar" id="trialBar" hidden></div>
 
@@ -171,48 +172,31 @@
   </div>
 </div>
 
-<!-- 換包裝方式（openSmall 700×600） -->
+<!-- 換包裝方式（openLarge）：一張清單，篩選後點一列；配色預設帶這個包裝方式最近記的 -->
 <div class="scrim" id="dlg" hidden>
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
-    <div class="dt"><span class="mi mark">rate_review</span><h4 id="dlgTitle">換包裝方式</h4></div>
+  <div class="dialog large" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="dlgTitle">換包裝方式</h4><span class="sum" id="dNow"></span></div>
     <div class="dc">
       <div class="frow">
-        <div class="fld w140"><label>產線</label><div class="ro" id="dLine"></div></div>
-        <div class="fld w320"><label>目前</label><div class="ro" id="dNow"></div></div>
+        <div class="fld w180"><label for="dKey">型體（代碼／名稱）</label><input id="dKey"></div>
+        <div class="fld w120"><label for="dRegion">地區</label><select id="dRegion"></select></div>
+        <div class="fld w120"><label for="dCust">客戶</label><select id="dCust"></select></div>
+        <button class="btn btn-primary raised icon" id="dSearch" aria-label="查詢">查詢</button>
+        <span class="hint2" style="font-size:12.5px;color:var(--ink-2);align-self:flex-end">只列有步驟、有模型、啟用中的包裝方式</span>
       </div>
-      <div class="frow">
-        <div class="picker w200"><label>型體</label><div class="pv" id="dStylePv"></div></div>
-        <div class="fld w140"><label for="dRegion">地區</label><select id="dRegion"></select></div>
-        <div class="fld w200"><label>型體名稱／客戶</label><div class="ro" id="dStyleInfo"></div></div>
-      </div>
-      <div class="frow">
-        <div class="fld w140"><label for="dColor">配色</label><select id="dColor"></select></div>
+      <div class="gridwrap" style="max-height:290px"><table class="grid" id="dGrid"></table></div>
+      <div class="frow" style="align-items:flex-end">
+        <div class="fld w320"><label>選到的包裝方式</label><div class="ro" id="dSel">（點上面一列）</div></div>
+        <div class="fld w140"><label for="dColor">配色</label><select id="dColor" disabled></select></div>
         <div class="fld w140" id="dColorNewWrap" hidden><label for="dColorNew">新配色名稱</label><input id="dColorNew" placeholder="例如 全白"></div>
-        <div class="fld w320"><label>辨識模型</label><div class="ro" id="dModel"></div></div>
       </div>
       <div class="note warn" id="dCycle" hidden>這條線正在監控中。換線會重新載入模型（約 10～30 秒），目前這一輪作廢，不結算也不報警。</div>
       <div class="note warn" id="dTrial" hidden></div>
-      <div class="note danger" id="dBlock" hidden></div>
-      <div class="preview"><div class="ph" id="dPrevHead">換線後的步驟</div><ol id="dPrev"></ol></div>
     </div>
     <div class="da">
       <button class="btn btn-cancel" id="dCancel">取消</button>
-      <button class="btn btn-primary raised" id="dOk">確認換線</button>
+      <button class="btn btn-primary raised" id="dOk" disabled>確認換線</button>
     </div>
-  </div>
-</div>
-<!-- 選擇型體（共用選取燈箱，openSmall） -->
-<div class="scrim" id="pk" hidden style="z-index:56">
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pkTitle">
-    <div class="dt"><span class="mi mark">rate_review</span><h4 id="pkTitle">選擇型體</h4><span class="sum n" id="pkSum"></span></div>
-    <div class="dc">
-      <div class="frow">
-        <div class="fld w180"><label for="pkKey">型體（代碼／名稱／客戶）</label><input id="pkKey"></div>
-        <button class="btn btn-primary raised icon" id="pkSearch" aria-label="查詢"><span class="mi">search</span></button>
-      </div>
-      <div class="gridwrap"><table class="grid" id="pkGrid"></table></div>
-    </div>
-    <div class="da"><button class="btn btn-cancel" id="pkCancel">取消</button><button class="btn btn-primary raised" id="pkOk">確定</button></div>
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
@@ -273,7 +257,12 @@
     $("pkModelInfo").textContent = pk ? (pk.model_source ? "參考 " + pk.model_source : pk.model_trained_at ? "本型體地區" : "不能啟動監控") : "";
     $("mLabel").href = pk ? "/label?project=" + encodeURIComponent(pk.name) : "/label";
     $("mSwitch").disabled = !l || !l.enabled;
+    // 從「產生步驟」過來（?from=label&project=…）而這條線還沒做這個型體：只提示，不逼換線（新包裝方式不一定馬上上線）
+    const fromProj = fromLabel();
+    $("pkHint").hidden = !(fromProj && l && (!pk || pk.name !== fromProj));
+    if (fromProj) $("pkHint").textContent = `剛產生步驟的「${fromProj}」還沒排到這條線。要開始做它時按「操作 ▾ → 換包裝方式」，清單裡已幫你選好，只要選配色。`;
   }
+  function fromLabel() { const q = new URLSearchParams(location.search); return q.get("from") === "label" ? q.get("project") : null; }
   $("selLine").onchange = () => { renderLine(); history.replaceState(null, "", "/?line=" + encodeURIComponent($("selLine").value)); };
 
   function setStream(on) {
@@ -385,117 +374,73 @@
   $("btnReset").onclick = () => api("/api/reset", {});
   $("mShot").onclick = async () => { const d = await api("/api/screenshot", {}); toast(d.ok ? "已存截圖：" + d.path : (d.error || "存截圖失敗"), !d.ok); };
 
-  // ---- 換包裝方式
-  const withPk = () => methods.filter((m) => !m.error && m.steps > 0 && m.enabled !== false);
-  const styleKey = (m) => m.has_packaging ? m.style : "（未設定）" + m.name;
+  // ---- 換包裝方式：一張清單（只列有步驟、有模型、啟用中的），型體／地區／客戶篩選，點一列；配色預設帶這個包裝方式最近記的（優先已驗證）
+  const withPk = () => methods.filter((m) => !m.error && m.steps > 0 && m.model_trained_at && m.enabled !== false);
+  let swSel = null;
   async function openSwitch() {
     const l = curLine(); if (!l) { toast("請先到「產線設定」新增產線", true); return; }
     const d = await api("/api/methods"); methods = d.methods || [];
-    $("dLine").textContent = l.name;
     const pk = l.packaging;
-    $("dNow").textContent = pk ? `${pk.style || pk.name}／${pk.region || "–"}　配色 ${colorText(l.color)}` : "（未指定）";
-    curStyle = pk && withPk().some((m) => styleKey(m) === styleKey(pk)) ? styleKey(pk) : "";
-    renderStylePicker();
-    fillRegions(pk ? pk.name : null, l.color);
-    $("dCycle").hidden = !(running && runningLine === l.id) && !(running && lastState.line && lastState.line.id === l.id);
-    $("dlg").hidden = false;
+    $("dlgTitle").textContent = "換包裝方式　" + l.name;
+    $("dNow").textContent = pk ? `目前 ${pk.style || pk.name}／${pk.region || "–"}　配色 ${colorText(l.color)}` : "目前還沒指定包裝方式";
+    for (const [id, k] of [["dRegion", "region"], ["dCust", "customer"]]) { const s = $(id); s.innerHTML = ""; s.appendChild(el("option", null, "全部")); for (const v of [...new Set(withPk().map((m) => m[k]).filter(Boolean))]) s.appendChild(el("option", null, v)); }
+    $("dKey").value = ""; swSel = null;
+    const want = fromLabel(); if (want) swSel = withPk().find((m) => m.name === want) || null;   // 從「產生步驟」過來：先幫忙選好
+    $("dCycle").hidden = !(running && lastState.line && lastState.line.id === l.id);
+    renderSwitchGrid(); fillSwitchSel(); $("dlg").hidden = false; $("dKey").focus();
   }
-  // 型體＝選擇器欄位（規範 §3.8 模式 A）：空值顯示主色按鈕開共用選取燈箱；已選顯示值＋紅色 ✕ 清除
-  let curStyle = "", pkSel = "";
-  function renderStylePicker() {
-    const pv = $("dStylePv"); pv.innerHTML = "";
-    if (curStyle) {
-      const m = withPk().find((x) => styleKey(x) === curStyle);
-      pv.appendChild(el("span", "val", curStyle + (m && m.style_name ? "｜" + m.style_name : "")));
-      const x = el("button", "clr"); x.appendChild(EIP.mi("close")); x.title = "清除重選"; x.setAttribute("aria-label", "清除型體");
-      x.onclick = () => { curStyle = ""; renderStylePicker(); fillRegions(null, null); }; pv.appendChild(x);
-      pv.title = "點一下重新選擇"; pv.onclick = (ev) => { if (!ev.target.closest(".clr")) openPicker(); }; pv.style.cursor = "pointer";
-    } else {
-      const b = el("button", "btn btn-primary raised", "選擇型體"); b.onclick = openPicker; pv.appendChild(b); pv.onclick = null; pv.style.cursor = "";
-    }
-  }
-  function pickerRows() {
-    const by = {};
-    for (const m of withPk()) { const k = styleKey(m); (by[k] = by[k] || { key: k, name: m.style_name, cust: m.customer, regions: [] }).regions.push(m.region || "–"); }
-    return Object.values(by);
-  }
-  function openPicker() { pkSel = curStyle; $("pkKey").value = ""; renderPicker(); $("pk").hidden = false; $("pkKey").focus(); }
-  function renderPicker() {
-    const t = $("pkGrid"); t.innerHTML = "";
+  function renderSwitchGrid() {
+    const t = $("dGrid"); t.innerHTML = "";
     const th = el("thead"), tr0 = el("tr");
-    [["型體", 120], ["型體名稱", 200], ["客戶", 100], ["地區", 155]].forEach(([n, w], i) => { const h = el("th", i === 0 ? "pinL" : "", n); h.style.minWidth = w + "px"; if (i === 1) h.style.width = "100%"; tr0.appendChild(h); });
+    [["型體", 110, "pinL"], ["地區", 80], ["型體名稱", 160], ["客戶", 100], ["步驟", 60, "r"], ["辨識模型", 150], ["配色（已驗證）", 160]].forEach(([n, w, c], i) => { const h = el("th", c || "", n); h.style.minWidth = w + "px"; if (i === 2) h.style.width = "100%"; tr0.appendChild(h); });
     th.appendChild(tr0); t.appendChild(th);
-    const q = $("pkKey").value.trim(), tb = el("tbody"); let n = 0;
-    for (const r of pickerRows()) {
-      if (q && ![r.key, r.name || "", r.cust || ""].some((v) => v.includes(q))) continue;
+    const q = $("dKey").value.trim(), reg = $("dRegion").value, cust = $("dCust").value, tb = el("tbody"); let n = 0;
+    for (const m of withPk()) {
+      if (q && !((m.style || "").includes(q) || (m.style_name || "").includes(q) || m.name.includes(q))) continue;
+      if (reg && reg !== "全部" && m.region !== reg) continue;
+      if (cust && cust !== "全部" && m.customer !== cust) continue;
       n++;
-      const tr = el("tr", "pick" + (r.key === pkSel ? " sel" : ""));
-      [r.key, r.name || "", r.cust || "", r.regions.join("、")].forEach((v, i) => tr.appendChild(el("td", i === 0 ? "pinL" : "", v)));
-      tr.onclick = () => { pkSel = r.key; renderPicker(); };
-      tr.ondblclick = () => { pkSel = r.key; $("pkOk").onclick(); };
+      const tr = el("tr", "pick" + (swSel && swSel.name === m.name ? " sel" : ""));
+      const ok = (m.colors || []).filter((c) => c.status === "verified").map((c) => c.name);
+      [m.has_packaging ? m.style : "（未設定）" + m.name, m.region || "–", m.style_name || "", m.customer || "", String(m.steps), m.model_trained_at, m.has_packaging ? (ok.length ? ok.join("、") : "（還沒驗證過）") : "（舊專案不分配色）"]
+        .forEach((v, i) => tr.appendChild(el("td", i === 0 ? "pinL" : i === 4 ? "r n" : i === 5 ? "n" : "", v)));
+      tr.onclick = () => { swSel = m; renderSwitchGrid(); fillSwitchSel(); };
+      tr.ondblclick = () => { swSel = m; fillSwitchSel(); $("dOk").click(); };
       tb.appendChild(tr);
     }
-    if (!n) { const tr = el("tr", "empty"), td = el("td", null, "沒有符合的型體"); td.colSpan = 4; tr.appendChild(td); tb.appendChild(tr); }
-    t.appendChild(tb); EIP.resizable(t, "pick-style");
-    $("pkSum").textContent = `共 ${n} 個型體`; $("pkOk").disabled = !pkSel;
+    if (!n) { const tr = el("tr", "empty"), td = el("td", null, withPk().length ? "沒有符合的包裝方式" : "還沒有可以監控的包裝方式：要有步驟、而且模型訓練好"); td.colSpan = 7; tr.appendChild(td); tb.appendChild(tr); }
+    t.appendChild(tb);
   }
-  $("pkSearch").onclick = renderPicker; $("pkKey").onkeydown = (ev) => { if (ev.key === "Enter") renderPicker(); };
-  $("pkCancel").onclick = () => { $("pk").hidden = true; };
-  $("pkOk").onclick = () => { if (!pkSel) return; curStyle = pkSel; $("pk").hidden = true; renderStylePicker(); fillRegions(null, null); };
-  function fillRegions(keepName, keepColor) {
-    const dr = $("dRegion"); dr.innerHTML = "";
-    for (const m of withPk().filter((m) => styleKey(m) === curStyle)) { const o = el("option", null, m.region || "–"); o.value = m.name; dr.appendChild(o); }
-    if (!dr.options.length) { const o = el("option", null, curStyle ? "（沒有可用的地區）" : "（先選型體）"); o.value = ""; dr.appendChild(o); }
-    if (keepName && [...dr.options].some((o) => o.value === keepName)) dr.value = keepName;
-    fillColors(keepColor); renderPreview();
+  function fillSwitchSel() {
+    const m = swSel, dc = $("dColor"); dc.innerHTML = ""; dc.disabled = !m; $("dOk").disabled = !m;
+    $("dColorNewWrap").hidden = true;
+    if (!m) { $("dSel").textContent = "（點上面一列）"; $("dTrial").hidden = true; return; }
+    $("dSel").textContent = `${m.has_packaging ? m.style + "／" + m.region : m.name}　${m.style_name || ""}　${m.steps} 步`;
+    if (!m.has_packaging) { const o = el("option", null, "（舊專案不分配色）"); o.value = ""; dc.appendChild(o); dc.disabled = true; $("dTrial").hidden = true; return; }
+    for (const c of m.colors || []) { const o = el("option", null, c.name + "（" + colorStatusText[c.status] + "）"); o.value = c.name; dc.appendChild(o); }
+    const o = el("option", null, "新配色（模型沒看過）"); o.value = NEW; dc.appendChild(o);
+    const l = curLine(); const keep = l && l.packaging && l.packaging.name === m.name ? l.color : null;
+    const first = (m.colors || []).find((c) => c.status === "verified") || (m.colors || [])[0];
+    dc.value = keep && [...dc.options].some((x) => x.value === keep) ? keep : first ? first.name : NEW;
+    switchTrialNote();
   }
-  function fillColors(keep) {
-    const m = methods.find((x) => x.name === $("dRegion").value), dc = $("dColor"); dc.innerHTML = "";
-    if (m && m.has_packaging) {
-      for (const c of m.colors) { const o = el("option", null, c.name + "（" + colorStatusText[c.status] + "）"); o.value = c.name; dc.appendChild(o); }
-      const o = el("option", null, "新配色（模型沒看過）"); o.value = NEW; dc.appendChild(o);
-      dc.disabled = false;
-    } else { const o = el("option", null, "（舊專案不分配色）"); o.value = ""; dc.appendChild(o); dc.disabled = true; }
-    if (keep != null && [...dc.options].some((o) => o.value === keep)) dc.value = keep;
+  function switchTrialNote() {
+    const m = swSel, dc = $("dColor"); if (!m || !m.has_packaging) return;
     $("dColorNewWrap").hidden = dc.value !== NEW;
+    const c = (m.colors || []).find((x) => x.name === dc.value);
+    const t = dc.value === NEW ? "模型沒看過這個配色。可以啟動，但這段時間的輪次算試跑，不計入錯誤率、不響警報；錄 2～3 輪後到「包裝方式設定 → 辨識模型」驗證。"
+      : c && c.status !== "verified" ? `「${c.name}」${c.status === "failed" ? "離線驗證判錯過" : "還沒做過離線驗證"}，啟動後算試跑，不計入錯誤率、不響警報。` : "";
+    $("dTrial").hidden = !t; $("dTrial").textContent = t;
   }
-  function renderPreview() {
-    const m = methods.find((x) => x.name === $("dRegion").value), l = curLine(), now = l && l.packaging;
-    $("dStyleInfo").textContent = m ? [m.style_name, m.customer].filter(Boolean).join("　") || "–" : "–";
-    $("dModel").textContent = !m ? "–" : !m.model_trained_at ? "還沒訓練" : (m.model_source ? `參考 ${m.model_source}（${m.model_trained_at}）` : `本型體地區（${m.model_trained_at}）`);
-    const block = !m ? "這個型體沒有可用的包裝方式" : !m.model_trained_at ? "這個包裝方式的辨識模型還沒訓練，不能用來監控。請先到「包裝方式設定」設定參考模型，或到「標記物品」標記並訓練。" : "";
-    $("dBlock").hidden = !block; $("dBlock").textContent = block; $("dOk").disabled = !!block;
-    const dc = $("dColor"); $("dColorNewWrap").hidden = dc.value !== NEW;
-    let tmsg = "";
-    if (m && m.has_packaging) {
-      const c = m.colors.find((x) => x.name === dc.value);
-      if (dc.value === NEW) tmsg = "模型沒看過這個配色。可以啟動，但這段時間的輪次算試跑，不計入錯誤率、不響警報；錄 2～3 輪後到「包裝方式設定 → 辨識模型」驗證。";
-      else if (c && c.status !== "verified") tmsg = `「${c.name}」${c.status === "failed" ? "離線驗證判錯過" : "還沒做過離線驗證"}，啟動後算試跑，不計入錯誤率、不響警報。`;
-    }
-    $("dTrial").hidden = !tmsg; $("dTrial").textContent = tmsg;
-    const ol = $("dPrev"); ol.innerHTML = "";
-    if (!m) { $("dPrevHead").textContent = "換線後的步驟"; return; }
-    api("/api/method?name=" + encodeURIComponent(m.name)).then((det) => {
-      if ($("dRegion").value !== m.name) return;
-      const nowNames = new Set((lastState.steps || []).map((s) => s.name));
-      let diff = 0; ol.innerHTML = "";
-      for (const s of det.step_rows || []) {
-        const li = el("li", null, s.name + (s.required ? "" : "（選配）"));
-        if (now && now.name !== m.name && nowNames.size && !nowNames.has(s.name)) { li.className = "diff"; li.textContent += "　← 跟目前不同"; diff++; }
-        ol.appendChild(li);
-      }
-      $("dPrevHead").textContent = `${m.name} 的步驟（${(det.step_rows || []).length} 步${diff ? "，跟目前不同的有 " + diff + " 步" : ""}）`;
-    });
-  }
-  $("dRegion").onchange = () => { fillColors(null); renderPreview(); };
-  $("dColor").onchange = renderPreview;
+  $("dKey").oninput = renderSwitchGrid; $("dRegion").onchange = renderSwitchGrid; $("dCust").onchange = renderSwitchGrid; $("dSearch").onclick = renderSwitchGrid;
+  $("dColor").onchange = switchTrialNote;
   $("dCancel").onclick = () => { $("dlg").hidden = true; };
-  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { if (!$("pk").hidden) $("pk").hidden = true; else $("dlg").hidden = true; } });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("dlg").hidden = true; });
   $("dOk").onclick = async () => {
-    const l = curLine(); let color = $("dColor").value;
+    const l = curLine(); if (!l || !swSel) return; let color = $("dColor").value;
     if (color === NEW && $("dColorNew").value.trim()) color = $("dColorNew").value.trim();
     $("dOk").disabled = true;
-    const d = await api("/api/lines/switch", { line: l.id, project: $("dRegion").value, color });
+    const d = await api("/api/lines/switch", { line: l.id, project: swSel.name, color });
     $("dOk").disabled = false;
     if (!d.ok) { toast(d.error || "換線失敗", true); return; }
     $("dlg").hidden = true; await loadLines(l.id);

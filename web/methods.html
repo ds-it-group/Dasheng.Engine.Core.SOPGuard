@@ -54,19 +54,14 @@
         <div class="menuwrap">
           <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden>
-            <button id="mCopy">複製到其他型體（可多筆）</button>
-            <button id="mAddStep">新增步驟</button>
-            <button id="mSave">儲存步驟清單</button>
-            <hr>
-            <a id="mLabel" href="/label">標記物品（框選、錄影、訓練）</a>
+            <a id="mLabel" href="/label">標記物品（框選、錄影、訓練、產生步驟）</a>
           </div>
         </div>
       </div>
       <div class="legend">
         <span><i style="background:var(--st-danger)"></i>停用</span>
         <span><i style="background:var(--st-warn)"></i>辨識模型還沒訓練，或還沒設定型體地區</span>
-        <span><i style="background:var(--st-edit)"></i>步驟清單有修改，尚未儲存</span>
-        <span><i style="background:var(--ed-bg); box-shadow: inset 0 0 0 1px var(--ed-line)"></i>可編輯欄位</span>
+        <span><i style="background:var(--ed-bg); box-shadow: inset 0 0 0 1px var(--ed-line)"></i>可編輯欄位（改了直接存）</span>
       </div>
       <div class="split">
         <div class="left"><div class="gridwrap"><table class="grid" id="mGrid"></table></div></div>
@@ -74,16 +69,12 @@
           <div class="sub"><h4 id="mTitle">請在左邊選一個包裝方式</h4><span class="meta n" id="mMeta"></span></div>
           <div class="note warn" id="needBar" hidden style="border:1px solid var(--line); border-top:0; border-radius:0; align-items:center"><span id="needText"></span></div>
           <div class="tabs" role="tablist"><button data-tab="steps" class="on">步驟清單</button><button data-tab="model">辨識模型</button></div>
-          <div class="pane" id="tab-steps"><div class="gridwrap"><table class="grid" id="sGrid"></table></div></div>
+          <div class="pane" id="tab-steps">
+            <div class="note info" style="border:1px solid var(--line); border-top:0; border-radius:0">順序照示範影片第一次出現的先後（標記物品的段落）。要改順序：到「標記物品」調段落再按「產生步驟」。停留秒數、必要改了直接存。</div>
+            <div class="gridwrap"><table class="grid" id="sGrid"></table></div>
+          </div>
           <div class="pane" id="tab-model" hidden>
-            <div class="mcard">
-              <div class="radios" role="radiogroup" aria-label="模型來源">
-                <label><input type="radio" name="msrc" value="self" id="srcSelf">用本型體地區自己的模型</label>
-                <label><input type="radio" name="msrc" value="ref" id="srcRef">參考指定型體地區的模型</label>
-                <div class="fld w200"><label for="srcPick">參考來源（型體／地區）</label><select id="srcPick"></select></div>
-              </div>
-              <div class="mline n" id="modelLine"></div>
-            </div>
+            <div class="mcard"><div class="mline n" id="modelLine"></div></div>
             <div class="sechead">
               <h4>配色驗證</h4>
               <span class="addcolor"><span class="fld w120"><label for="newColor">新增配色</label><input id="newColor" placeholder="例如 全白"></span><button class="btn btn-cancel" id="btnAddColor">加入</button></span>
@@ -121,28 +112,6 @@
   </div>
 </div>
 
-<!-- 複製到其他型體（openSmall） -->
-<div class="scrim" id="cpDlg" hidden>
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="cpTitle">
-    <div class="dt"><span class="mi mark">rate_review</span><h4 id="cpTitle">複製到其他型體</h4><span class="sum" id="cpSum"></span></div>
-    <div class="dc">
-      <div class="note info" id="cpInfo"></div>
-      <div class="gridwrap tgt" style="min-height:180px"><table class="grid" id="cpGrid"></table></div>
-      <div><button class="btn btn-cancel" id="cpAdd">＋ 再加一筆</button></div>
-      <div class="note danger" id="cpErr" hidden></div>
-    </div>
-    <div class="da"><button class="btn btn-cancel" id="cpCancel">取消</button><button class="btn btn-primary raised" id="cpOk">複製</button></div>
-  </div>
-</div>
-
-<!-- 離開提醒（380） -->
-<div class="scrim" id="leave" hidden>
-  <div class="dialog xs" role="dialog" aria-modal="true" aria-labelledby="lvTitle">
-    <div class="dt"><span class="mi mark">rate_review</span><h4 id="lvTitle">步驟清單還沒儲存</h4></div>
-    <div class="dc"><div>切換包裝方式會丟掉剛剛的修改。</div></div>
-    <div class="da"><button class="btn btn-cancel" id="lvCancel">取消</button><button class="btn btn-danger raised" id="lvOk">丟掉修改</button></div>
-  </div>
-</div>
 <!-- 訓練辨識模型（openLarge） -->
 <div class="scrim" id="trDlg" hidden>
   <div class="dialog large" role="dialog" aria-modal="true" aria-labelledby="trTitle">
@@ -263,7 +232,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   EIP.compactToggle($("btnCompact"));
-  let methods = [], sel = null, detail = null, stepsEdit = null, dirty = false, tab = "steps", pkEditing = null, pendingSel = null;
+  let methods = [], sel = null, detail = null, stepsEdit = null, tab = "steps", pkEditing = null;
   const filters = {};
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   async function api(path, body) { const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}); return r.json(); }
@@ -319,27 +288,22 @@
       const tr = el("tr", tone + (m.name === sel ? " sel" : ""));
       v.forEach((x, j) => tr.appendChild(el("td", j === 0 ? "pinL" : j === 5 ? "r n" : "", x)));
       const op = el("td", "pinR c"), box = el("span", "ops");
-      const b1 = EIP.iconBtn("edit", "c-edit", m.has_packaging ? "編輯型體地區" : "設定型體地區", (e) => { e.stopPropagation(); openPk(m, false); });
-      const b2 = EIP.iconBtn("content_copy", "c-ink", "複製到其他型體", (e) => { e.stopPropagation(); openCopy(m); }); b2.disabled = !m.has_packaging;
-      box.appendChild(b1); box.appendChild(b2);
+      box.appendChild(EIP.iconBtn("edit", "c-edit", m.has_packaging ? "編輯型體地區" : "設定型體地區", (e) => { e.stopPropagation(); openPk(m, false); }));
       if (m.has_packaging) {
         box.appendChild(EIP.iconBtn(m.enabled ? "block" : "restore", m.enabled ? "c-del" : "c-edit", m.enabled ? "停用" : "啟用", async (e) => {
           e.stopPropagation(); const d = await api("/api/method/packaging", { name: m.name, packaging: { enabled: !m.enabled } }); if (!d.ok) toast(d.error, true); else load(m.name); }));
       }
       op.appendChild(box); tr.appendChild(op);
-      tr.onclick = () => askSelect(m.name);
+      tr.onclick = () => { if (m.name !== sel) select(m.name); };
       tr.ondblclick = () => openPk(m, true);
       tb.appendChild(tr);
     }
-    if (!shown) { const tr = el("tr", "empty"), td = el("td", null, methods.length ? "沒有符合條件的包裝方式" : "還沒有任何專案，先到「標記物品」新增"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
+    if (!shown) { const tr = el("tr", "empty"), td = el("td", null, methods.length ? "沒有符合條件的包裝方式" : "還沒有任何專案，先到「新增包裝方式」"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
     t.appendChild(tb); EIP.resizable(t, "methods");
   }
-  function askSelect(name) { if (name === sel) return; if (dirty) { pendingSel = name; $("leave").hidden = false; return; } select(name); }
-  $("lvCancel").onclick = () => { $("leave").hidden = true; pendingSel = null; };
-  $("lvOk").onclick = () => { $("leave").hidden = true; dirty = false; select(pendingSel); };
 
   async function select(name, quiet) {
-    sel = name; dirty = false; renderMethods();
+    sel = name; renderMethods();
     const d = await api("/api/method?name=" + encodeURIComponent(name));
     if (d.error) { toast(d.error, true); return; }
     detail = d; stepsEdit = d.step_rows.map((s) => ({ ...s }));
@@ -359,64 +323,43 @@
     $("needBar").hidden = !need;
     if (need) $("needText").textContent = !d.has_packaging ? "這個專案還沒設定型體地區。按左邊鉛筆圖示設定。"
       : !d.model_trained_at ? "這個專案還沒有辨識模型。到「標記物品」框選物品後按「開始訓練」。"
-      : "這個專案還沒有步驟。到「標記物品」按「產生步驟，前往監控」，或按「操作 ▾ → 新增步驟」。";
+      : "這個專案還沒有步驟。到「標記物品」按「產生步驟，前往監控」。";
     renderSteps(); renderModel();
   }
 
-  // ---- 右：步驟清單
+  // ---- 右：步驟清單（順序從標記頁的段落來，這裡不排、不新增、不刪；停留秒數、必要改了直接存）
+  const fmtT = (t) => { const m = Math.floor(t / 60); let s = (t - m * 60).toFixed(1); if (s.length < 4) s = "0" + s; return (m < 10 ? "0" : "") + m + ":" + s; };
   function renderSteps() {
     const t = $("sGrid"); t.innerHTML = "";
-    head(t, [["順序", 60, "pinL r"], ["步驟名稱", 155], ["辨識物品", 155], ["停留秒數", 100, "r"], ["必要", 60, "c"], ["操作", 96, "pinR c"]], 1, 0, null);
-    const tb = el("tbody"), items = detail.model_items || [];
+    head(t, [["順序", 60, "pinL r"], ["步驟名稱", 155], ["怎麼判", 220], ["第 1 段開始", 110, "r"], ["停留秒數", 100, "r"], ["必要", 60, "c"]], 2, 0, null);
+    const tb = el("tbody");
     stepsEdit.forEach((s, i) => {
-      const tr = el("tr", s._new || s._changed ? "t-edit" : "");
+      const tr = el("tr");
       tr.appendChild(el("td", "pinL r n", String(i + 1)));
-      const c1 = el("td", "ed"), a = el("input"); a.value = s.name; a.setAttribute("aria-label", "步驟名稱"); a.oninput = () => { s.name = a.value; mark(s, tr); }; c1.appendChild(a); tr.appendChild(c1);
-      const c2 = el("td", s.type === "item" || s._new ? "ed" : "");
-      if (s.type === "item" || s._new) {
-        const sl = el("select"); sl.setAttribute("aria-label", "辨識物品");
-        const opts = items.includes(s.label) || !s.label ? items : [s.label, ...items];
-        if (!s.label) sl.appendChild(el("option", null, "（請選）"));
-        for (const it of opts) { const o = el("option", null, it); o.value = it; sl.appendChild(o); }
-        sl.value = s.label || "（請選）"; sl.onchange = () => { s.label = sl.value; mark(s, tr); }; c2.appendChild(sl);
-      } else { c2.textContent = (s.label ? s.label + "　" : "") + "（" + s.type + "，在標記頁設定）"; c2.title = "非物品步驟只能改名稱、秒數與必要"; }
-      tr.appendChild(c2);
-      const c3 = el("td", "ed"), b = el("input", "r n"); b.value = s.dwell; b.setAttribute("aria-label", "停留秒數"); b.oninput = () => { s.dwell = b.value; mark(s, tr); }; c3.appendChild(b); tr.appendChild(c3);
-      const c4 = el("td", "c"), ck = el("input"); ck.type = "checkbox"; ck.checked = s.required; ck.setAttribute("aria-label", "必要"); ck.onchange = () => { s.required = ck.checked; mark(s, tr); }; c4.appendChild(ck); tr.appendChild(c4);
-      const c5 = el("td", "pinR c"), box = el("span", "ops");
-      const up = EIP.iconBtn("arrow_upward", "c-ink", "往上移", () => { [stepsEdit[i - 1], stepsEdit[i]] = [stepsEdit[i], stepsEdit[i - 1]]; dirty = true; renderSteps(); }); up.disabled = i === 0;
-      const dn = EIP.iconBtn("arrow_downward", "c-ink", "往下移", () => { [stepsEdit[i + 1], stepsEdit[i]] = [stepsEdit[i], stepsEdit[i + 1]]; dirty = true; renderSteps(); }); dn.disabled = i === stepsEdit.length - 1;
-      const del = EIP.iconBtn("delete", "c-del", "刪除這一步", () => { stepsEdit.splice(i, 1); dirty = true; renderSteps(); });
-      [up, dn, del].forEach((x) => box.appendChild(x));
-      c5.appendChild(box); tr.appendChild(c5);
+      tr.appendChild(el("td", null, s.name));
+      tr.appendChild(el("td", null, s.type === "item" ? `物品：看到「${s.label}」` : s.type === "hand_on_object" ? `動作：手碰到「${s.label}」` : `${s.label ? s.label + "　" : ""}（${s.type}）`));
+      tr.appendChild(el("td", "r n", s.start_t != null ? fmtT(s.start_t) : "–"));
+      const c3 = el("td", "ed"), b = el("input", "r n"); b.value = s.dwell; b.setAttribute("aria-label", "停留秒數"); b.onchange = () => { s.dwell = b.value; saveSteps("停留秒數"); }; c3.appendChild(b); tr.appendChild(c3);
+      const c4 = el("td", "c"), ck = el("input"); ck.type = "checkbox"; ck.checked = s.required; ck.setAttribute("aria-label", "必要"); ck.onchange = () => { s.required = ck.checked; saveSteps("必要"); }; c4.appendChild(ck); tr.appendChild(c4);
       tb.appendChild(tr);
     });
-    if (!stepsEdit.length) { const tr = el("tr", "empty"), td = el("td", null, "還沒有步驟。按「操作 ▾ → 新增步驟」，或到「標記物品」產生步驟。"); td.colSpan = 6; tr.appendChild(td); tb.appendChild(tr); }
+    if (!stepsEdit.length) { const tr = el("tr", "empty"), td = el("td", null, "還沒有步驟。到「標記物品」按「產生步驟，前往監控」。"); td.colSpan = 6; tr.appendChild(td); tb.appendChild(tr); }
     t.appendChild(tb);
   }
-  function mark(s, tr) { s._changed = true; dirty = true; tr.className = "t-edit"; }
-  $("mAddStep").onclick = () => { if (!detail) return; stepsEdit.push({ index: null, name: "", type: "item", label: "", dwell: 0.5, required: true, _new: true }); dirty = true; setTab("steps"); renderSteps(); };
-  $("mSave").onclick = async () => {
+  async function saveSteps(what) {
     if (!detail) return;
     const d = await api("/api/method/steps", { name: detail.name, steps: stepsEdit.map((s) => ({ index: s.index, name: s.name.trim(), label: s.label, dwell: s.dwell, required: s.required })) });
-    if (!d.ok) { toast(d.error, true); return; }
-    toast("步驟清單已儲存"); dirty = false; load(detail.name);
-  };
+    if (!d.ok) { toast(d.error, true); select(detail.name); return; }
+    toast("已存：" + what); select(detail.name);
+  }
 
-  // ---- 右：辨識模型
+  // ---- 右：辨識模型（只看，配色驗證可標記；模型一律用本型體地區自己訓練的）
   function renderModel() {
     const d = detail;
-    $("srcSelf").checked = !d.model_source; $("srcRef").checked = !!d.model_source;
-    const pick = $("srcPick"); pick.innerHTML = "";
-    for (const m of methods) if (m.name !== d.name && m.own_model && !m.error) { const o = el("option", null, m.has_packaging ? `${m.style}／${m.region}` : m.name); o.value = m.name; pick.appendChild(o); }
-    if (!pick.options.length) { const o = el("option", null, "（沒有已訓練的型體地區）"); o.value = ""; pick.appendChild(o); }
-    if (d.model_source) pick.value = d.model_source;
-    pick.disabled = !d.model_source || !d.has_packaging; $("srcRef").disabled = !d.has_packaging; $("srcSelf").disabled = !d.has_packaging;
     $("modelLine").innerHTML = "";
-    const lines = [["目前模型", d.model_trained_at ? (d.model_source ? `參考 ${d.model_source}（${d.model_trained_at}）` : `本型體地區（${d.model_trained_at}）`) : "還沒訓練"],
-      ["本型體地區自己的模型", d.own_model ? "有" : "沒有"], ["模型認得的物品", (d.model_items || []).join("、") || "–"],
-      ["規則", "步驟清單永遠用本型體地區的，只有模型可以參考別的型體地區"]];
-    if (!d.has_packaging) lines.unshift(["注意", "先按左邊 ✎ 設定型體地區，才能設模型來源與配色"]);
+    const lines = [["目前模型", d.model_trained_at ? (d.model_source ? `參考 ${d.model_source}（${d.model_trained_at}）` : `本型體地區（${d.model_trained_at}）`) : "還沒訓練（到「標記物品」按「開始訓練」）"],
+      ["模型認得的物品", (d.model_items || []).join("、") || "–"]];
+    if (!d.has_packaging) lines.unshift(["注意", "先按左邊 ✎ 設定型體地區，才能記配色"]);
     for (const [k, v] of lines) { const s = el("span"); s.appendChild(document.createTextNode(k + "：")); s.appendChild(el("b", null, v)); $("modelLine").appendChild(s); }
     const t = $("cGrid"); t.innerHTML = "";
     head(t, [["配色", 100, "pinL"], ["驗證結果", 100, "c"], ["驗證日期", 140], ["說明", 250], ["操作", 120, "pinR c"]], 3, 0, null);
@@ -439,14 +382,6 @@
     $("colorSum").textContent = (d.colors || []).length ? `已驗證 ${ok} / ${(d.colors || []).length} 個配色` : "";
     $("btnAddColor").disabled = !d.has_packaging; $("newColor").disabled = !d.has_packaging;
   }
-  async function setSource(src) {
-    const d = await api("/api/method/packaging", { name: detail.name, packaging: { model_source: src } });
-    if (!d.ok) { toast(d.error, true); renderModel(); return; }
-    toast(src ? "已改成參考 " + src + " 的模型" : "已改成用本型體地區自己的模型"); load(detail.name);
-  }
-  $("srcSelf").onchange = () => setSource(null);
-  $("srcRef").onchange = () => { const v = $("srcPick").value; if (!v) { toast("沒有可以參考的型體地區（要先有自己訓練好模型的）", true); renderModel(); return; } setSource(v); };
-  $("srcPick").onchange = () => setSource($("srcPick").value);
   $("btnAddColor").onclick = async () => {
     const c = $("newColor").value.trim(); if (!c) return;
     const r = await api("/api/method/color", { name: detail.name, color: c, status: "unverified" });
@@ -474,51 +409,17 @@
     $("pkDlg").hidden = true; toast("已儲存"); load(pkEditing.name);
   };
 
-  // ---- 複製燈箱
-  let cpSrc = null, cpRows = [];
-  function openCopy(m) {
-    if (!m) { m = methods.find((x) => x.name === sel); }
-    if (!m || !m.has_packaging) { toast("請先選一個已設定型體地區的包裝方式", true); return; }
-    cpSrc = m; cpRows = [{ style: "", region: m.region, style_name: "" }];
-    $("cpTitle").textContent = `複製到其他型體　來源 ${m.style}／${m.region}`;
-    $("cpInfo").textContent = `只複製步驟清單。新的包裝方式先參考「${m.own_model ? m.name : (m.model_source || "（來源還沒有模型）")}」的辨識模型；客戶沿用「${m.customer || "–"}」。影片與框選不複製，之後要自己訓練再到「標記物品」錄影或上傳。`;
-    $("cpErr").hidden = true; renderCp(); $("cpDlg").hidden = false;
-  }
-  function renderCp() {
-    const t = $("cpGrid"); t.innerHTML = "";
-    head(t, [["型體", 120], ["地區", 120], ["型體名稱", 155], ["操作", 60, "pinR c"]], 2, 0, null);
-    const tb = el("tbody");
-    cpRows.forEach((r, i) => {
-      const tr = el("tr");
-      for (const k of ["style", "region", "style_name"]) { const td = el("td", "ed"), inp = el("input"); inp.value = r[k]; inp.setAttribute("aria-label", k); if (k === "region") inp.setAttribute("list", "regionList"); if (k === "style") { EIP.styleFmt(inp); inp.addEventListener("blur", () => { r.style = inp.value; }); } inp.oninput = () => { r[k] = inp.value; }; td.appendChild(inp); tr.appendChild(td); }
-      const op = el("td", "pinR c"), b = EIP.iconBtn("delete", "c-del", "移除這一筆", () => { cpRows.splice(i, 1); renderCp(); }); b.disabled = cpRows.length === 1;
-      op.appendChild(b); tr.appendChild(op); tb.appendChild(tr);
-    });
-    t.appendChild(tb); $("cpSum").textContent = `共 ${cpRows.length} 筆`;
-  }
-  $("cpAdd").onclick = () => { cpRows.push({ style: "", region: cpSrc.region, style_name: "" }); renderCp(); };
-  $("cpCancel").onclick = () => { $("cpDlg").hidden = true; };
-  $("cpOk").onclick = async () => {
-    const targets = cpRows.map((r) => ({ style: r.style.trim(), region: r.region.trim(), style_name: r.style_name.trim() }));
-    const d = await api("/api/method/copy", { name: cpSrc.name, targets });
-    if (!d.ok) { $("cpErr").textContent = d.error; $("cpErr").hidden = false; return; }
-    $("cpDlg").hidden = true; toast("已複製：" + d.made.join("、")); load(d.made[0]);
-  };
-  $("mCopy").onclick = () => openCopy(null);
-
   /* 訓練的入口只在「標記物品」頁（開始訓練、進階訓練）；這一頁的訓練燈箱只接受從那邊帶 ?train=1 過來 */
 
   $("btnSearch").onclick = () => renderMethods();
   $("qKey").onkeydown = (ev) => { if (ev.key === "Enter") renderMethods(); };
-  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") ["pkDlg", "cpDlg", "leave"].forEach((id) => { $(id).hidden = true; }); });
-  window.addEventListener("beforeunload", (ev) => { if (dirty) { ev.preventDefault(); ev.returnValue = ""; } });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("pkDlg").hidden = true; });
   EIP.styleFmt($("pStyle"));
   window.sopgMethods = { get detail() { return detail; }, get methods() { return methods; }, reload: () => load(sel), toast };
   const q = new URLSearchParams(location.search);  // select() 會改網址，先記下來
   load().then(async () => {                      // ?train=1 直接開訓練燈箱；&preview=段號 再開那一段的預覽
     if (q.get("tab") === "model") setTab("model");
     if (q.get("dlg") === "pk") openPk(methods.find((m) => m.name === sel), false);
-    if (q.get("dlg") === "copy") openCopy(null);
     if (q.get("train") === "1" && window.openTrain) { await window.openTrain(detail); if (q.get("preview") && window.openTrainPreview) { await window.openTrainPreview(detail.name, Number(q.get("preview"))); if (q.get("pvtab") === "seeds") document.querySelector('#pvTabs [data-pv="seeds"]').click(); } }
   });
 })();

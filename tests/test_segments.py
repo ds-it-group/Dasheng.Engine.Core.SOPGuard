@@ -35,6 +35,23 @@ def _video_project(tmp_path, name="v", n=90, moving=True):
 
 # ---------------------------------------------------------------- 資料
 
+def test_steps_follow_first_segment_order(tmp_path):
+    """步驟順序＝每個名稱已儲存第 1 段的開始格；同一格先物品後動作；沒存的段不算；沒段落的排最後、照原本順序。"""
+    from types import SimpleNamespace as NS
+    import training
+    from project_store import Step
+    s = ls.Segments(str(tmp_path)); s.add_name("鞋子"); s.add_name("藍盒"); s.add_name("檢查鞋舌", "action"); s.add_name("舊框選")
+    a = s.add("鞋子", 150, 239, 300); b = s.add("藍盒", 30, 119, 300); c = s.add("檢查鞋舌", 30, 60, 300); d = s.add("藍盒", 10, 20, 300)
+    s.mark_saved(a.id, group=1, tracked=30); s.mark_saved(b.id, group=2, tracked=30); s.mark_saved(c.id, touch="鞋子")   # d（10～20）沒存，不算
+    mk = lambda n, t="item": Step(step_index=0, step_name=n, dwell_time_sec=0.5, timeout_sec=120.0, type=t, label=n if t == "item" else None,
+                                  object=None if t == "item" else "鞋子", required=True)
+    steps = [mk("鞋子"), mk("舊框選"), mk("藍盒"), mk("檢查鞋舌", "hand_on_object")]
+    out = training.order_steps_by_segments(NS(dir_path=str(tmp_path)), steps)
+    assert [x.step_name for x in out] == ["藍盒", "檢查鞋舌", "鞋子", "舊框選"]
+    assert training.first_segment_starts(NS(dir_path=str(tmp_path / "nope"))) == {}        # 沒有 segments.json：順序不變
+    assert [x.step_name for x in training.order_steps_by_segments(NS(dir_path=str(tmp_path / "nope")), steps)] == ["鞋子", "舊框選", "藍盒", "檢查鞋舌"]
+
+
 def test_segments_store_names_ranges_and_trash(tmp_path):
     s = ls.Segments(str(tmp_path))
     s.add_name("藍盒"); s.add_name("檢查鞋舌", "action")

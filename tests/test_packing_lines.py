@@ -80,16 +80,10 @@ def test_unique_key_model_source_and_colors(base):
     assert not pkg.is_trial(project_store.load_project("legacy"), "")     # 舊專案沒有型體地區，不分配色、不算試跑
 
 
-def test_copy_and_update_steps(base):
+def test_update_steps(base):
     _proj(base, "a", {"style": "310222 01", "region": "歐洲", "customer": "客戶 A"}, model=True)
-    made = pkg.copy_method("a", [{"style": "310222-02", "region": "歐洲", "style_name": "慢跑鞋 2602"}, {"style": "310222 03", "region": "歐洲"}])
-    assert made == ["310222 02_歐洲", "310222 03_歐洲"]
-    c = project_store.load_project("310222 02_歐洲")
-    assert c.packaging.model_source == "a" and c.packaging.customer == "客戶 A" and [s.step_name for s in c.steps] == ["藍盒", "貼紙"]
-    with pytest.raises(ValueError, match="已經有包裝方式"):
-        pkg.copy_method("a", [{"style": "310222-02", "region": "歐洲"}])
-    # 從「參考別人」的專案再複製：沿用同一個模型來源
-    assert project_store.load_project(pkg.copy_method("310222 02_歐洲", [{"style": "31022204", "region": "歐洲"}])[0]).packaging.model_source == "a"
+    assert not hasattr(pkg, "copy_method")                              # 「複製到其他型體」拿掉了：每個包裝方式都用自己的影片與模型
+    assert pkg.method_detail("a")["step_rows"][0]["start_t"] is None     # 沒有時間軸段落的舊專案：沒有「第 1 段開始」
     row = pkg.update_steps("a", [{"index": 1, "name": "盒端貼紙", "label": "貼紙", "dwell": 0.3, "required": True},
                                  {"name": "鞋子放上", "label": "鞋子", "dwell": 0.5, "required": False}])
     p = project_store.load_project("a")

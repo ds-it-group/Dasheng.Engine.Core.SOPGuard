@@ -32,6 +32,8 @@
   .nrow.on .nm { font-weight: 500; }
   .nm .nmt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sw { width: 12px; height: 12px; border-radius: 2px; flex: none; }
+  .ord { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex: none; background: var(--primary); color: #fff; }
+  .ord.none { background: var(--line-soft); color: var(--ink-2); }
   .tag { font-size: 11px; line-height: 16px; color: #1b5e20; background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 2px; padding: 0 5px; flex: none; }
   .cnt { font-size: 12px; color: var(--ink-2); white-space: nowrap; margin-left: auto; font-weight: 400; }
   .nrow .ib { margin-right: 6px; }
@@ -137,7 +139,7 @@
           </div>
         </div>
         <aside class="card names">
-          <div class="ttl"><span class="mi mark">rate_review</span><h4>名稱（點一個來標）</h4></div>
+          <div class="ttl"><span class="mi mark">rate_review</span><h4>名稱（點一個來標）</h4><span class="sum" style="margin-left:auto;font-size:12px;color:var(--ink-2)">圓圈數字＝步驟順序，照影片裡第一次出現的先後</span></div>
           <div class="newrow">
             <div class="tgg" role="group" aria-label="新名稱的種類">
               <button class="tg on" id="kindObj" aria-pressed="true" title="物品：拉時間範圍，再畫一個框">物品</button>
@@ -198,6 +200,19 @@
       <div class="note danger" id="newErr" hidden></div>
     </div>
     <div class="da"><button class="btn btn-cancel" id="newCancel">取消</button><button class="btn btn-primary raised" id="newOk">建立</button></div>
+  </div>
+</div>
+<!-- 產生步驟（openSmall）：先看順序再確認；換產線在監控畫面做 -->
+<div class="scrim" id="genDlg" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="genTitle">
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="genTitle">產生步驟</h4></div>
+    <div class="dc">
+      <div>步驟照示範影片第一次出現的先後（每個名稱已儲存的第 1 段）：</div>
+      <ol id="genList" style="margin:0;padding-left:22px;line-height:2;font-size:15px"></ol>
+      <div class="hint2" id="genLegacy" hidden></div>
+      <div class="note info">停留秒數用預設（物品 0.5 秒、動作 0.7 秒），要改再到「包裝方式設定」。這裡不換產線：哪條線要開始做這個型體時，再到監控畫面「操作 ▾ → 換包裝方式」。</div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="genCancel">取消</button><button class="btn btn-primary raised" id="genGo">產生步驟，前往監控</button></div>
   </div>
 </div>
 <!-- 確認（380） -->
@@ -452,12 +467,15 @@
   // ---- 名稱清單
   function renderNames() {
     const ul = $("nameList"); ul.innerHTML = ""; if (!info) return;
+    const orderNo = {}; stepOrder().forEach((m, i) => { orderNo[m.name] = i + 1; });   // 步驟順序＝已儲存第 1 段的先後（跟產生步驟一樣）
     for (const m of names()) {
       const segs = segsOf(m.name); const on = sel === m.name; const un = segs.filter((x) => !x.saved).length; const isA = m.kind === "action";
       const row = el("div", "nrow" + (on ? " on" : "")); const b = el("button", "nm"); b.type = "button"; b.setAttribute("aria-expanded", on);
       b.onclick = () => { sel = m.name; segSel = null; render(); say(`時間軸現在只顯示「${m.name}」。` + (isA ? "動作只要拉時間範圍，不用畫框。" : "")); };
+      const ord = el("span", "ord" + (orderNo[m.name] ? "" : " none")); ord.textContent = orderNo[m.name] || "–";
+      ord.title = orderNo[m.name] ? `第 ${orderNo[m.name]} 步（照已儲存第 1 段的開始時間）` : "還沒有儲存的段落，還沒有順序";
       const car = el("span", "car"); car.textContent = "▸"; const sw = el("span", "sw"); sw.style.background = m.color; const nm = el("span", "nmt"); nm.textContent = m.name;
-      b.append(car, sw, nm); if (isA) { const t = el("span", "tag"); t.textContent = "動作"; b.appendChild(t); }
+      b.append(ord, car, sw, nm); if (isA) { const t = el("span", "tag"); t.textContent = "動作"; b.appendChild(t); }
       const c = el("span", "cnt"); c.textContent = `${segs.length} 段` + (un ? `（${un} 段未存）` : "") + (isA && m.touch ? `・手碰 ${m.touch}` : ""); b.appendChild(c);
       row.appendChild(b);
       if (!isA && info.seeds.region && segs.some((x) => x.saved)) {
@@ -590,7 +608,7 @@
   $("btnRegion").onclick = () => { if (!info || !info.has_video) return; regionMode = true; draft = null; draw(); updateHint(); };
   document.addEventListener("keydown", (e) => {
     const tag = e.target.tagName; if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") { if (e.key === "Escape") e.target.blur(); return; }
-    if (!$("newDlg").hidden || !$("cfDlg").hidden) { if (e.key === "Escape") { $("newDlg").hidden = true; $("cfCancel").click(); } return; }
+    if (!$("newDlg").hidden || !$("cfDlg").hidden || !$("genDlg").hidden) { if (e.key === "Escape") { $("newDlg").hidden = true; $("genDlg").hidden = true; $("cfCancel").click(); } return; }
     if (!info || !info.has_video) return;
     let ok = true; const k = e.key;
     if (k === " ") togglePlay();
@@ -654,7 +672,25 @@
     const d = await api("/api/train/start", { project: proj }); if (!d.ok) { say(d.error, true); return; }
     say("開始訓練，進度在右下角；訓練中可以離開這個頁面，回來再看。"); pollTrain();
   };
-  $("btnGen").onclick = async () => { const d = await api("/api/steps/generate", { project: proj }); if (!d.ok) { say(d.error, true); return; } toast("已產生步驟：" + d.steps.join("、")); setTimeout(() => { location.href = "/"; }, 800); };
+  /* 產生步驟：先看順序再確認。順序＝每個名稱已儲存第 1 段的開始時間（同一格先物品後動作），跟後端 training.order_steps_by_segments 一樣；不在這裡換產線 */
+  function stepOrder() {
+    const first = {}; for (const m of names()) { const s = segsOf(m.name).filter((x) => x.saved); if (s.length) first[m.name] = s[0].start; }
+    return names().filter((m) => first[m.name] != null).sort((a, b) => first[a.name] - first[b.name] || (a.kind === "action") - (b.kind === "action"));
+  }
+  $("btnGen").onclick = () => {
+    const ol = $("genList"); ol.innerHTML = ""; const order = stepOrder();
+    for (const m of order) { const li = el("li"); li.textContent = m.name + (m.kind === "action" ? `（動作：手碰到 ${m.touch || "？"}）` : "（物品）"); ol.appendChild(li); }
+    const legacy = (info.seeds.order || []).filter((n) => !order.some((m) => m.name === n));
+    $("genLegacy").hidden = !legacy.length; $("genLegacy").textContent = legacy.length ? `另有舊版框選的物品：${legacy.join("、")}，排在最後。` : "";
+    $("genDlg").hidden = false;
+  };
+  $("genCancel").onclick = () => { $("genDlg").hidden = true; };
+  $("genGo").onclick = async () => {
+    $("genGo").disabled = true;
+    const d = await api("/api/steps/generate", { project: proj }); $("genGo").disabled = false; $("genDlg").hidden = true;
+    if (!d.ok) { say(d.error, true); return; }
+    toast("已產生步驟：" + d.steps.join("、")); setTimeout(() => { location.href = "/?from=label&project=" + enc(proj); }, 800);
+  };
 
   // ---- 新增專案／錄製／上傳
   $("btnNew").onclick = () => { $("newProj").value = ""; $("newErr").hidden = true; $("newDlg").hidden = false; $("newProj").focus(); };
