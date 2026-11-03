@@ -426,6 +426,8 @@ $env:PYTHONUTF8='1'
 - 後端：刪掉 `packing_methods.suggest_sources`、`adopt_method`、路由 `/api/wizard/suggest`、`/api/method/adopt`；`wizard_state` 只回 step 1（缺型體地區或影片）／2（到標記頁）。
   「辨識模型 → 參考指定型體地區的模型」（`model_source`）沒動，預設仍是用本型體地區自己的模型。
 - 測試：刪 `tests/test_adopt.py`，`tests/test_wizard.py` 改成確認不帶別人的模型；全套 118 條通過。
+- 訓練的按鈕只在「標記物品」頁：「開始訓練」＋下面的「進階訓練」連結（帶 `?train=1` 開包裝方式設定的訓練燈箱：挑片段、合成配色、
+  GPU 訓練包、匯入）。包裝方式設定的「操作 ▾ → 訓練辨識模型」拿掉；那一頁改的步驟、停留秒數、必要、配色驗證都不用重訓。
 
 
 ## 手勢特徵版本 2（2026-10-22）

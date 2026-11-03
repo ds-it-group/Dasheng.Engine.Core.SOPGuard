@@ -58,8 +58,7 @@
             <button id="mAddStep">新增步驟</button>
             <button id="mSave">儲存步驟清單</button>
             <hr>
-            <button id="mTrain">訓練辨識模型</button>
-            <a id="mLabel" href="/label">標記物品（框選、錄影）</a>
+            <a id="mLabel" href="/label">標記物品（框選、錄影、訓練）</a>
           </div>
         </div>
       </div>
@@ -507,7 +506,7 @@
   };
   $("mCopy").onclick = () => openCopy(null);
 
-  $("mTrain").onclick = () => { if (window.openTrain) window.openTrain(detail); else location.href = $("mLabel").href; };
+  /* 訓練的入口只在「標記物品」頁（開始訓練、進階訓練）；這一頁的訓練燈箱只接受從那邊帶 ?train=1 過來 */
 
   $("btnSearch").onclick = () => renderMethods();
   $("qKey").onkeydown = (ev) => { if (ev.key === "Enter") renderMethods(); };
