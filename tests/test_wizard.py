@@ -1,4 +1,4 @@
-"""新增包裝方式精靈：建專案（型體_地區）、參照候選排序、精靈從哪一步繼續、自動標記（假模型、假影片）。"""
+"""新增包裝方式精靈：建專案（型體_地區）、精靈從哪一步繼續（不參照別的包裝方式）、自動標記（假模型、假影片）。"""
 from __future__ import annotations
 
 import json
@@ -22,24 +22,19 @@ def base(tmp_path, monkeypatch):
     return pdir
 
 
-def test_wizard_name_and_suggest_order(base):
+def test_wizard_name():
     assert pkg.wizard_name("RN-26/03", "歐洲 ") == "RN-26-03_歐洲"
-    _proj(base, "a", {"style": "RN-2601", "region": "歐洲", "customer": "客戶 A"}, model=True)
-    _proj(base, "b", {"style": "CT-3105", "region": "美國", "customer": "客戶 B"}, model=True)
-    _proj(base, "c", {"style": "RN-2602", "region": "日本", "customer": "客戶 A"})                     # 沒模型 → 不列
-    _proj(base, "new", {"style": "RN-2603", "region": "歐洲", "customer": "客戶 A"}, steps=False)
-    rows = pkg.suggest_sources("new")
-    assert [r["name"] for r in rows] == ["a", "b"] and "同客戶" in rows[0]["why"] and rows[0]["score"] > rows[1]["score"]
 
 
 def test_wizard_state_steps(base, tmp_path):
-    _proj(base, "src", {"style": "A", "region": "歐洲"}, model=True)
+    _proj(base, "src", {"style": "A", "region": "歐洲"}, model=True)   # 別的包裝方式有步驟、有模型，也不會被拿來參照
     _proj(base, "w", {"style": "B", "region": "歐洲"}, steps=False)
-    assert pkg.wizard_state("w")["step"] == 1                        # 沒有影片
+    st = pkg.wizard_state("w")
+    assert st["step"] == 1 and not st["has_video"]                   # 沒有影片
     (base / "w" / "demo.avi").write_bytes(b"x")
-    assert pkg.wizard_state("w")["step"] == 2                        # 沒有步驟
-    pkg.adopt_method("w", "src", {})
-    assert pkg.wizard_state("w")["step"] == 3                        # 還沒自動標記
+    st = pkg.wizard_state("w")
+    assert st["step"] == 2 and st["has_video"] and st["method"]["model_source"] is None    # 影片有了 → 到標記物品，不帶別人的模型
+    assert not hasattr(pkg, "adopt_method") and not hasattr(pkg, "suggest_sources")
 
 
 def test_pick_refs_between_rounds():

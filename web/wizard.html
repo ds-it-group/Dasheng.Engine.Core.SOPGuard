@@ -7,7 +7,8 @@
 <link rel="stylesheet" href="/eip.css">
 <script src="/eip.js"></script>
 <style>
-  /* 新增包裝方式精靈：一頁四步，做完自動下一步。精靈是一次性引導流程，按鈕直接放在步驟卡裡（規範「動作收進操作 ▾」的例外） */
+  /* 新增包裝方式：這一頁只做第 1 步（型體地區＋示範影片），建好就到「標記物品」框選、訓練、產生步驟。
+     上面的四步只是路線圖，2～4 步都在標記物品頁完成。精靈是一次性引導流程，按鈕直接放在卡片裡（規範「動作收進操作 ▾」的例外） */
   .wz { max-width: 1080px; width: 100%; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
   .stepper { display: flex; gap: 0; background: var(--card); border: 1px solid var(--line); }
   .stepper .st { flex: 1; display: flex; align-items: center; gap: 10px; padding: 12px 16px; color: var(--ink-3); border-right: 1px solid var(--line-soft); }
@@ -15,34 +16,14 @@
   .stepper .no { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--line); font-weight: 700; flex: none; }
   .stepper .st.on { color: var(--primary); font-weight: 700; background: var(--primary-wash); }
   .stepper .st.on .no { border-color: var(--primary); background: var(--primary); color: #fff; }
-  .stepper .st.done { color: var(--ink); }
-  .stepper .st.done .no { border-color: var(--teal); background: var(--teal); color: #fff; }
   .stepper .st small { display: block; font-weight: 400; font-size: 12px; color: var(--ink-2); }
   .card .body { padding: 14px 16px; display: flex; flex-direction: column; gap: 16px; }
   .lead { color: var(--ink-2); font-size: 13.5px; line-height: 1.7; margin: 0; }
   .actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
-  .actions .right { display: flex; gap: 10px; flex-wrap: wrap; }
   .btn-big { height: 44px; padding: 0 24px; font-size: 15px; }
-  .src { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 12px; border: 1px solid var(--line); border-radius: 2px; cursor: pointer; }
-  .src:hover { background: var(--hover); }
-  .src.sel { border-color: var(--primary); box-shadow: inset 4px 0 0 var(--primary); background: var(--primary-wash); }
-  .src h5 { margin: 0 0 4px; font-size: 15px; }
-  .src .meta { font-size: 12.5px; color: var(--ink-2); line-height: 1.7; }
-  .src .why span { display: inline-block; background: var(--st-ok); border-radius: 10px; padding: 0 8px; font-size: 11px; margin: 2px 4px 2px 0; }
-  .src .score { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
-  .srclist { display: flex; flex-direction: column; gap: 8px; }
-  .bar { height: 10px; background: var(--line-soft); border-radius: 5px; overflow: hidden; }
-  .bar div { height: 100%; background: var(--primary); width: 0; transition: width .3s; }
-  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-  .kpi { border: 1px solid var(--line); padding: 10px 12px; }
-  .kpi .k { font-size: 12px; color: var(--ink-2); } .kpi .v { font-size: 24px; font-weight: 700; }
-  .chips span { display: inline-block; border-radius: 2px; padding: 0 6px; margin: 1px 3px 1px 0; font-size: 11.5px; line-height: 20px; }
-  .chips .ok { background: var(--st-ok); } .chips .no { background: var(--st-danger); color: var(--danger); font-weight: 700; }
-  .rst { font-size: 11px; border-radius: 10px; padding: 0 8px; line-height: 18px; display: inline-block; }
-  .rst.完成 { background: var(--st-ok); } .rst.漏做 { background: var(--st-danger); } .rst.未完成, .rst.超時 { background: #ffe082; }
   .rec { width: 100%; max-width: 480px; aspect-ratio: 16 / 9; background: #15181d; position: relative; }
   .rec img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-  @media (max-width: 800px) { .stepper { flex-direction: column; } .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 800px) { .stepper { flex-direction: column; } }
 </style>
 </head>
 <body>
@@ -64,18 +45,18 @@
     <div class="crumb"><b>SOP-Guard</b><span>/</span><span>新增包裝方式</span><span id="crumbName"></span></div>
     <section class="view">
       <div class="wz">
-        <div class="stepper" id="stepper">
-          <div class="st" data-s="1"><span class="no">1</span><div>基本資料<small>型體、地區、影片</small></div></div>
-          <div class="st" data-s="2"><span class="no">2</span><div>參照<small>帶入步驟與模型</small></div></div>
-          <div class="st" data-s="3"><span class="no">3</span><div>自動標記<small>用模型先框好</small></div></div>
-          <div class="st" data-s="4"><span class="no">4</span><div>確認<small>看結果、補框、試跑</small></div></div>
+        <div class="stepper">
+          <div class="st on"><span class="no">1</span><div>基本資料<small>型體、地區、示範影片</small></div></div>
+          <div class="st"><span class="no">2</span><div>標記物品<small>拉範圍、框物品、拉動作</small></div></div>
+          <div class="st"><span class="no">3</span><div>訓練<small>一顆按鈕，等它跑完</small></div></div>
+          <div class="st"><span class="no">4</span><div>產生步驟、到監控<small>換到產線上試跑</small></div></div>
         </div>
 
-        <!-- 1 基本資料 -->
         <div class="card" id="s1">
           <div class="ttl"><span class="mi mark">rate_review</span><h4>1. 基本資料</h4><span class="sum" id="s1Sum"></span></div>
           <div class="body">
-            <p class="lead">型體照規定填「6 碼數字＋空一格＋2 碼數字」（例如 310222 01），型體＋地區是這個包裝方式的身分，不能跟現有的重複。專案名稱會自動用「型體_地區」。</p>
+            <p class="lead">型體照規定填「6 碼數字＋空一格＋2 碼數字」（例如 310222 01），型體＋地區是這個包裝方式的身分，不能跟現有的重複。專案名稱會自動用「型體_地區」。
+              每個包裝方式都用自己的影片標記、訓練自己的模型，不帶別的包裝方式的步驟或模型。</p>
             <div class="frow" style="display:flex; gap:20px; flex-wrap:wrap">
               <div class="fld w140"><label for="fStyle">型體 *</label><input id="fStyle" placeholder="例如 310222 01"></div>
               <div class="fld w140"><label for="fRegion">地區 *</label><input id="fRegion" list="regionList" placeholder="例如 歐洲"></div>
@@ -101,75 +82,12 @@
                   <button class="btn btn-cancel" id="btnRecStop" disabled>停止並存成示範影片</button>
                 </div>
                 <div class="rec"><img id="recPreview" alt="相機預覽" hidden></div>
-                <span class="hint" id="recInfo" style="font-size:12.5px;color:var(--ink-2)">要先按「下一步」建立專案，才會開啟相機（第一次會自動建立）。</span>
+                <span class="hint" id="recInfo" style="font-size:12.5px;color:var(--ink-2)">按「開啟相機預覽」會先建立專案，再開相機。</span>
               </div>
             </div>
             <div class="note danger" id="s1Err" hidden></div>
           </div>
-          <div class="actions"><span></span><div class="right"><button class="btn btn-primary raised btn-big" id="s1Next">下一步</button></div></div>
-        </div>
-
-        <!-- 2 參照 -->
-        <div class="card" id="s2" hidden>
-          <div class="ttl"><span class="mi mark">rate_review</span><h4>2. 參照現有的包裝方式</h4><span class="sum" id="s2Sum"></span></div>
-          <div class="body">
-            <p class="lead">選一個最像的，系統會帶入它的步驟清單、偵測設定和辨識模型，不用從頭框選、訓練。依相似度排序：同客戶、型體代碼相近、同地區、有自己的模型、畫面大小一樣。</p>
-            <div class="srclist" id="srcList"></div>
-            <div class="radios">
-              <label><input type="checkbox" id="adSteps" checked> 帶入步驟清單與偵測設定</label>
-              <label><input type="checkbox" id="adModel" checked> 使用它的辨識模型</label>
-            </div>
-            <div class="note danger" id="s2Err" hidden></div>
-          </div>
-          <div class="actions">
-            <a class="btn btn-cancel" id="s2Scratch" href="/label">都不像，自己從頭標記</a>
-            <div class="right"><button class="btn btn-cancel" id="s2Back">上一步</button><button class="btn btn-primary raised btn-big" id="s2Next">參照並下一步</button></div>
-          </div>
-        </div>
-
-        <!-- 3 自動標記 -->
-        <div class="card" id="s3" hidden>
-          <div class="ttl"><span class="mi mark">rate_review</span><h4>3. 自動標記</h4><span class="sum" id="s3Sum"></span></div>
-          <div class="body">
-            <p class="lead">按「開始」後，系統會用目前的模型把整支影片跑一遍，切出每一輪、找出每一步完成的時間，再在那幾格自動框好物品（往前後追 2 秒），
-              並挑幾格「空桌面」當參考。這台大約要影片長度的 1.5～2 倍時間，可以離開這頁，回來會接著顯示。模型框的都要在下一步確認過。</p>
-            <div id="s3Run" hidden>
-              <div style="display:flex; justify-content:space-between; font-size:13px"><b id="s3Stage">準備中</b><span id="s3Pct" class="n"></span></div>
-              <div class="bar" style="margin-top:6px"><div id="s3Bar"></div></div>
-            </div>
-            <div class="note danger" id="s3Err" hidden></div>
-          </div>
-          <div class="actions">
-            <button class="btn btn-cancel" id="s3Back">上一步</button>
-            <div class="right"><button class="btn btn-cancel" id="s3Cancel" hidden>取消</button><button class="btn btn-primary raised btn-big" id="s3Go">開始自動標記</button></div>
-          </div>
-        </div>
-
-        <!-- 4 確認 -->
-        <div class="card" id="s4" hidden>
-          <div class="ttl"><span class="mi mark">rate_review</span><h4>4. 確認結果</h4><span class="sum" id="s4Sum"></span></div>
-          <div class="body">
-            <div class="kpis">
-              <div class="kpi"><div class="k">切出的輪數</div><div class="v n" id="kRounds">–</div></div>
-              <div class="kpi"><div class="k">每一步都看到的輪</div><div class="v n" id="kOk">–</div></div>
-              <div class="kpi"><div class="k">模型自動框的格數</div><div class="v n" id="kBoxes">–</div></div>
-              <div class="kpi"><div class="k">沒看到、要人確認的步驟</div><div class="v n" id="kMiss">–</div></div>
-            </div>
-            <div class="gridwrap" style="max-height:340px"><table class="grid" id="rGrid"></table></div>
-            <div class="note info">紅色的步驟可能是作業員真的漏做，也可能是模型沒認出來。按「補框」會一處一處跳過去：有的話確認或框起來，畫面上真的沒有就按「這一步真的沒做」。</div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end">
-              <a class="btn btn-primary raised btn-big" id="aFix" target="_blank" style="text-decoration:none">補框</a>
-              <a class="btn btn-secondary raised btn-big" id="aReview" target="_blank" style="text-decoration:none">逐輪看畫面、刪錯框</a>
-              <a class="btn btn-cancel btn-big" id="aTrain" style="text-decoration:none">用這支影片訓練自己的模型</a>
-            </div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; border-top:1px solid var(--line-soft); padding-top:14px">
-              <span style="font-weight:500">到監控試跑：</span>
-              <div class="fld w140"><label for="selLine">產線</label><select id="selLine"></select></div>
-              <div class="fld w140"><label for="selColor">配色</label><input id="selColor" placeholder="例如 黑白"></div>
-              <button class="btn btn-primary raised" id="btnTry">換到這條線並開監控畫面</button>
-            </div>
-          </div>
-          <div class="actions"><button class="btn btn-cancel" id="s4Again">重新自動標記</button><div class="right"><a class="btn btn-cancel" href="/new">再新增一個</a></div></div>
+          <div class="actions"><span class="lead">下一步到「標記物品」：新增名稱、拉範圍、框物品、儲存，再按「開始訓練」。</span><div class="right"><button class="btn btn-primary raised btn-big" id="s1Next">下一步：到標記物品</button></div></div>
         </div>
       </div>
     </section>
@@ -183,31 +101,24 @@
   EIP.compactToggle($("btnCompact"));
   EIP.styleFmt($("fStyle"));
   const enc = encodeURIComponent;
-  let name = new URLSearchParams(location.search).get("project") || "", st = null, srcSel = "", poll = null, recPoll = null;
+  let name = new URLSearchParams(location.search).get("project") || "", st = null, recPoll = null;
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   async function api(path, body) { const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}); return r.json(); }
   function toast(t, bad) { const x = $("toast"); x.textContent = t; x.className = "toast" + (bad ? " bad" : ""); x.hidden = false; clearTimeout(toast._h); toast._h = setTimeout(() => { x.hidden = true; }, 5000); }
   function err(id, t) { $(id).textContent = t || ""; $(id).hidden = !t; }
+  const labelUrl = () => "/label?project=" + enc(name);
 
-  function show(step) {
-    for (let i = 1; i <= 4; i++) $("s" + i).hidden = i !== step;
-    document.querySelectorAll("#stepper .st").forEach((x) => { const s = +x.dataset.s; x.className = "st" + (s === step ? " on" : s < step ? " done" : ""); });
-    $("crumbName").textContent = name ? "／" + name : "";
-    if (name) history.replaceState(null, "", "/new?project=" + enc(name));
-    if (step === 2) loadSources();
-    if (step === 3) checkRunning();
-    if (step === 4) renderResult();
-  }
-  async function refresh(go) {
-    if (!name) { show(1); return; }
+  /* 已經建過的專案（網址帶 ?project=）：把型體地區帶回欄位；影片已經有了就提示直接下一步 */
+  async function refresh() {
+    if (!name) return;
     st = await api("/api/wizard/state?name=" + enc(name));
-    if (st.error) { toast(st.error, true); name = ""; show(1); return; }
+    if (st.error) { toast(st.error, true); name = ""; $("crumbName").textContent = ""; return; }
     const m = st.method;
     $("fStyle").value = m.style || ""; $("fRegion").value = m.region || ""; $("fStyleName").value = m.style_name || ""; $("fCustomer").value = m.customer || "";
     $("s1Sum").textContent = st.has_video ? `已有示範影片（${st.resolution[0]}×${st.resolution[1]}）` : "";
-    $("fFileInfo").textContent = st.has_video ? "已經有示範影片了；要換的話再選一個檔案。" : "把整套動作完整做幾輪（建議 3 輪以上）。";
-    $("s2Scratch").href = "/label?project=" + enc(name);
-    if (go !== false) show(go || st.step);
+    $("fFileInfo").textContent = st.has_video ? "已經有示範影片了；要換的話再選一個檔案，不換就直接按下一步。" : "把整套動作完整做幾輪（建議 3 輪以上）。";
+    $("crumbName").textContent = "／" + name;
+    history.replaceState(null, "", "/new?project=" + enc(name));
   }
   async function loadLists() {
     const d = await api("/api/methods");
@@ -216,7 +127,6 @@
     }
   }
 
-  // ---- 1
   $("vUpload").onchange = $("vCamera").onchange = () => { $("vUploadBox").hidden = !$("vUpload").checked; $("vCameraBox").hidden = !$("vCamera").checked; };
   async function ensureProject() {
     const d = await api("/api/wizard/create", { style: $("fStyle").value.trim(), region: $("fRegion").value.trim(),
@@ -237,10 +147,10 @@
         const r = await fetch("/api/project/upload?name=" + enc(name), { method: "POST", body: fd }); const d = await r.json();
         if (!d.ok) { err("s1Err", d.error); return; }
       }
-      await refresh(false);
-      if (!st.has_video) { err("s1Err", $("vCamera").checked ? "專案建好了。請按「開啟相機預覽」→「開始錄製」，錄完按「停止並存成示範影片」，再按下一步。" : "請選一個影片檔"); return; }
-      show(2);
-    } finally { $("s1Next").disabled = false; $("s1Next").textContent = "下一步"; }
+      await refresh();
+      if (!st || !st.has_video) { err("s1Err", $("vCamera").checked ? "專案建好了。請按「開啟相機預覽」→「開始錄製」，錄完按「停止並存成示範影片」，再按下一步。" : "請選一個影片檔"); return; }
+      location.href = labelUrl();
+    } finally { $("s1Next").disabled = false; $("s1Next").textContent = "下一步：到標記物品"; }
   };
   async function pollRec() {
     clearTimeout(recPoll); const s = await api("/api/record/state");
@@ -257,125 +167,7 @@
     if (!d.ok) { err("s1Err", d.error); return; } pollRec();
   };
   $("btnRecBegin").onclick = async () => { const d = await api("/api/record/begin", {}); if (!d.ok) err("s1Err", d.error); pollRec(); };
-  $("btnRecStop").onclick = async () => { const d = await api("/api/record/stop", {}); if (!d.ok) { err("s1Err", d.error); return; } $("recPreview").hidden = true; toast(`錄好了：${d.frames} 格`); await refresh(false); };
-
-  // ---- 2
-  async function loadSources() {
-    const d = await api("/api/wizard/suggest?name=" + enc(name)); const L = $("srcList"); L.innerHTML = "";
-    const list = d.sources || [];
-    if (!list.length) { L.appendChild(el("div", "note warn", "目前沒有「有步驟、有模型」的包裝方式可以參照，只能自己從頭標記。")); $("s2Next").disabled = true; return; }
-    $("s2Next").disabled = false;
-    if (!list.some((s) => s.name === srcSel)) srcSel = list[0].name;
-    $("s2Sum").textContent = `${list.length} 個候選`;
-    for (const s of list) {
-      const c = el("div", "src" + (s.name === srcSel ? " sel" : ""));
-      const r = el("input"); r.type = "radio"; r.name = "src"; r.checked = s.name === srcSel; r.setAttribute("aria-label", s.name); c.appendChild(r);
-      const mid = el("div");
-      mid.appendChild(el("h5", null, s.has_packaging ? `${s.style}／${s.region}　${s.style_name || ""}` : s.name));
-      const meta = el("div", "meta");
-      meta.appendChild(el("div", null, `專案 ${s.name}　客戶 ${s.customer || "–"}　模型 ${s.model_source ? "參考 " + s.model_source + "（" + s.model_trained_at + "）" : s.model_trained_at}`));
-      meta.appendChild(el("div", null, `${s.step_names.length} 步：${s.step_names.join("、")}`));
-      if (s.verified_colors.length) meta.appendChild(el("div", null, "已驗證配色：" + s.verified_colors.join("、")));
-      const why = el("div", "why"); for (const w of s.why) why.appendChild(el("span", null, w)); meta.appendChild(why);
-      mid.appendChild(meta); c.appendChild(mid);
-      c.appendChild(el("span", "score", "相似度 " + s.score));
-      c.onclick = () => { srcSel = s.name; loadSources(); };
-      L.appendChild(c);
-    }
-  }
-  $("s2Back").onclick = () => show(1);
-  $("s2Next").onclick = async () => {
-    err("s2Err", "");
-    if (!$("adSteps").checked && !$("adModel").checked) { err("s2Err", "至少要勾一項"); return; }
-    $("s2Next").disabled = true;
-    const d = await api("/api/method/adopt", { name, source: srcSel, copy_steps: $("adSteps").checked, use_model: $("adModel").checked,
-      packaging: { style: st.method.style, region: st.method.region, style_name: st.method.style_name, customer: st.method.customer } });
-    $("s2Next").disabled = false;
-    if (!d.ok) { err("s2Err", d.error); return; }
-    if (d.warnings && d.warnings.length) toast("已參照。注意：" + d.warnings.join("；"), true); else toast("已參照「" + srcSel + "」");
-    await refresh(false); show(3);
-  };
-
-  // ---- 3
-  async function checkRunning() {
-    const s = await api("/api/autolabel/state");
-    if (s.running && s.project === name) startPoll(); else showRun(null);
-    $("s3Sum").textContent = st && st.analysis && !st.analysis.stale ? `已有步驟分析（${st.analysis.analyzed_at}），會直接沿用` : "";
-  }
-  function showRun(s) {
-    const running = !!(s && s.running);
-    $("s3Run").hidden = !running; $("s3Go").hidden = running; $("s3Cancel").hidden = !running; $("s3Back").disabled = running;
-    if (!running) return;
-    const pct = s.total ? Math.round(100 * s.done / s.total) : 0;
-    $("s3Stage").textContent = (s.stage || "準備中") + "…"; $("s3Pct").textContent = s.total ? `${pct}%（${s.done}/${s.total}）　已 ${s.elapsed || 0} 秒` : `已 ${s.elapsed || 0} 秒`;
-    $("s3Bar").style.width = pct + "%";
-  }
-  function startPoll() {
-    clearInterval(poll);
-    poll = setInterval(async () => {
-      const s = await api("/api/autolabel/state");
-      if (s.project !== name) return;
-      if (s.running) { showRun(s); return; }
-      clearInterval(poll); poll = null; showRun(null);
-      if (s.error) { err("s3Err", s.error); return; }
-      if (s.finished) {
-        const r = s.result || {};
-        toast(`自動標記完成：框了 ${r.boxes || 0} 處（往前後追出 ${r.tracked || 0} 格），沒找到 ${(r.missed || []).length} 處`);
-        await refresh(false); show(4);
-      }
-    }, 2000);
-  }
-  $("s3Go").onclick = async () => {
-    err("s3Err", "");
-    const d = await api("/api/autolabel/start", { project: name });
-    if (!d.ok) { err("s3Err", d.error); return; }
-    if (d.queued) toast("前面還有工作在跑，排在後面"); startPoll(); showRun({ running: true, stage: "準備中" });
-  };
-  $("s3Cancel").onclick = async () => { await api("/api/autolabel/cancel", {}); toast("已要求取消"); };
-  $("s3Back").onclick = () => show(2);
-
-  // ---- 4
-  function stepName(i) { const s = (st.analysis && st.analysis.steps || []).find((x) => x.index === Number(i)); return s ? s.name : "#" + i; }
-  function renderResult() {
-    const an = st.analysis, rounds = an ? an.rounds : [];
-    $("kRounds").textContent = rounds.length; $("kOk").textContent = rounds.filter((r) => r.status === "完成").length;
-    $("kBoxes").textContent = st.model_boxes; const miss = rounds.reduce((a, r) => a + (r.missing || []).length, 0); $("kMiss").textContent = miss;
-    $("s4Sum").textContent = `框選共 ${st.boxes} 格（模型框 ${st.model_boxes}）、空桌面參考 ${st.refs} 格`;
-    const t = $("rGrid"); t.innerHTML = "";
-    const th = el("thead"), tr0 = el("tr");
-    [["輪", 50, "pinL r"], ["時間（秒）", 120], ["狀態", 80, "c"], ["看到的步驟", 300], ["沒看到的步驟", 250]].forEach(([n, w, c], i) => { const h = el("th", c || "", n); h.style.minWidth = w + "px"; if (i === 3) h.style.width = "100%"; tr0.appendChild(h); });
-    th.appendChild(tr0); t.appendChild(th);
-    const tb = el("tbody");
-    for (const r of rounds) {
-      const tr = el("tr");
-      tr.appendChild(el("td", "pinL r n", String(r.no)));
-      tr.appendChild(el("td", "n", `${r.start_t.toFixed(1)}–${r.end_t.toFixed(1)}`));
-      const s = el("td", "c"); s.appendChild(el("span", "rst " + r.status, r.status)); tr.appendChild(s);
-      const ok = el("td", "chips"); for (const [k, v] of Object.entries(r.done).sort((a, b) => a[1] - b[1])) ok.appendChild(el("span", "ok", `${stepName(k)} ${v.toFixed(1)}`)); tr.appendChild(ok);
-      const no = el("td", "chips"); for (const m of r.missing || []) no.appendChild(el("span", "no", m.name)); tr.appendChild(no);
-      tb.appendChild(tr);
-    }
-    if (!rounds.length) { const tr = el("tr", "empty"), td = el("td", null, "沒有切出任何一輪。可能影片裡的動作模型都沒認出來，請到「標記物品」手動框幾樣再試。"); td.colSpan = 5; tr.appendChild(td); tb.appendChild(tr); }
-    t.appendChild(tb);
-    const q = [], vfps = (an && an.fps) || 30;
-    for (const r of rounds) for (const m of r.missing || []) if (m.boxable) q.push(`${m.frame}:${m.label}:${Math.round(m.from_t * vfps)}:${Math.round(m.to_t * vfps)}:${r.no}`);
-    $("aFix").hidden = !q.length; $("aFix").textContent = `補框（${q.length} 處）`; $("aFix").href = `/label?project=${enc(name)}&queue=${enc(q.join(";"))}`;
-    $("aReview").href = `/methods?project=${enc(name)}&train=1&preview=1`;
-    $("aTrain").href = `/methods?project=${enc(name)}&train=1`;
-    loadLines();
-  }
-  async function loadLines() {
-    const d = await api("/api/lines"); const s = $("selLine"); s.innerHTML = "";
-    for (const l of d.lines || []) { if (!l.enabled) continue; const o = el("option", null, l.name); o.value = l.id; s.appendChild(o); }
-    if (!s.options.length) { const o = el("option", null, "（還沒有產線）"); o.value = ""; s.appendChild(o); }
-  }
-  $("btnTry").onclick = async () => {
-    const lid = $("selLine").value; if (!lid) { toast("請先到「產線設定」新增產線", true); return; }
-    const d = await api("/api/lines/switch", { line: lid, project: name, color: $("selColor").value.trim() });
-    if (!d.ok) { toast(d.error, true); return; }
-    location.href = "/?line=" + enc(lid);
-  };
-  $("s4Again").onclick = () => show(3);
+  $("btnRecStop").onclick = async () => { const d = await api("/api/record/stop", {}); if (!d.ok) { err("s1Err", d.error); return; } $("recPreview").hidden = true; toast(`錄好了：${d.frames} 格。按「下一步：到標記物品」`); await refresh(); };
 
   loadLists(); refresh();
 })();

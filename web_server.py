@@ -148,9 +148,6 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/wizard/state":
                 import packing_methods as pkg
                 self._json(pkg.wizard_state(self._query().get("name", "")))
-            elif path == "/api/wizard/suggest":
-                import packing_methods as pkg
-                self._json({"sources": pkg.suggest_sources(self._query().get("name", ""))})
             elif self.label is not None and path == "/api/autolabel/state":
                 self._json(self.label.autolabel.state())
             elif path == "/eip.css":
@@ -307,9 +304,6 @@ class Handler(BaseHTTPRequestHandler):
             return {"method": pkg.update_steps(name, body.get("steps") or [])}
         if path == "/api/method/color":
             return {"method": pkg.set_color(name, str(body.get("color", "")), str(body.get("status", "")), str(body.get("note", "")))}
-        if path == "/api/method/adopt":
-            return pkg.adopt_method(name, str(body.get("source", "")), body.get("packaging") or {},
-                                    copy_steps=bool(body.get("copy_steps", True)), use_model=bool(body.get("use_model", True)))
         if path == "/api/method/copy":
             return {"made": pkg.copy_method(name, body.get("targets") or [])}
         raise ValueError("沒有這個動作")
