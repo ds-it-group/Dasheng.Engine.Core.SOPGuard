@@ -114,6 +114,11 @@ def test_infer_touch_rules():
     # 平手取名稱排序在前的
     hands3 = {0: on_shoe, 5: on_shoe, 10: on_box, 15: on_box}
     assert ls.infer_touch(hands3, {f: box for f in hands3})[0] == "藍盒"
+    # 框鞋舌：鞋舌的框在鞋子的框裡面，手碰鞋舌時兩個都算碰到 → 取框比較小的鞋舌（名稱排序「鞋子」在前也一樣）
+    tongue = {"鞋子": [(100, 50, 120, 80)], "鞋舌": [(105, 55, 50, 40)]}
+    hands4 = {f: on_shoe for f in (0, 5, 10)}
+    name4, st4 = ls.infer_touch(hands4, {f: tongue for f in hands4})
+    assert name4 == "鞋舌" and st4["touched"] == {"鞋子": 3, "鞋舌": 3}
 
 
 # ---------------------------------------------------------------- 追蹤

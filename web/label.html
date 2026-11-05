@@ -178,6 +178,7 @@
             <button class="btn btn-cancel" id="btnAddName" style="height:30px;padding:0 8px"><span class="mi">add</span>新增</button>
           </div>
           <div id="objTip" style="display:flex;align-items:center;gap:6px;padding:4px 10px 6px;font-size:12px;color:var(--ink-2)" title="貼好的貼紙連盒邊一起框、放好的鞋子連盒蓋一起框。只框東西本身，它還在旁邊沒做完時也會被算成做完。"><span class="mi" style="font-size:16px;color:var(--accent, #d58a00)">lightbulb</span>框做完的樣子，連旁邊的盒子一起框</div>
+          <div id="actTip" hidden style="display:flex;align-items:center;gap:6px;padding:4px 10px 6px;font-size:12px;color:var(--ink-2)" title="例如「檢查鞋舌」：先到「物品」把鞋舌框成一個物品，再拉這個動作的範圍。手同時碰到鞋子和鞋舌時，系統取框比較小的鞋舌。鞋舌這個物品步驟可以到「包裝方式設定」關掉必要，重新產生步驟也會照舊。"><span class="mi" style="font-size:16px;color:var(--accent, #d58a00)">lightbulb</span>手要碰的是小地方（例如鞋舌）：先把它框成物品</div>
           <div class="list" id="nameList"></div>
           <div class="foot">
             <div id="cnt"></div>
@@ -663,7 +664,7 @@
     if (k === "action" && $("kindAct").disabled) { say("先框好一樣物品，再標動作", true); return; }
     newKind = k; $("kindObj").classList.toggle("on", k === "object"); $("kindAct").classList.toggle("on", k === "action");
     $("kindObj").setAttribute("aria-selected", k === "object"); $("kindAct").setAttribute("aria-selected", k === "action");
-    $("newName").placeholder = k === "action" ? "新動作，例如 檢查鞋舌" : "做完的樣子，例如 盒端貼紙"; $("objTip").hidden = k === "action";
+    $("newName").placeholder = k === "action" ? "新動作，例如 檢查鞋舌" : "做完的樣子，例如 盒端貼紙"; $("objTip").hidden = k === "action"; $("actTip").hidden = k !== "action";
     const cur = curName();
     if (!cur || cur.kind !== k) { const f = names().find((m) => m.kind === k); sel = f ? f.name : null; segSel = null; }
     if (info) render();

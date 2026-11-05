@@ -106,6 +106,11 @@ def test_apply_item_steps_writes_config(tmp_path):
     assert [(s.type, s.label, s.required) for s in p2.steps] == [("item", "標籤", True), ("item", "鞋子", True)]
     assert p2.cycle_end.type == "object_absent" and p2.cycle_end.object == "box" and any(a.name == "box" for a in p2.anchors)
     assert p2.state_every_n_frames == 5 and p2.cycle_min_sec == 5.0
+    # 使用者在設定頁把「鞋子」改成選配、停留 0.3 秒：重新產生步驟時照舊
+    p2.steps[1].required = False; p2.steps[1].dwell_time_sec = 0.3
+    training.apply_item_steps(p2, ["標籤", "鞋子"])
+    p3 = load_project(str(d))
+    assert [(s.label, s.required, s.dwell_time_sec) for s in p3.steps] == [("標籤", True, 0.5), ("鞋子", False, 0.3)]
 
 
 # ---------------------------------------------------------------- 看整張桌面（固定範圍）

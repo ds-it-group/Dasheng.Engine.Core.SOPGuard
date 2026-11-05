@@ -456,6 +456,8 @@ def apply_item_steps(project: Project, names: list[str], dwell_sec: float = 0.5)
     # 物件錨點依提示自動補上（名稱＝提示；max_count 2 兩隻鞋都要、沿用 2.5 秒撐過手握住時掉框）
     from scene import AnchorSpec
     hand_names = {h["name"] for h in seeds.hand_steps}
+    # 重新產生步驟時，使用者在「包裝方式設定」改過的必要／停留秒數照舊（例如框了鞋舌當動作的對象，鞋舌本身這一步可以關掉必要）
+    prev = {(s.step_name, s.type): s for s in project.steps}
     steps = []
     for n in names:
         if n in hand_names:
@@ -479,6 +481,10 @@ def apply_item_steps(project: Project, names: list[str], dwell_sec: float = 0.5)
         steps.append(Step(step_index=0, step_name=h["name"], dwell_time_sec=float(h["dwell"]), timeout_sec=120.0, type="hand_on_object",
                           object=obj, required=True, continuous=True))
         names = [n for n in names if n != h["name"]] + [h["name"]]
+    for s in steps:
+        old = prev.get((s.step_name, s.type))
+        if old is not None:
+            s.required = old.required; s.dwell_time_sec = old.dwell_time_sec
     project.gesture_model = None; project.gesture_anchors = []
     steps = order_steps_by_segments(project, steps)
     for i, s in enumerate(steps):

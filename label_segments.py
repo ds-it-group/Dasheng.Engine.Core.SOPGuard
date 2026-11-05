@@ -374,18 +374,22 @@ def track_segment(video_path: str, start: int, end: int, box_frame: int, rect, s
 def infer_touch(hands_by_frame: dict[int, list], boxes_by_frame: dict[int, dict[str, list]]) -> tuple[str | None, dict]:
     """hands_by_frame：取樣格 → 手的判定點（每手 4 點）；boxes_by_frame：取樣格 → {物品名: [框...]}（已框物品在那一格的位置）。
     規則：有手的格裡，某隻手 ≥ 2 點落在物品框內就算這一格碰到它；碰到最多格的物品勝出，但要 ≥ TOUCH_MIN_FRAMES 格、
-    且佔有手的格 ≥ TOUCH_MIN_RATIO 才算。平手取名稱排序在前的（結果固定）。回傳 (物品名或 None, 統計)。"""
+    且佔有手的格 ≥ TOUCH_MIN_RATIO 才算。平手取框比較小的（鞋舌的框在鞋子的框裡面，手碰鞋舌時兩個都算碰到，要的是鞋舌）；
+    再平手取名稱排序在前的（結果固定）。回傳 (物品名或 None, 統計)。"""
     from core_detector import hands_in_inner
-    touched: dict[str, int] = {}; with_hands = 0
+    touched: dict[str, int] = {}; with_hands = 0; areas: dict[str, list[float]] = {}
     for f in sorted(hands_by_frame):
         pts = hands_by_frame[f]
         if not pts:
             continue
         with_hands += 1
         for name, rects in boxes_by_frame.get(f, {}).items():
-            if any(hands_in_inner(pts, tuple(r), shrink=0.0, need=2) for r in rects):
+            hit = [r for r in rects if hands_in_inner(pts, tuple(r), shrink=0.0, need=2)]
+            if hit:
                 touched[name] = touched.get(name, 0) + 1
-    best = min(touched, key=lambda n: (-touched[n], n)) if touched else None
+                areas.setdefault(name, []).append(min(float(r[2]) * float(r[3]) for r in hit))
+    area = {n: sum(v) / len(v) for n, v in areas.items()}
+    best = min(touched, key=lambda n: (-touched[n], area.get(n, 0.0), n)) if touched else None
     ratio = touched[best] / with_hands if best else 0.0
     ok = best is not None and touched[best] >= TOUCH_MIN_FRAMES and ratio >= TOUCH_MIN_RATIO
     stats = {"frames": len(hands_by_frame), "with_hands": with_hands, "touched": touched, "best": best, "ratio": round(ratio, 3)}
