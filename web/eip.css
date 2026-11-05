@@ -142,7 +142,14 @@ table.grid { border-collapse: separate; border-spacing: 0; width: 100%; font-siz
 .dialog .frow { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
 .dialog .da { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--line-soft); }
 .note { padding: 8px 12px; border-radius: 2px; font-size: 13px; display: flex; gap: 8px; align-items: flex-start; line-height: 1.6; }
-.note.warn { background: var(--st-warn); } .note.danger { background: var(--st-danger); } .note.info { background: var(--primary-wash); }
+.note.warn { background: var(--st-warn); } .note.danger { background: var(--st-danger); } .note.info { background: var(--primary-wash); } .note.ok { background: var(--st-ok); }
+.chip.info { background: var(--primary-wash); color: var(--primary); }
+/* 訓練結果（train_result.js） */
+.trres { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 8px; border-radius: 2px; background: var(--grid-head); font-size: 13px; }
+.trres a { color: var(--primary); cursor: pointer; text-decoration: underline; margin-left: auto; }
+.grid tr.t-bad td { background: #fdecf2; }
+.grid td small.frac { color: var(--ink-3); margin-left: 4px; }
+.grid td .arrow { color: var(--ink-3); margin: 0 4px; }
 .radios { display: flex; gap: 24px; flex-wrap: nowrap; align-items: center; white-space: nowrap; overflow-x: auto; }
 .radios label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .radios input, input[type=checkbox] { accent-color: var(--primary); }

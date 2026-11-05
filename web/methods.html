@@ -6,6 +6,7 @@
 <title>SOP-Guard 包裝方式設定</title>
 <link rel="stylesheet" href="/eip.css">
 <script src="/eip.js"></script>
+<script src="/train_result.js"></script>
 <style>
   /* SFTT05 左右主從：左＝型體地區清單、右＝步驟清單／辨識模型 */
   .split { flex: 1; min-height: 0; display: flex; gap: 8px; padding-top: 8px; }
@@ -148,6 +149,7 @@
       </div>
       <div class="note warn">每個配色會留「最後一段」不拿去訓練；訓練完用新模型掃那一段，標記過的物品都看到了才換上新模型，否則保留舊模型（新模型存成 candidate.pt）。某配色只勾一段就全部拿去訓練，這個配色這次無法驗證。配色欄可以直接改（整支影片同一個配色）。</div>
       <div class="note info" id="trProgress" hidden></div>
+      <div id="trRes" hidden></div>
     </div>
     <div class="da"><button class="btn btn-cancel" id="trCancel">取消</button><button class="btn btn-primary raised" id="trOk">開始訓練</button></div>
   </div>
@@ -565,7 +567,13 @@
     if (st.validation && st.validation.length) txt += "　驗證：" + st.validation.map((v) => `${v.color || "（未填配色）"} ${v.ok === null ? "不支援" : v.ok ? "通過" : "漏看 " + v.missing.join("、")}`).join("；");
     if (st.package && !st.running) txt += "\n把這個檔案複製到 GPU 電腦，解壓後照裡面的 README_GPU.txt 跑；訓練完把 out/best.pt 拷回來，按上面的「匯入並驗證」。";
     p.textContent = txt; p.style.whiteSpace = "pre-line"; $("trOk").disabled = !!st.running;
+    // 新舊模型比較（model_exam）：一行摘要＋看結果；這一頁看著它跑完的，自動跳出結果視窗
+    const acts = { onChange: (r) => { showProgress(r); M.reload(); } };
+    TrainResult.summary($("trRes"), st, st.project, acts);
+    if (st.running) trSaw = true;
+    if (st.finished && trSaw) { trSaw = false; TrainResult.open(st, st.project, acts); }
   }
+  let trSaw = false;
 
   // ---- 預覽：有步驟分析就以「輪」為單位（含沒框選的輪），沒有就以框選片段為單位
   let pv = null;   // {m, rows, seeds, an, cur, f, gone:Set, timer}

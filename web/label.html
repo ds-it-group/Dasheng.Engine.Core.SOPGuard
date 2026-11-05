@@ -6,6 +6,7 @@
 <title>SOP-Guard 標記物品</title>
 <link rel="stylesheet" href="/eip.css">
 <script src="/eip.js"></script>
+<script src="/train_result.js"></script>
 <style>
   /* 標記頁（時間軸版）：左＝影格＋框選、右＝名稱清單、下＝這個名稱的時間軸。整頁固定在視窗內，影格依剩餘空間縮放 */
   .lbody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: minmax(0, 1fr) auto; gap: 8px; padding: 8px; }
@@ -161,6 +162,7 @@
             <div class="hint2"><a id="lnkTrainAdv" href="/methods">進階訓練：挑片段、合成配色、產生 GPU 訓練包、匯入 GPU 模型</a></div>
             <div class="bar" id="trainWrap" hidden><div id="trainBar"></div></div>
             <div class="hint2" id="trainStage"></div>
+            <div id="trainRes" hidden></div>
             <pre class="log" id="trainLog" hidden></pre>
             <button class="btn btn-secondary raised" id="btnGen">產生步驟，前往監控</button>
           </div>
@@ -238,6 +240,7 @@
   const TRACK_STEP = 3;                     // 存檔時每幾格追一個框（跟後端 item_recognizer.TRACK_STEP 一樣），畫框時找最近的
   let proj = "", info = null, N = 0, fps = 30, n = 0, v0 = 0, v1 = 0;
   let sel = null, segSel = null, newKind = "object", draft = null, drag = null, vd = null, regionMode = false, ovDrag = false;
+  let sawTraining = false;                  // 這一頁看著訓練跑完 → 結果視窗自動跳出來（回來才看的不自動跳，用「看結果」）
   let playing = false, playTimer = null, loadTimer = null, trainTimer = null, recTimer = null, msgTimer = null, msgText = "", msgWarn = false, pending = false;
   let undoStack = [], seedByGroup = {}, seedsByName = {}, queue = [], qi = 0;
   const img = $("frame"), ov = $("ov"), ctx = ov.getContext("2d"), track = $("track"), ovbar = $("ovbar");
@@ -669,10 +672,15 @@
       $("trainWrap").hidden = false; $("trainLog").hidden = !(s.lines || []).length && !s.error;
       $("trainStage").textContent = (s.stage || "") + (s.elapsed != null ? `　已用 ${s.elapsed} 秒` : "");
       $("trainBar").style.width = (s.total ? Math.round(100 * s.done / s.total) : (s.running ? 100 : 0)) + "%";
-      $("trainLog").textContent = (s.lines || []).join("\n") + (s.error ? "\n失敗：" + s.error : "") + (s.finished ? "\n訓練完成。按「產生步驟，前往監控」。" : "");
+      $("trainLog").textContent = (s.lines || []).join("\n") + (s.error ? "\n失敗：" + s.error : "") + (s.finished ? "\n" + (s.stage || "訓練完成") + "。" : "");
       if (s.finished && info && !info.has_model) refreshInfo();
     } else if (s.running) { $("trainWrap").hidden = true; $("trainStage").textContent = `伺服器正在訓練另一個專案「${s.project}」，請等它完成`; }
     else { $("trainStage").textContent = ""; $("trainWrap").hidden = true; $("trainLog").hidden = true; }
+    // 訓練完：一行「這次比上次 變好／差不多／變差」＋看結果；這一頁看著它跑完的，自動跳出結果視窗
+    const acts = { next: { label: "產生步驟，前往監控", run: () => $("btnGen").click() }, onChange: (r) => { refreshInfo(); TrainResult.summary($("trainRes"), r, proj, acts); $("trainStage").textContent = r.stage || ""; } };
+    TrainResult.summary($("trainRes"), s, proj, acts);
+    if (mine && s.running) sawTraining = true;
+    if (mine && s.finished && sawTraining) { sawTraining = false; TrainResult.open(s, proj, acts); }
     renderFooter();
     if (s.running) trainTimer = setTimeout(pollTrain, 1500);
   }

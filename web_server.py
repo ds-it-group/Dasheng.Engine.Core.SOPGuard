@@ -154,6 +154,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._file(os.path.join(WEB_DIR, "eip.css"), "text/css; charset=utf-8")
             elif path == "/eip.js":
                 self._file(os.path.join(WEB_DIR, "eip.js"), "application/javascript; charset=utf-8")
+            elif path == "/train_result.js":
+                self._file(os.path.join(WEB_DIR, "train_result.js"), "application/javascript; charset=utf-8")
             elif path == "/fonts/MaterialIcons-Regular.ttf":
                 self._file(os.path.join(WEB_DIR, "fonts", "MaterialIcons-Regular.ttf"), "font/ttf")
             elif path == "/api/lines":
@@ -262,6 +264,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True, **plan})
             elif self.label is not None and path == "/api/train/start":
                 self.label.train.start(str(body.get("project", ""))); self._json({"ok": True})
+            elif self.label is not None and path == "/api/train/install":
+                self._json({"ok": True, **self.label.train.install_candidate(str(body.get("project", "")))})
             elif self.label is not None and path == "/api/steps/generate":
                 self._json({"ok": True, **self.label.generate_steps(str(body.get("project", "")))})
             elif self.label is not None and path == "/api/record/start":

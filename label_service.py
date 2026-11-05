@@ -74,6 +74,8 @@ class TrainJob:
                     "lines": self.lines[-8:], "error": self.error, "finished": self.finished, "stats": self.stats,
                     "validation": getattr(self, "validation", None), "installed": getattr(self, "installed", None),
                     "package": getattr(self, "package", None),
+                    "compare": getattr(self, "compare", None),        # 新舊模型考同一份考卷的結果（model_exam.compare）
+                    "candidate": getattr(self, "candidate", False),   # 新模型沒換上、還留著 candidate.pt（可以「仍要換上」）
                     "elapsed": round(time.perf_counter() - self.started_at) if self.started_at and self.running else None}
 
     # ---- 挑素材訓練（可以跨型體地區、留片段驗證）
@@ -111,12 +113,18 @@ class TrainJob:
         with self._lock:
             self.project_name = target; self.stage = "準備中"; self.done_n = self.total_n = 0; self.validation = None; self.installed = None
             self.lines = []; self.error = None; self.finished = False; self.stats = None; self.started_at = time.perf_counter(); self.package = None
+            self.compare = None; self.candidate = False; self._held_out = []
 
     def _run_material(self, target: str, train: list[dict], hold: list[dict], epochs: int, recolor_classes: list[str], where: str) -> None:
         import json as _json
+        import model_exam as me
         import training_material as tm
         try:
             tgt = load_project(target)
+            training.sync_item_region(tgt); tgt = load_project(target)
+            exam = me.ensure(tgt, items.ItemSeeds(tgt.dir_path))          # 考卷先訂好：考卷的畫面不拿去訓練
+            with self._lock:
+                self._held_out = list((exam or {}).get("items", {}))
             names: list[str] = list(items.ItemSeeds(tgt.dir_path).order)
             parts = []
             by_proj: dict[str, list] = {}
@@ -129,6 +137,8 @@ class TrainJob:
                 sp = load_project(name)
                 training.sync_item_region(sp); training.ensure_state_anchor(sp); sp = load_project(name)
                 seeds = tm.filtered_seeds(items.ItemSeeds(sp.dir_path), ranges, hold_by.get(name, []))
+                if name == target and exam:
+                    seeds = me.training_seeds(seeds, exam, me._margin(sp))
                 if not seeds.seeds:
                     continue
                 tag = f"（{k + 1}/{len(by_proj)} {name}）"
@@ -159,7 +169,7 @@ class TrainJob:
             imgsz = items.FIXED_IMGSZ if items.is_fixed(tgt) else 640
             plan = {"target": target, "names": names, "holdout": hold, "train": train, "epochs": epochs, "imgsz": imgsz,
                     "recolor_classes": recolor_classes, "recolor_added": rc["added"], "train_images": stats["train"] + rc["added"],
-                    "val_images": stats["val"], "created_at": time.strftime("%Y/%m/%d %H:%M")}
+                    "val_images": stats["val"], "created_at": time.strftime("%Y/%m/%d %H:%M"), "held_out": self._held_out}
             with open(os.path.join(model_dir, "candidate_plan.json"), "w", encoding="utf-8") as f:
                 _json.dump(plan, f, ensure_ascii=False, indent=2)
             if where == "gpu":
@@ -220,6 +230,7 @@ class TrainJob:
         with self._lock:
             self.stats = {"train": plan.get("train_images"), "val": plan.get("val_images"), "recolor": {"added": plan.get("recolor_added", 0)},
                           "recolor_classes": plan.get("recolor_classes"), "holdout_segments": len(plan.get("holdout") or []), "imported": True}
+            self._held_out = list(plan.get("held_out") or [])
         self._thread = threading.Thread(target=self._run_import, args=(target, tmp_model, plan.get("holdout") or []), daemon=True)
         self._thread.start()
         return {"holdout": plan.get("holdout") or []}
@@ -233,9 +244,8 @@ class TrainJob:
                 self.stage = "失敗"
 
     def _validate_install(self, target: str, tmp_model: str, hold: list[dict]) -> None:
-        """離線驗證每個配色保留的那一段；全部通過（或沒有保留段）才換上新模型，舊的備份成 best_prev_<時間>.pt；配色標已驗證／驗證判錯。"""
-        import shutil
-        from datetime import datetime
+        """離線驗證每個配色保留的那一段，再跟上次的模型考同一份考卷（model_exam）；保留段都通過、而且沒有比上次差，
+        才換上新模型（舊的備份成 best_prev_<時間>.pt）。比較差就不換，新模型留成 candidate.pt，使用者可以「仍要換上」。"""
         import packing_methods as pkg
         import training_material as tm
         hold_by: dict[str, list] = {}
@@ -253,26 +263,105 @@ class TrainJob:
         with self._lock:
             self.validation = results
         tgt = load_project(target)
-        own = items.own_model_path(tgt)
-        if passed:
-            if os.path.isfile(own):
-                shutil.copyfile(own, os.path.join(os.path.dirname(own), f"best_prev_{datetime.now():%Y%m%d_%H%M}.pt"))
-            os.replace(tmp_model, own)
-            if tgt.packaging is not None and tgt.packaging.model_source:
-                tgt.packaging.model_source = None
-                _save_config(tgt)
-            training.sync_item_region(tgt); items.save_model_info(load_project(target))   # 記下換上時的桌面範圍
+        cmp = self._compare(tgt, tmp_model) if passed else None
+        worse = bool(cmp and cmp["verdict"] == "worse")
+        install = passed and not worse
+        if install:
+            self._install(target, tmp_model, cmp, forced=False)
         if tgt.packaging is not None:
             for r in results:
                 if r["ok"] is None or not r["color"]:
                     continue
                 note = "" if r["ok"] else "驗證漏看：" + "、".join(r["missing"])
                 pkg.set_color(target, r["color"], "verified" if r["ok"] else "failed", note)
+        if cmp is not None:
+            import model_exam as me
+            cmp["history"] = me.add_history(tgt, {"at": cmp["at"], "verdict": cmp["verdict"], "installed": install, "forced": False})[:5]
         with self._lock:
-            self.installed = passed
+            self.installed = install
+            self.candidate = not install and os.path.isfile(tmp_model)
+            self.compare = cmp
             self.finished = True
-            self.stage = ("驗證通過，已換上新模型" if results else "沒有保留片段可驗證，已換上新模型") if passed \
-                else "驗證沒過，保留舊模型（新模型存成 candidate.pt）"
+            if not passed:
+                self.stage = "驗證沒過，保留舊模型（新模型存成 candidate.pt）"
+            elif worse:
+                self.stage = "新模型比上次差，還在用上次的模型（新模型存成 candidate.pt）"
+            else:
+                self.stage = {"better": "考完，比上次好，已換上新模型", "same": "考完，跟上次差不多，已換上新模型",
+                              "first": "訓練完成，已換上模型（第一次，沒有上次可比）"}.get(
+                    (cmp or {}).get("verdict"), "訓練完成，已換上新模型" + (f"（{cmp['reason']}）" if cmp and cmp.get("reason") else ""))
+
+    def _compare(self, tgt, tmp_model: str) -> dict | None:
+        """新舊模型考同一份考卷（model_exam）。盒內模式、出不了考題、考試出錯都不擋換上，只在結果裡說明。"""
+        import model_exam as me
+        at = time.strftime("%Y/%m/%d %H:%M")
+        base = {"at": at, "rows": [], "verdict": "skip"}
+        if not items.is_fixed(tgt):
+            return {**base, "reason": "盒內模式不比較"}
+        try:
+            exam = me.load(tgt) or me.ensure(tgt, items.ItemSeeds(tgt.dir_path))
+            if not me.question_count(exam):
+                return {**base, "verdict": "noexam", "reason": "每個物品的框都只有一段，出不了考題，沒有比較"}
+            own = items.own_model_path(tgt); prev_path = items.model_path(tgt); prev = None; prev_at = None
+            if os.path.isfile(prev_path):
+                self._set("考試中：上次的模型…")
+                prev = me.score(tgt, prev_path, exam)
+                prev_at = time.strftime("%Y/%m/%d %H:%M", time.localtime(os.path.getmtime(prev_path)))
+            self._set("考試中：這次的模型…")
+            new = me.score(tgt, tmp_model, exam)
+            # 上次的模型是這個專案自己訓練的、而且訓練時沒扣掉某些考題 → 它看過那些考題，比較會偏向上次
+            saw = [n for n in exam["items"] if n not in me.held_out_items(tgt)] if prev is not None and prev_path == own else []
+            cmp = me.compare(prev, new, saw)
+            new_items = [n for n, e in exam["items"].items() if e.get("added_at") and e.get("added_at") != exam.get("created_at")]
+            return {**cmp, "at": at, "prev_trained_at": prev_at, "exam_created_at": exam.get("created_at"),
+                    "questions": me.question_count(exam), "empty_n": len(exam.get("empty", [])), "new_exam_items": new_items,
+                    "video": me._video_key(tgt), "held_out": list(self._held_out)}
+        except Exception as e:                       # 考試失敗不擋：照舊換上，畫面說明
+            return {**base, "reason": f"考試失敗（{type(e).__name__}: {e}），沒有比較"}
+
+    def _install(self, target: str, tmp_model: str, cmp: dict | None, forced: bool) -> None:
+        """換上新模型：舊的備份成 best_prev_<時間>.pt、改用自己的模型、記下桌面範圍與考卷成績。"""
+        import shutil
+        from datetime import datetime
+        tgt = load_project(target)
+        own = items.own_model_path(tgt)
+        os.makedirs(os.path.dirname(own), exist_ok=True)
+        if os.path.isfile(own):
+            shutil.copyfile(own, os.path.join(os.path.dirname(own), f"best_prev_{datetime.now():%Y%m%d_%H%M}.pt"))
+        os.replace(tmp_model, own)
+        if tgt.packaging is not None and tgt.packaging.model_source:
+            tgt.packaging.model_source = None
+            _save_config(tgt)
+        training.sync_item_region(tgt)
+        extra = None
+        if cmp and cmp.get("rows"):
+            extra = {"exam": {"video": cmp.get("video"), "held_out": cmp.get("held_out", []), "exam_created_at": cmp.get("exam_created_at"),
+                              "verdict": cmp["verdict"], "forced": forced, "at": cmp["at"],
+                              "scores": [{k: r[k] for k in ("name", "n", "hit", "fp", "empty_n")} for r in cmp["rows"]]}}
+        elif self._held_out:
+            extra = {"exam": {"video": (cmp or {}).get("video"), "held_out": list(self._held_out)}}
+        items.save_model_info(load_project(target), extra)     # 記下換上時的桌面範圍（＋考卷成績）
+
+    def install_candidate(self, project_name: str) -> dict:
+        """「仍要換上新模型」：比較差、沒換上的 candidate.pt 照使用者的選擇換上。"""
+        import model_exam as me
+        if self.running:
+            raise ValueError("正在訓練中，請等它跑完")
+        p = load_project(project_name)
+        tmp_model = os.path.join(p.dir_path, items.MODEL_DIR, "candidate.pt")
+        if not os.path.isfile(tmp_model):
+            raise ValueError("沒有等著換上的新模型（candidate.pt）")
+        cmp = self.compare if self.project_name == project_name else None
+        self._install(project_name, tmp_model, cmp, forced=True)
+        if cmp:
+            me.set_history_installed(p, cmp["at"], True)
+            cmp["history"] = me.history(p)[:5]
+        with self._lock:
+            self.installed = True; self.candidate = False
+            if cmp:
+                cmp["forced"] = True
+            self.stage = "已照你的選擇換上新模型（比上次差）"
+        return self.state()
 
     def _set(self, stage: str, a: int = 0, b: int = 0) -> None:
         with self._lock:
@@ -287,18 +376,20 @@ class TrainJob:
             raise ValueError("還沒有框選任何物品")
         if not os.path.isfile(YOLO_WEIGHTS):
             raise ValueError(f"找不到 {YOLO_WEIGHTS}，無法找盒子")
-        with self._lock:
-            self.project_name = project_name; self.stage = "準備中"; self.done_n = self.total_n = 0
-            self.lines = []; self.error = None; self.finished = False; self.stats = None; self.started_at = time.perf_counter()
-            self.validation = None; self.installed = None
+        self._reset_state(project_name)
         self._thread = threading.Thread(target=self._run, args=(project_name,), daemon=True); self._thread.start()
 
     def _run(self, project_name: str) -> None:
+        import model_exam as me
         try:
             project = load_project(project_name)
             training.sync_item_region(project); training.ensure_state_anchor(project)
             project = load_project(project_name)
-            seeds = items.ItemSeeds(project.dir_path)
+            all_seeds = items.ItemSeeds(project.dir_path)
+            exam = me.ensure(project, all_seeds)                 # 考卷先訂好：考卷的畫面不拿去訓練，新舊模型才比得公平
+            with self._lock:
+                self._held_out = list((exam or {}).get("items", {}))
+            seeds = me.training_seeds(all_seeds, exam, me._margin(project)) if exam else all_seeds
             trace = items.build_trace(project, HAND_MODEL, YOLO_WEIGHTS,
                                       progress=lambda a, b: self._set(f"找盒子與手：{a}/{b} 格", a, b))
             stats = items.build_dataset(project, trace, seeds, progress=lambda a, b: self._set(f"延伸框選：{a}/{b}", a, b))
@@ -307,7 +398,11 @@ class TrainJob:
             if stats["train"] == 0:
                 raise ValueError("框選的物品延伸不出任何一格；請確認「空盒／空桌面」有標、框選那一格看得到東西")
             self._set("訓練模型中（約 20～60 分鐘）…")
-            cmd = items.train_command(project)
+            tmp_model = os.path.join(project.dir_path, items.MODEL_DIR, "candidate.pt")   # 先寫暫存檔，考完才決定換不換
+            os.makedirs(os.path.dirname(tmp_model), exist_ok=True)
+            if os.path.isfile(tmp_model):
+                os.remove(tmp_model)
+            cmd = items.train_command(project, copy_to=tmp_model)
             env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
             self._proc = subprocess.Popen(cmd, cwd=app_base_dir(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                           encoding="utf-8", errors="replace", env=env)
@@ -319,16 +414,10 @@ class TrainJob:
                     if line.startswith("epoch"):
                         self._set(line)
             code = self._proc.wait()
-            mp = items.own_model_path(project)
-            if code != 0 or not os.path.isfile(mp):
+            if code != 0 or not os.path.isfile(tmp_model):
                 raise RuntimeError(f"訓練失敗（結束碼 {code}）：" + " / ".join(self.lines[-3:]))
-            project = load_project(project_name)
-            if project.packaging is not None and project.packaging.model_source:
-                project.packaging.model_source = None          # 自己訓練好了 → 改用自己的模型
-                _save_config(project)
-            items.save_model_info(project)                     # 記下訓練用的桌面範圍；之後範圍改了會提醒重訓
-            with self._lock:
-                self.finished = True; self.stage = "訓練完成"
+            self._proc = None
+            self._validate_install(project_name, tmp_model, [])   # 跟上次的模型比；沒變差才換上（換上時改用自己的模型、記桌面範圍）
         except Exception as e:
             with self._lock:
                 self.error = f"{type(e).__name__}: {e}" if not isinstance(e, (ValueError, RuntimeError)) else str(e)

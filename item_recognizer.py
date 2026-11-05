@@ -944,11 +944,12 @@ def own_model_path(project) -> str:
     return os.path.join(project.dir_path, MODEL_FILE)
 
 
-def save_model_info(project) -> None:
-    """模型換上時記下它是用哪個桌面範圍（state_fixed）訓練的；之後範圍改了 model_stale_reason 才能提醒要重訓。"""
+def save_model_info(project, extra: dict | None = None) -> None:
+    """模型換上時記下它是用哪個桌面範圍（state_fixed）訓練的；之後範圍改了 model_stale_reason 才能提醒要重訓。
+    extra：一起記的東西（例如考卷成績 {"exam": ...}，見 model_exam）。"""
     import time
     info = {"region": None if project.state_fixed is None else [int(v) for v in project.state_fixed],
-            "resolution": [int(v) for v in project.resolution], "saved_at": time.strftime("%Y/%m/%d %H:%M")}
+            "resolution": [int(v) for v in project.resolution], "saved_at": time.strftime("%Y/%m/%d %H:%M"), **(extra or {})}
     path = os.path.join(project.dir_path, MODEL_INFO_FILE)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
