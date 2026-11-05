@@ -6,7 +6,7 @@
 （舊資料沒有「東西在畫面上的時間」，只好用已經驗收過的模型當反例的依據；新的標註畫面會直接有）。
 反例在最後一段開始之後的，當驗收用。
 
-用法：python tools/generic_exam_run.py 巴伯樂包裝1
+用法：python tools/generic_exam_run.py 現場包裝1
 """
 from __future__ import annotations
 
