@@ -569,3 +569,18 @@ $W="models\yolov8s-worldv2.pt"
 | `tests/` | 39 條（v1 14、v2 14、live 3、gesture_data 4、training 3、ui 1） |
 | `sop_projects/` | `範例_外盒`（schema 1）、`_v2a`／`_v2`（依序）、`_v3a`／`_v3`（清單）、`範例_內盒`（schema 1）、`_v2`（依序）、`_v3`／`_v3b`（清單） |
 | `cache/` | `outer.npz`、`inner.npz`、`outer_labels.csv`、各次執行 log |
+
+## 2026-11-05：接 EIP、當天統計、共用硬碟、標記引導
+
+- **標記頁引導**：上方六步「影片 → 框物品 → 動作（可跳過）→ 訓練 → 產生步驟 → 監控」，做到哪亮哪、該按的按鈕閃一圈；
+  名稱清單分「物品」「動作」兩個分頁，動作要先有已存的物品。動作不進模型，訓練後改動作不用重訓。
+- **不分配色**：型體尾碼就是配色（使用者裁示），畫面拿掉配色與試跑；沒指定配色＝不算試跑。配色驗證的程式留著，舊資料還讀得到。
+  換包裝方式視窗只剩一個「型體」搜尋框，同型體每個地區各一列；換線後 10 秒內可按「復原」。
+- **監控畫面接 EIP 看板**（`eip_client.py`，只讀）：EIP 網址放 `eip_api.txt`；產線設定選 EIP 產線（依廠別讀成型線）、站別＝電腦名稱。
+  監控畫面「型體」那格點開＝EIP 今天這條線的型體，一個型體一塊，點模型（地區）就切換；卡片下一列是 EIP 連線、今日目標、EIP 今日報工。
+- **當天統計**（`daily_stats.py`）：`logs/daily/<產線>/<日期>.json`，只記相機監控。程式一開在背景補傳、之後每 10 分鐘、停止、換線再送；
+  上傳只帶各步驟的漏做／超時次數到 `POST /api/MES/PackingGuard/SetDailyErrors`（EIP 端要開卡建 `mes.PackingGuardDailyErrors` 和這支 API，
+  做好前上傳會失敗、資料留在本機）。設備金鑰放 `eip_device_key.txt`。監控畫面「操作 → 今日統計」看內容、立即上傳。
+- **共用硬碟**（`shared_store.py`）：`<共用資料夾>\<專案>\v1、v2…` 一版一個資料夾只增不改，`current.txt` 指目前版本，每版帶 `version.json`。
+  包裝方式設定「操作 → 共用硬碟」：載入（不用重訓）、上傳成新版本、看所有版本、載入指定版本、設成目前版本。路徑存 `shared_root.txt`。
+- 這台電腦自己的設定檔（不進 git）：`camera_source.txt`、`lines.json`、`web_password.txt`、`eip_api.txt`、`eip_device_key.txt`、`shared_root.txt`。
