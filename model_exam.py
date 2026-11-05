@@ -59,7 +59,17 @@ def _margin(project) -> int:
     return int(items.FIXED_WINDOW_SEC * float(project.fps or 30.0))
 
 
-def _segments_of(seeds: items.ItemSeeds, name: str, gap: int) -> list[list[items.Seed]]:
+def _segments_of(seeds: items.ItemSeeds, name: str, gap: int, ranges: list[tuple[int, int]] | None = None) -> list[list[items.Seed]]:
+    """這個物品的框分成幾段。標記頁時間軸有存段落（ranges）就照使用者存的段分（兩段隔得再近也是兩段，自動使用測試抓到：
+    隔 2.8 秒的兩段被 3 秒規則併成一段，出不了考題）；沒有段落的舊專案才用「相隔超過 gap 格算另一段」。"""
+    if ranges:
+        rs = sorted(ranges)
+        groups: list[list[items.Seed]] = [[] for _ in rs]
+        for s in sorted((s for s in seeds.seeds if s.name == name), key=lambda s: s.frame):
+            k = next((i for i, (a, b) in enumerate(rs) if a <= s.frame <= b), None)
+            if k is not None:
+                groups[k].append(s)
+        return [g for g in groups if g]
     out: list[list[items.Seed]] = []
     for s in sorted((s for s in seeds.seeds if s.name == name), key=lambda s: s.frame):
         if out and s.frame - out[-1][-1].frame <= gap:
@@ -100,11 +110,19 @@ def ensure(project, seeds: items.ItemSeeds) -> dict | None:
         if len(refs) >= 2:                           # 一半空桌面格留著訓練（模型要學「桌上沒東西」），後一半當考題
             exam["empty"] = refs[-min(EXAM_EMPTY_MAX, len(refs) // 2):]
     margin = _margin(project); gap = int(SEG_GAP_SEC * float(project.fps or 30.0))
+    saved_ranges: dict[str, list[tuple[int, int]]] = {}
+    try:
+        import label_segments as ls
+        for sg in ls.Segments(project.dir_path).segs:
+            if sg.saved:
+                saved_ranges.setdefault(sg.name, []).append((int(sg.start), int(sg.end)))
+    except Exception:
+        saved_ranges = {}
     new: dict[str, dict] = {}
     for name in seeds.order:
         if name in exam["items"]:
             continue
-        segs = _segments_of(seeds, name, gap)
+        segs = _segments_of(seeds, name, gap, saved_ranges.get(name))
         if len(segs) < 2:
             continue
         last = segs[-1]

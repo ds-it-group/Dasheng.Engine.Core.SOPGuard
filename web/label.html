@@ -288,7 +288,10 @@
   /* 訊息疊在影片畫面上幾秒（沒有影片時用右下角小提示）；沒有訊息時顯示「現在該做什麼」 */
   let msgFull = "";
   function say(t, warn) {
-    msgFull = t || ""; msgText = msgFull.split(/[。；]/)[0]; msgWarn = !!warn; clearTimeout(msgTimer); updateHint();   // 畫面只留第一句，整段放滑鼠提示
+    // 畫面只留前面一兩句，整段放滑鼠提示；第一句太短（例如「框好了」）就接下一句，不然該按什麼會被切掉（自動使用測試抓到）
+    msgFull = t || ""; const parts = msgFull.split(/(?<=[。；])/); msgText = "";
+    for (const p of parts) { msgText += p; if (msgText.replace(/[。；]$/, "").length >= 12) break; }
+    msgText = msgText.replace(/[。；]$/, ""); msgWarn = !!warn; clearTimeout(msgTimer); updateHint();
     if (t) msgTimer = setTimeout(() => { msgText = ""; updateHint(); }, warn ? 7000 : 5000);
     if (t && (!info || !info.has_video)) toast(t, warn);
   }

@@ -51,6 +51,17 @@ def test_ensure_takes_last_segment_and_freezes(tmp_path):
     assert me.ensure(_proj(tmp_path / "box", fixed=None), s2) is None      # 盒內模式不出考卷
 
 
+def test_ensure_uses_saved_timeline_segments(tmp_path):
+    """標記頁存了兩段（隔不到 3 秒）：照存的段分成兩段，出得了考題（自動使用測試抓到的）。"""
+    import label_segments as ls
+    p = _proj(tmp_path)
+    s = _seeds(tmp_path, [("貼紙", f) for f in (10, 13, 16, 19, 40, 43, 46)])   # 19 → 40 只隔 21 格（2.1 秒）
+    segs = ls.Segments(str(tmp_path)); segs.add_name("貼紙", "object")
+    a = segs.add("貼紙", 10, 19, 100); segs.mark_saved(a.id); b = segs.add("貼紙", 40, 46, 100); segs.mark_saved(b.id); segs.save()
+    ex = me.ensure(p, s)
+    assert ex["items"]["貼紙"]["start"] == 40 and [q[0] for q in ex["items"]["貼紙"]["questions"]] == [40, 43, 46]
+
+
 def test_ensure_never_starves_an_item(tmp_path):
     p = _proj(tmp_path)
     # 盒子只有一段、剛好落在貼紙最後一段的範圍裡：貼紙那題不能出，不然盒子沒東西可訓練
