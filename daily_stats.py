@@ -79,8 +79,15 @@ def record(line_id: str, method: str, kind: str, missing: list[str], now: dateti
         else:
             return d
         d["updated_at"] = now.isoformat(timespec="seconds")
+        d["rev"] = int(d.get("rev", 0)) + 1            # 每記一筆加 1：比時間可靠（同一秒內上傳又記一筆，時間一樣會漏傳）
         _save(p, d)
     return d
+
+
+def _is_pending(j: dict) -> bool:
+    if "rev" in j:
+        return j.get("uploaded_rev") != j["rev"]
+    return bool(j.get("updated_at")) and j.get("uploaded_at") != j.get("updated_at")   # 舊檔沒有 rev
 
 
 def day_file(line_id: str, day: str | None = None) -> dict:
@@ -102,8 +109,7 @@ def pending(line_id: str | None = None) -> list[tuple[str, str]]:
         for fn in sorted(os.listdir(d)):
             if not fn.endswith(".json"):
                 continue
-            j = _load(os.path.join(d, fn))
-            if j.get("updated_at") and j.get("uploaded_at") != j.get("updated_at"):
+            if _is_pending(_load(os.path.join(d, fn))):
                 out.append((lid, fn[:-5]))
     return sorted(out, key=lambda x: (x[1], x[0]))
 
@@ -162,11 +168,12 @@ def upload_pending(opener=None) -> dict:
             p = _path(l.id, day)
             with _lock:
                 d = _load(p)
-            stamp = d.get("updated_at")
+            stamp, rev = d.get("updated_at"), d.get("rev")
             for body in payloads(d, l.factory, l.eip_department_id, line_store.computer_name()):
                 _post(base + UPLOAD_PATH, body, opener)
-            with _lock:
-                d2 = _load(p); d2["uploaded_at"] = stamp; d2["uploaded_ok_at"] = datetime.now().isoformat(timespec="seconds"); _save(p, d2)
+            with _lock:                               # 記下送出去的是第幾版；送的時候又多記的，rev 會比較大，下次再送
+                d2 = _load(p); d2["uploaded_at"] = stamp; d2["uploaded_rev"] = rev
+                d2["uploaded_ok_at"] = datetime.now().isoformat(timespec="seconds"); _save(p, d2)
                 _state["done"] += 1
             sent.append(day)
         with _lock:

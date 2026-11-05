@@ -84,5 +84,5 @@ def test_upload_backlog_oldest_first_fail_then_retry():
     assert [b["recordDate"] for _, b, _ in sent] == ["2026-11-03", "2026-11-04"] and sent[0][0].endswith("/api/MES/PackingGuard/SetDailyErrors")
     assert sent[1][1]["errors"] == [] and sent[0][2] == "k123"                    # 那天沒出錯：送空的（EIP 清掉舊列）；有金鑰就帶
     assert ds.status(l.id)["pending"] == [] and ds.status(l.id)["state"] == "ok" and ds.status(l.id)["backfilled"] == ["2026-11-03", "2026-11-04"]
-    ds.record(l.id, "A", "漏做", ["貼紙"], datetime(2026, 11, 4, 10))           # 傳完又有新的：再變成還沒傳
+    ds.record(l.id, "A", "漏做", ["貼紙"], datetime(2026, 11, 4, 9))            # 傳完又有新的（時間跟上次一樣也要算）：再變成還沒傳
     assert ds.pending(l.id) == [(l.id, "2026-11-04")]
