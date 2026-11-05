@@ -76,6 +76,7 @@ class TrainJob:
                     "package": getattr(self, "package", None),
                     "compare": getattr(self, "compare", None),        # 新舊模型考同一份考卷的結果（model_exam.compare）
                     "candidate": getattr(self, "candidate", False),   # 新模型沒換上、還留著 candidate.pt（可以「仍要換上」）
+                    "action_check": getattr(self, "action_check", None),   # 換上後用新模型重判動作（action_recheck）
                     "elapsed": round(time.perf_counter() - self.started_at) if self.started_at and self.running else None}
 
     # ---- 挑素材訓練（可以跨型體地區、留片段驗證）
@@ -113,7 +114,7 @@ class TrainJob:
         with self._lock:
             self.project_name = target; self.stage = "準備中"; self.done_n = self.total_n = 0; self.validation = None; self.installed = None
             self.lines = []; self.error = None; self.finished = False; self.stats = None; self.started_at = time.perf_counter(); self.package = None
-            self.compare = None; self.candidate = False; self._held_out = []
+            self.compare = None; self.candidate = False; self._held_out = []; self.action_check = None
 
     def _run_material(self, target: str, train: list[dict], hold: list[dict], epochs: int, recolor_classes: list[str], where: str) -> None:
         import json as _json
@@ -341,6 +342,15 @@ class TrainJob:
         elif self._held_out:
             extra = {"exam": {"video": (cmp or {}).get("video"), "held_out": list(self._held_out)}}
         items.save_model_info(load_project(target), extra)     # 記下換上時的桌面範圍（＋考卷成績）
+        # 換上新模型後，用新模型的框把已存的動作再判一次（模型認不到被碰的物品，監控時那一步就判不到）
+        try:
+            import action_recheck
+            self._set("用新模型重判動作…")
+            ac = action_recheck.recheck(load_project(target), own)
+        except Exception as e:
+            ac = {"rows": [], "skipped": f"重判失敗（{type(e).__name__}: {e}）"}
+        with self._lock:
+            self.action_check = ac
 
     def install_candidate(self, project_name: str) -> dict:
         """「仍要換上新模型」：比較差、沒換上的 candidate.pt 照使用者的選擇換上。"""
@@ -702,7 +712,8 @@ class LabelService:
         return {"name": p.project_name, "resolution": list(p.resolution), "fps": p.fps, "has_video": r is not None,
                 "frame_count": r.frame_count if r else 0, "has_model": os.path.isfile(items.model_path(p)),
                 "steps": [s.step_name for s in p.steps], "item_steps": any(s.type in ("item", "hand_on_object") for s in p.steps),
-                "seeds": self._seeds_dict(seeds, p), "segments": self._segments_dict(segs)}
+                "seeds": self._seeds_dict(seeds, p), "segments": self._segments_dict(segs),
+                "action_check": __import__("action_recheck").load(p)}
 
     # ---- 時間軸（名稱／段落）：見 label_segments.py
 
@@ -804,6 +815,7 @@ class LabelService:
                 raise ValueError(ls.touch_reason(stats, cands))
             segs.mark_saved(sid, touch=touch); nd.touch = touch; segs.save()
             seeds.add_hand_step(s.name, item=touch, dwell=ls.ACTION_DWELL_SEC)
+            __import__("action_recheck").forget(p, s.name)          # 重存了：上次訓練完的重判結果不算
             return {"touch": touch, "stats": stats}
         if not s.box or s.box_frame is None:
             raise ValueError(f"這一段還沒畫框。把時間移到這一段裡面，在畫面上拖拉框住「{s.name}」")

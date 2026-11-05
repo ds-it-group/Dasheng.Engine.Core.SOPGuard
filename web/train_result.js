@@ -30,6 +30,7 @@
       + '<div class="dc" style="gap:12px"><div class="note" id="trBanner"></div><div class="note warn" id="trSaw" hidden></div>'
       + '<div style="overflow-x:auto"><table class="grid n" id="trGrid" style="width:100%"></table></div>'
       + '<div class="hint2" id="trExam" style="line-height:1.7"></div>'
+      + '<div class="note" id="trActs2" hidden></div>'
       + '<details><summary style="cursor:pointer;color:var(--primary);font-size:13px">怎麼判好壞</summary><div class="hint2" id="trRule" style="line-height:1.7;padding-top:4px"></div></details>'
       + '<details><summary style="cursor:pointer;color:var(--primary);font-size:13px">最近幾次訓練</summary><div style="overflow-x:auto;padding-top:4px"><table class="grid n" id="trHist"></table></div></details>'
       + '</div><div class="da" id="trActs"></div></div>';
@@ -90,6 +91,19 @@
       + (c.new_exam_items && c.new_exam_items.length ? `${c.new_exam_items.join("、")} 是後來才出題的。` : "")
       + (c.prev_trained_at ? `上次的模型：${c.prev_trained_at} 訓練。` : "")
       + (c.empty_n ? "" : "沒有空桌考題（空桌畫面少於 2 格），誤報不比。");
+    // 換上新模型後的動作重判（action_recheck）：每個動作一行，對不上的說原因
+    const ac = s.action_check, box = q("trActs2"); box.innerHTML = "";
+    const rows = (ac && ac.rows) || [];
+    box.hidden = !rows.length;
+    if (rows.length) {
+      const bad = rows.filter((r) => !r.ok);
+      box.className = "note " + (bad.length ? "warn" : "ok");
+      box.appendChild(EIP.mi(bad.length ? "warning" : "back_hand"));
+      const d = el("div"); d.appendChild(el("div", null, bad.length ? `用新模型重判動作：${bad.length} 個對不上（共 ${rows.length} 個）` : `用新模型重判動作：${rows.length} 個都對得上`));
+      const ul = el("ul"); ul.style.cssText = "margin:4px 0 0;padding-left:18px";
+      for (const r of rows) ul.appendChild(el("li", null, `${r.action}：${r.note}`));
+      d.appendChild(ul); box.appendChild(d);
+    }
     q("trRule").textContent = `每個物品比兩個數字。找到率：考卷裡有框的畫面，模型在同一個位置認出同一個物品的比例。空桌誤報：空桌畫面裡，模型說看到這個物品的比例。`
       + `任一物品找到率掉 ${c.rules.hit_drop} 點以上而且至少少 ${c.rules.hit_min || 0} 格，或空桌誤報升 ${c.rules.fp_rise} 點以上而且至少多 ${c.rules.fp_min || 0} 格，整次算變差。`
       + `沒有變差、而且至少一項依同樣條件變好，算變好。其他算差不多。新物品上次沒有，只顯示這次的成績，不拿來比。`

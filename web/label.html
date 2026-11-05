@@ -599,6 +599,9 @@
       ord.title = orderNo[m.name] ? `第 ${orderNo[m.name]} 步（照已儲存第 1 段的開始時間）` : "還沒有儲存的段落，還沒有順序";
       const car = el("span", "car"); car.textContent = "▸"; const sw = el("span", "sw"); sw.style.background = m.color; const nm = el("span", "nmt"); nm.textContent = m.name;
       b.append(ord, car, sw, nm); if (isA) { const t = el("span", "tag"); t.textContent = "動作"; b.appendChild(t); }
+      // 訓練完用新模型重判過這個動作（action_recheck）：對不上就在名稱旁標警示，滑鼠移上去看理由
+      const ck = isA && info.action_check && (info.action_check.rows || []).find((r) => r.action === m.name);
+      if (ck && !ck.ok) { const w = EIP.mi("warning"); w.style.cssText = "font-size:16px;color:var(--danger);flex:none"; w.title = ck.note; w.setAttribute("aria-label", ck.note); b.appendChild(w); }
       const c = el("span", "cnt"); c.textContent = `${segs.length} 段` + (un ? `（${un} 段未存）` : "") + (isA && m.touch ? `・手碰 ${m.touch}` : ""); b.appendChild(c);
       row.appendChild(b);
       if (!isA && info.seeds.region && segs.some((x) => x.saved)) {
@@ -802,7 +805,7 @@
     const acts = { next: { label: "產生步驟，前往監控", run: () => $("btnGen").click() }, onChange: (r) => { refreshInfo(); TrainResult.summary($("trainRes"), r, proj, acts); $("trainStage").textContent = r.stage || ""; } };
     TrainResult.summary($("trainRes"), s, proj, acts);
     if (mine && s.running) sawTraining = true;
-    if (mine && s.finished && sawTraining) { sawTraining = false; TrainResult.open(s, proj, acts); }
+    if (mine && s.finished && sawTraining) { sawTraining = false; refreshInfo(); TrainResult.open(s, proj, acts); }   // 重拿專案資訊：動作重判的警示要馬上出現
     renderFooter(); renderGuide();
     if (s.running) trainTimer = setTimeout(pollTrain, 1500);
   }
