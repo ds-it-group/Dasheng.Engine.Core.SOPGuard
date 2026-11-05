@@ -65,8 +65,8 @@
         : "比上次差，還在用上次的模型。新模型存成 candidate.pt，沒有換上。"));
       const ul = el("ul"); ul.style.cssText = "margin:4px 0 0;padding-left:18px";
       for (const r of c.rows.filter((r) => r.verdict === "worse")) {
-        if (r.d_hit <= -c.rules.hit_drop) ul.appendChild(el("li", null, `${r.name}：找到率 ${pct(r.hit_prev, r.n)} → ${pct(r.hit, r.n)}，掉 ${Math.round(-r.d_hit)} 點`));
-        if (r.d_fp >= c.rules.fp_rise) ul.appendChild(el("li", null, `${r.name}：空桌誤報 ${r.fp_prev} 格 → ${r.fp} 格（${pct(r.fp_prev, r.empty_n)} → ${pct(r.fp, r.empty_n)}）`));
+        if (r.hit_worse) ul.appendChild(el("li", null, `${r.name}：找到率 ${pct(r.hit_prev, r.n)} → ${pct(r.hit, r.n)}，掉 ${Math.round(-r.d_hit)} 點`));
+        if (r.fp_worse) ul.appendChild(el("li", null, `${r.name}：空桌誤報 ${r.fp_prev} 格 → ${r.fp} 格（${pct(r.fp_prev, r.empty_n)} → ${pct(r.fp, r.empty_n)}）`));
       }
       txt.appendChild(ul);
     }
@@ -91,8 +91,9 @@
       + (c.prev_trained_at ? `上次的模型：${c.prev_trained_at} 訓練。` : "")
       + (c.empty_n ? "" : "沒有空桌考題（空桌畫面少於 2 格），誤報不比。");
     q("trRule").textContent = `每個物品比兩個數字。找到率：考卷裡有框的畫面，模型在同一個位置認出同一個物品的比例。空桌誤報：空桌畫面裡，模型說看到這個物品的比例。`
-      + `任一物品找到率掉 ${c.rules.hit_drop} 點以上，或空桌誤報升 ${c.rules.fp_rise} 點以上，整次算變差。沒有變差、而且至少一項找到率升 ${c.rules.hit_drop} 點以上或誤報降 ${c.rules.fp_rise} 點以上，算變好。其他算差不多。`
-      + `新物品上次沒有，只顯示這次的成績，不拿來比。這兩個門檻是先訂的數字，還沒用現場資料驗證；考題 20 格時，差 1 格就差 5 點。`;
+      + `任一物品找到率掉 ${c.rules.hit_drop} 點以上而且至少少 ${c.rules.hit_min || 0} 格，或空桌誤報升 ${c.rules.fp_rise} 點以上而且至少多 ${c.rules.fp_min || 0} 格，整次算變差。`
+      + `沒有變差、而且至少一項依同樣條件變好，算變好。其他算差不多。新物品上次沒有，只顯示這次的成績，不拿來比。`
+      + `這些門檻是先訂的數字，還沒用現場資料調過；考題 20 格時，差 1 格就差 5 點，所以另外要求至少差幾格。`;
 
     const hg = q("trHist"); hg.innerHTML = "";
     const h2 = el("tr"); for (const h of ["訓練時間", "比上一次", "有沒有換上"]) h2.appendChild(el("th", null, h));

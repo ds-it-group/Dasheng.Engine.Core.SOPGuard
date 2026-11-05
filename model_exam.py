@@ -3,8 +3,9 @@
 - 考卷 <專案>/items/exam.json：每個物品取「最後一段框」最多 EXAM_PER_ITEM 格當考題（框就是正確答案），加上一部分「空桌面」參考格。
   第一次需要時才訂，之後凍結；後來才加的物品，等它有兩段以上的框再補出題。影片換了就重訂。
 - 考卷的畫面（含前後 FIXED_WINDOW_SEC 秒）不拿去訓練，新舊模型才比得公平。只有一段框的物品不出題（全部拿去訓練）。
-- 判定（固定規則，不用語言模型）：任一物品找到率掉 HIT_DROP 個百分點以上、或空桌誤報升 FP_RISE 個百分點以上＝變差；
-  沒有變差、至少一項找到率升 HIT_DROP 或誤報降 FP_RISE＝變好；其他＝差不多。上次的模型沒有這個物品＝新物品，不比。
+- 判定（固定規則，不用語言模型）：任一物品找到率掉 HIT_DROP 個百分點以上而且至少少 HIT_MIN_FRAMES 格、
+  或空桌誤報升 FP_RISE 個百分點以上而且至少多 FP_MIN_FRAMES 格＝變差；沒有變差、至少一項依同樣條件變好＝變好；其他＝差不多。
+  上次的模型沒有這個物品＝新物品，不比。
 - 只支援固定桌面範圍（跟 training_material.validate_holdout 一樣）；盒內模式不出考卷、不比較。
 """
 from __future__ import annotations
@@ -24,6 +25,8 @@ EXAM_EMPTY_MAX = 12         # 空桌面考題最多幾格（取參考格的後�
 HIT_IOU = 0.3               # 模型的框跟答案框重疊這麼多才算找到
 HIT_DROP = 10.0             # 找到率掉（升）這麼多個百分點算變差（變好）。先訂的數字，還沒用現場資料驗證
 FP_RISE = 5.0               # 空桌誤報升（降）這麼多個百分點算變差（變好）
+HIT_MIN_FRAMES = 3          # 而且找到的格數至少差這麼多格（20 格差 2 格就 10 點，太敏感；現場實測藍盒 20→18 被判變差）
+FP_MIN_FRAMES = 2           # 誤報至少差這麼多格（空桌考題常只有幾格，差 1 格就 33 點）
 HISTORY_KEEP = 20
 
 
@@ -200,7 +203,11 @@ def compare(prev: dict | None, new: dict, prev_saw: list[str] | None = None) -> 
             dh = _pct(row["hit"], s["n"]) - _pct(row["hit_prev"], s["n"])
             df = (_pct(row["fp"], en) - _pct(row["fp_prev"], en)) if en else 0.0
             row["d_hit"] = round(dh, 1); row["d_fp"] = round(df, 1)
-            row["verdict"] = "worse" if dh <= -HIT_DROP or df >= FP_RISE else "better" if dh >= HIT_DROP or df <= -FP_RISE else "same"
+            kh = row["hit"] - row["hit_prev"]; kf = row["fp"] - row["fp_prev"]          # 差幾格
+            hit_down = dh <= -HIT_DROP and kh <= -HIT_MIN_FRAMES; hit_up = dh >= HIT_DROP and kh >= HIT_MIN_FRAMES
+            fp_up = df >= FP_RISE and kf >= FP_MIN_FRAMES; fp_down = df <= -FP_RISE and kf <= -FP_MIN_FRAMES
+            row["hit_worse"] = hit_down; row["fp_worse"] = fp_up
+            row["verdict"] = "worse" if hit_down or fp_up else "better" if hit_up or fp_down else "same"
         rows.append(row)
     if prev is None:
         verdict = "first"
@@ -211,7 +218,7 @@ def compare(prev: dict | None, new: dict, prev_saw: list[str] | None = None) -> 
     else:
         verdict = "same"
     return {"verdict": verdict, "rows": rows, "prev_saw": list(prev_saw or []),
-            "rules": {"hit_drop": HIT_DROP, "fp_rise": FP_RISE, "hit_iou": HIT_IOU}}
+            "rules": {"hit_drop": HIT_DROP, "fp_rise": FP_RISE, "hit_iou": HIT_IOU, "hit_min": HIT_MIN_FRAMES, "fp_min": FP_MIN_FRAMES}}
 
 
 # ---------------------------------------------------------------- 紀錄

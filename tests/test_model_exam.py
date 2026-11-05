@@ -96,11 +96,14 @@ def test_compare_rules():
     c = me.compare(prev, _sc({"貼紙": 19, "標籤": 18}, {"貼紙": 0, "標籤": 1}))
     assert c["verdict"] == "better" and [r["verdict"] for r in c["rows"]] == ["better", "same"]
     assert me.compare(prev, _sc({"貼紙": 17, "標籤": 17}, {"貼紙": 0, "標籤": 1}))["verdict"] == "same"      # 差 5 點不算
-    c = me.compare(prev, _sc({"貼紙": 14, "標籤": 18}, {"貼紙": 0, "標籤": 1}))
-    assert c["verdict"] == "worse" and c["rows"][0]["d_hit"] == -10.0                                         # 剛好掉 10 點算變差
-    assert me.compare(prev, _sc({"貼紙": 16, "標籤": 18}, {"貼紙": 0, "標籤": 2}))["verdict"] == "worse"      # 誤報 1→2 格（12 格）升 8 點
+    assert me.compare(prev, _sc({"貼紙": 14, "標籤": 18}, {"貼紙": 0, "標籤": 1}))["verdict"] == "same"      # 掉 10 點但只少 2 格：不算
+    c = me.compare(prev, _sc({"貼紙": 13, "標籤": 18}, {"貼紙": 0, "標籤": 1}))
+    assert c["verdict"] == "worse" and c["rows"][0]["d_hit"] == -15.0 and c["rows"][0]["hit_worse"]          # 少 3 格、掉 15 點
+    assert me.compare(prev, _sc({"貼紙": 16, "標籤": 18}, {"貼紙": 0, "標籤": 2}))["verdict"] == "same"       # 誤報只多 1 格：不算
+    c = me.compare(prev, _sc({"貼紙": 16, "標籤": 18}, {"貼紙": 0, "標籤": 3}))
+    assert c["verdict"] == "worse" and c["rows"][1]["fp_worse"]                                               # 誤報多 2 格（12 格）升 17 點
     c = me.compare(prev, _sc({"貼紙": 16, "標籤": 18, "防黴片": 5}, {}), prev_saw=["貼紙"])
-    assert c["rows"][2]["verdict"] == "new" and c["verdict"] == "better" and c["prev_saw"] == ["貼紙"]       # 標籤誤報 1→0 變好；新物品不比
+    assert c["rows"][2]["verdict"] == "new" and c["verdict"] == "same" and c["prev_saw"] == ["貼紙"]         # 新物品不比
     c = me.compare(_sc({"貼紙": 16}, {}, names=["貼紙"]), _sc({"貼紙": 16, "防黴片": 3}, {}))
     assert c["rows"][1]["verdict"] == "new"                                                                   # 舊模型不認得的名稱
 
