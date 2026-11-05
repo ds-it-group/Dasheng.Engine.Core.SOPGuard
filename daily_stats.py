@@ -8,7 +8,8 @@
 - EIP 端（2026-11-05 使用者定案：一張表 mes.PackingGuardDailyErrors，時間記 UTC、日期記當地班日）：
   POST /api/MES/PackingGuard/SetDailyErrors，一站一天一個包裝方式送一包：
   {recordDate, factoryCode, departmentID, station, methodName, errors:[{name, missed, timeout}]}；errors 空＝那天這個包裝方式沒出錯（EIP 清掉舊列）。
-  設備金鑰放 eip_device_key.txt（有才帶 X-Device-Key 檔頭），不進 git。這支 API 要 EIP 那邊開卡做，還沒做好之前上傳會失敗、資料留在本機等。
+  比照看板 API 不用登入、不帶金鑰（使用者裁示 11-05：金鑰一樣能仿冒，意義不大）；哪一台送的看內容裡的 station（電腦名稱）。
+  這支 API 要 EIP 那邊開卡做，還沒做好之前上傳會失敗、資料留在本機等。
 """
 from __future__ import annotations
 
@@ -23,7 +24,6 @@ from datetime import datetime
 from project_store import app_base_dir
 
 DAILY_DIR = os.path.join("logs", "daily")
-KEY_FILE = "eip_device_key.txt"
 UPLOAD_PATH = "/api/MES/PackingGuard/SetDailyErrors"
 UPLOAD_EVERY_SEC = 600
 _lock = threading.Lock()
@@ -125,20 +125,9 @@ def payloads(d: dict, factory: str, department_id: int, station: str) -> list[di
     return out
 
 
-def _device_key() -> str:
-    try:
-        with open(os.path.join(app_base_dir(), KEY_FILE), "r", encoding="utf-8-sig") as f:
-            return f.read().strip()
-    except OSError:
-        return ""
-
-
 def _post(url: str, body: dict, opener=None) -> None:
-    headers = {"Content-Type": "application/json"}
-    key = _device_key()
-    if key:
-        headers["X-Device-Key"] = key
-    req = urllib.request.Request(url, data=json.dumps(body, ensure_ascii=False).encode("utf-8"), method="POST", headers=headers)
+    req = urllib.request.Request(url, data=json.dumps(body, ensure_ascii=False).encode("utf-8"), method="POST",
+                                 headers={"Content-Type": "application/json"})
     with (opener or urllib.request.urlopen)(req, timeout=10) as r:
         r.read()
 

@@ -580,7 +580,8 @@ $W="models\yolov8s-worldv2.pt"
   監控畫面「型體」那格點開＝EIP 今天這條線的型體，一個型體一塊，點模型（地區）就切換；卡片下一列是 EIP 連線、今日目標、EIP 今日報工。
 - **當天統計**（`daily_stats.py`）：`logs/daily/<產線>/<日期>.json`，只記相機監控。程式一開在背景補傳、之後每 10 分鐘、停止、換線再送；
   上傳只帶各步驟的漏做／超時次數到 `POST /api/MES/PackingGuard/SetDailyErrors`（EIP 端要開卡建 `mes.PackingGuardDailyErrors` 和這支 API，
-  做好前上傳會失敗、資料留在本機）。設備金鑰放 `eip_device_key.txt`。監控畫面「操作 → 今日統計」看內容、立即上傳。
+  做好前上傳會失敗、資料留在本機；建表與覆蓋的 SQL 在 `docs/eip/`，已在測試區驗過）。比照看板 API 不帶金鑰，哪一台送的看內容裡的 `station`（電腦名稱）。
+  監控畫面「操作 → 今日統計」看內容、立即上傳。
 - **共用硬碟**（`shared_store.py`）：`<共用資料夾>\<專案>\v1、v2…` 一版一個資料夾只增不改，`current.txt` 指目前版本，每版帶 `version.json`。
   包裝方式設定「操作 → 共用硬碟」：載入（不用重訓）、上傳成新版本、看所有版本、載入指定版本、設成目前版本。路徑存 `shared_root.txt`。
-- 這台電腦自己的設定檔（不進 git）：`camera_source.txt`、`lines.json`、`web_password.txt`、`eip_api.txt`、`eip_device_key.txt`、`shared_root.txt`。
+- 這台電腦自己的設定檔（不進 git）：`camera_source.txt`、`lines.json`、`web_password.txt`、`eip_api.txt`、`shared_root.txt`。
