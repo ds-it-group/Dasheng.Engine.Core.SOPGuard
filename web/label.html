@@ -16,6 +16,9 @@
   .stage canvas { position: absolute; left: 0; top: 0; touch-action: none; cursor: crosshair; }
   .stage .hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); color: #fff; font-size: 13px; padding: 6px 14px; border-radius: 2px; max-width: 94%; background: rgba(0,0,0,.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
   .stage .hint.warn { background: rgba(198,40,40,.92); }
+  .stage .zoomtag { position: absolute; left: 12px; top: 10px; display: flex; gap: 6px; align-items: center; font-size: 12px; color: #fff; background: rgba(0,0,0,.6); padding: 2px 4px 2px 8px; border-radius: 2px; z-index: 3; }
+  .stage .zoomtag button { font: inherit; font-size: 12px; color: #fff; background: rgba(255,255,255,.18); border: 0; border-radius: 2px; padding: 1px 8px; cursor: pointer; }
+  .stage.panning canvas { cursor: grabbing; }
   .stage .ftag { position: absolute; right: 12px; top: 10px; font-size: 12px; color: #fff; background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 2px; pointer-events: none; }
   .names { min-height: 0; display: flex; flex-direction: column; }
   .names .newrow { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -160,6 +163,7 @@
           <div class="stage" id="stage" hidden>
             <img id="frame" alt=""><canvas id="ov"></canvas>
             <div class="ftag" id="ftag"></div>
+            <div class="zoomtag" id="zoomTag" hidden><span id="zoomTxt"></span><button type="button" id="zoomReset" title="還原整個畫面（快速鍵 0）">還原</button></div>
             <div class="hint" id="hint"></div>
           </div>
         </div>
@@ -330,9 +334,49 @@
     clearTimeout(loadTimer); const go = () => { pending = true; img.src = `/api/frame?project=${enc(proj)}&n=${n}`; };
     if (now) go(); else loadTimer = setTimeout(go, 40);
   }
-  img.addEventListener("load", () => { pending = false; draw(); });
+  img.addEventListener("load", () => { pending = false; if (zoom > 1) applyZoom(); else draw(); });
   img.addEventListener("error", () => { pending = false; });
-  window.addEventListener("resize", draw);
+  window.addEventListener("resize", () => { if (zoom > 1) applyZoom(); else draw(); });
+  /* 畫面放大：滾輪往游標那一點放大／縮小（1～8 倍），按住滑鼠右鍵或中鍵拖拉移動，0 或「還原」回整個畫面。
+     直式影片在 1440×900 只顯示 0.3 倍，54 px 的貼標剩 16 px，框不準；放大後框的座標照樣換算回原圖（scale 跟著圖的實際寬度） */
+  const stageEl = $("stage"); let zoom = 1, panX = 0, panY = 0, pan = null;
+  function fitSize() {
+    const sw = stageEl.clientWidth, sh = stageEl.clientHeight, nw = img.naturalWidth || 1, nh = img.naturalHeight || 1;
+    const s0 = Math.min(sw / nw, sh / nh, 1e9); return [nw * s0, nh * s0, sw, sh];
+  }
+  function applyZoom() {
+    if (zoom <= 1.001) {
+      zoom = 1; img.style.position = ""; img.style.width = ""; img.style.height = ""; img.style.left = ""; img.style.top = ""; img.style.maxWidth = ""; img.style.maxHeight = "";
+    } else {
+      const [fw, fh, sw, sh] = fitSize(); const w = fw * zoom, h = fh * zoom;
+      panX = w <= sw ? (sw - w) / 2 : Math.min(0, Math.max(sw - w, panX)); panY = h <= sh ? (sh - h) / 2 : Math.min(0, Math.max(sh - h, panY));
+      Object.assign(img.style, { position: "absolute", maxWidth: "none", maxHeight: "none", width: w + "px", height: h + "px", left: panX + "px", top: panY + "px" });
+    }
+    $("zoomTag").hidden = zoom === 1; $("zoomTxt").textContent = `放大 ${zoom.toFixed(1)} 倍・右鍵拖拉移動`;
+    draw();
+  }
+  function setZoom(z, cx, cy) {
+    if (!img.naturalWidth) return;
+    const [fw, fh, sw, sh] = fitSize(); const nz = Math.max(1, Math.min(8, z));
+    if (cx == null) { cx = sw / 2; cy = sh / 2; }
+    const curW = img.clientWidth || fw, curH = img.clientHeight || fh, left = img.offsetLeft, top = img.offsetTop;
+    const fx = (cx - left) / curW, fy = (cy - top) / curH;          // 游標在圖上的位置（比例），放大後還在游標下
+    panX = cx - fx * fw * nz; panY = cy - fy * fh * nz; zoom = nz; applyZoom();
+  }
+  stageEl.addEventListener("wheel", (e) => {
+    if (!info || !info.has_video || !img.naturalWidth) return;
+    e.preventDefault(); const r = stageEl.getBoundingClientRect();
+    setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8), e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+  ov.addEventListener("contextmenu", (e) => e.preventDefault());
+  ov.addEventListener("pointerdown", (e) => {
+    if (zoom <= 1 || (e.button !== 1 && e.button !== 2)) return;
+    e.preventDefault(); e.stopImmediatePropagation(); try { ov.setPointerCapture(e.pointerId); } catch (err) { /* 合成事件沒有真的指標 */ }
+    pan = { x: e.clientX, y: e.clientY, px: panX, py: panY }; stageEl.classList.add("panning");
+  }, true);
+  ov.addEventListener("pointermove", (e) => { if (!pan) return; e.stopImmediatePropagation(); panX = pan.px + e.clientX - pan.x; panY = pan.py + e.clientY - pan.y; applyZoom(); }, true);
+  ov.addEventListener("pointerup", (e) => { if (!pan) return; e.stopImmediatePropagation(); pan = null; stageEl.classList.remove("panning"); }, true);
+  $("zoomReset").onclick = () => setZoom(1);
   function renderPlayhead() {
     const ph = track.querySelector(".ph"); const span = v1 - v0 || 1; const p = (n - v0) / span * 100;
     if (ph) { ph.style.left = p + "%"; ph.hidden = p < 0 || p > 100; }
@@ -707,6 +751,7 @@
     else if (k === "Home") { if (playing) togglePlay(); seek(0, true); }
     else if (k === "End") { if (playing) togglePlay(); seek(N - 1, true); }
     else if (k === "\\") setView(0, N);
+    else if (k === "0") setZoom(1);                                           // 畫面放大還原
     else if (k === "Delete" || k === "Backspace") { const g = curSeg(); if (g) delSeg(g); }
     else if ((e.ctrlKey || e.metaKey) && (k === "z" || k === "Z")) undo();
     else if (k === "Escape") { regionMode = false; draft = null; vd = null; draw(); updateHint(); }
@@ -722,7 +767,7 @@
   }
   async function openProject(name) {
     if (playing) togglePlay();
-    proj = name; sel = null; segSel = null; undoStack = []; draft = null; regionMode = false; n = 0;
+    proj = name; sel = null; segSel = null; undoStack = []; draft = null; regionMode = false; n = 0; zoom = 1; applyZoom();
     $("crumbProj").textContent = name ? "／" + name : ""; $("lnkMethod").href = name ? "/methods?project=" + enc(name) : "/methods";
     $("lnkTrainAdv").href = name ? "/methods?project=" + enc(name) + "&train=1" : "/methods";
     if (!name) { info = null; $("setup").hidden = true; $("stage").hidden = true; $("vidInfo").textContent = ""; render(); return; }
