@@ -158,10 +158,12 @@ def set_color(project_name: str, color: str, status: str, note: str = "") -> dic
 
 
 def color_status(project, color: str | None) -> str:
-    """verified / unverified / failed / new（模型沒看過）/ none（舊專案沒有型體地區，不分配色）。"""
-    if project.packaging is None:
+    """verified / unverified / failed / new（模型沒看過）/ none（不分配色）。
+    沒指定配色＝none：2026-11-05 使用者裁示「沒有配色這層，型體尾碼就是配色」，畫面不再選配色，所以不算試跑。
+    只有明確給了沒驗證過的配色（舊資料）才算試跑。"""
+    if project.packaging is None or not color:
         return "none"
-    if not color or color == NEW_COLOR:
+    if color == NEW_COLOR:
         return "new"
     hit = next((c for c in project.packaging.colors if c.name == color), None)
     return hit.status if hit else "new"

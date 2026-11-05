@@ -78,6 +78,7 @@ def test_unique_key_model_source_and_colors(base):
     assert project_store.load_project("b").packaging.colors == []
     _proj(base, "legacy")
     assert not pkg.is_trial(project_store.load_project("legacy"), "")     # 舊專案沒有型體地區，不分配色、不算試跑
+    assert pkg.color_status(b, "") == "none" and not pkg.is_trial(b, "")  # 沒有配色這層（11-05）：沒指定配色就不算試跑
 
 
 def test_update_steps(base):

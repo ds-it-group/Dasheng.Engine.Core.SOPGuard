@@ -114,7 +114,6 @@
         <span><i style="background:var(--st-ok)"></i>步驟已完成</span>
         <span><i style="background:var(--st-warn)"></i>正在做（累積中）</span>
         <span><i style="background:var(--danger)"></i>漏做的輪次</span>
-        <span><i style="background:var(--accent)"></i>試跑：配色沒驗證過，不計入錯誤率、不響警報</span>
       </div>
 
       <div class="pk card">
@@ -123,7 +122,6 @@
           <div class="kv"><div class="k">產線</div><div class="v" id="pkLine">–</div><div class="s" id="pkCam"></div></div>
           <div class="kv"><div class="k">型體</div><div class="v big" id="pkStyle">–</div><div class="s" id="pkStyleInfo"></div></div>
           <div class="kv"><div class="k">地區</div><div class="v big" id="pkRegion">–</div><div class="s" id="pkCode"></div></div>
-          <div class="kv"><div class="k">配色</div><div class="v sm" id="pkColor">–</div><div class="s" id="pkColorInfo"></div></div>
           <div class="kv"><div class="k">步驟</div><div class="v n" id="pkSteps">–</div><div class="s" id="pkReq"></div></div>
           <div class="kv"><div class="k">辨識模型</div><div class="v sm n" id="pkModel">–</div><div class="s" id="pkModelInfo"></div></div>
         </div>
@@ -172,26 +170,20 @@
   </div>
 </div>
 
-<!-- 換包裝方式（openLarge）：一張清單，篩選後點一列；配色預設帶這個包裝方式最近記的 -->
+<!-- 換包裝方式（openLarge）：只有一個搜尋框，打型體就把它所有地區一起列出來，點一列再確認（沒有配色這層：型體尾碼就是配色） -->
 <div class="scrim" id="dlg" hidden>
   <div class="dialog large" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
     <div class="dt"><span class="mi mark">rate_review</span><h4 id="dlgTitle">換包裝方式</h4><span class="sum" id="dNow"></span></div>
     <div class="dc">
       <div class="frow">
-        <div class="fld w180"><label for="dKey">型體（代碼／名稱）</label><input id="dKey"></div>
-        <div class="fld w120"><label for="dRegion">地區</label><select id="dRegion"></select></div>
-        <div class="fld w120"><label for="dCust">客戶</label><select id="dCust"></select></div>
-        <button class="btn btn-primary raised icon" id="dSearch" aria-label="查詢">查詢</button>
-        <span class="hint2" style="font-size:12.5px;color:var(--ink-2);align-self:flex-end">只列有步驟、有模型、啟用中的包裝方式</span>
+        <div class="fld w200"><label for="dKey">型體（代碼或名稱）</label><input id="dKey" placeholder="例如 310222 01"></div>
+        <span class="hint2" id="dHint" style="font-size:12.5px;color:var(--ink-2);align-self:flex-end">同一個型體的每個地區各一列；只列有步驟、有模型、啟用中的</span>
       </div>
       <div class="gridwrap" style="max-height:290px"><table class="grid" id="dGrid"></table></div>
       <div class="frow" style="align-items:flex-end">
         <div class="fld w320"><label>選到的包裝方式</label><div class="ro" id="dSel">（點上面一列）</div></div>
-        <div class="fld w140"><label for="dColor">配色</label><select id="dColor" disabled></select></div>
-        <div class="fld w140" id="dColorNewWrap" hidden><label for="dColorNew">新配色名稱</label><input id="dColorNew" placeholder="例如 全白"></div>
       </div>
       <div class="note warn" id="dCycle" hidden>這條線正在監控中。換線會重新載入模型（約 10～30 秒），目前這一輪作廢，不結算也不報警。</div>
-      <div class="note warn" id="dTrial" hidden></div>
     </div>
     <div class="da">
       <button class="btn btn-cancel" id="dCancel">取消</button>
@@ -231,7 +223,6 @@
   const sec = (s) => s == null ? "–" : s >= 60 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : s.toFixed(1);
   const p2 = (x) => String(x).padStart(2, "0");
   const colorText = (c) => !c ? "未指定" : c === NEW ? "新配色（模型沒看過）" : c;
-  const colorStatusText = { verified: "已驗證", unverified: "未驗證", failed: "驗證判錯", new: "模型沒看過", none: "" };
 
   // ---- 產線
   async function loadLines(keep) {
@@ -250,8 +241,6 @@
     $("pkStyle").textContent = pk ? (pk.style || pk.name) : "–";
     $("pkStyleInfo").textContent = pk ? [pk.style_name, pk.customer].filter(Boolean).join("　") || (pk.has_packaging ? "" : "還沒設定型體地區") : "";
     $("pkRegion").textContent = pk ? (pk.region || "–") : "–"; $("pkCode").textContent = pk ? "包裝方式 " + pk.name : "";
-    $("pkColor").textContent = l ? colorText(l.color) : "–";
-    $("pkColorInfo").textContent = l && pk ? (colorStatusText[l.color_status] || "") : "";
     $("pkSteps").textContent = pk ? pk.steps + " 步" : "–"; $("pkReq").textContent = "";
     $("pkModel").textContent = pk ? (pk.model_trained_at || "還沒訓練") : "–";
     $("pkModelInfo").textContent = pk ? (pk.model_source ? "參考 " + pk.model_source : pk.model_trained_at ? "本型體地區" : "不能啟動監控") : "";
@@ -260,7 +249,7 @@
     // 從「產生步驟」過來（?from=label&project=…）而這條線還沒做這個型體：只提示，不逼換線（新包裝方式不一定馬上上線）
     const fromProj = fromLabel();
     $("pkHint").hidden = !(fromProj && l && (!pk || pk.name !== fromProj));
-    if (fromProj) $("pkHint").textContent = `剛產生步驟的「${fromProj}」還沒排到這條線。要開始做它時按「操作 ▾ → 換包裝方式」，清單裡已幫你選好，只要選配色。`;
+    if (fromProj) $("pkHint").textContent = `剛產生步驟的「${fromProj}」還沒排到這條線。要開始做它時按「操作 ▾ → 換包裝方式」，清單裡已幫你選好，按確認就好。`;
   }
   function fromLabel() { const q = new URLSearchParams(location.search); return q.get("from") === "label" ? q.get("project") : null; }
   $("selLine").onchange = () => { renderLine(); history.replaceState(null, "", "/?line=" + encodeURIComponent($("selLine").value)); };
@@ -374,79 +363,74 @@
   $("btnReset").onclick = () => api("/api/reset", {});
   $("mShot").onclick = async () => { const d = await api("/api/screenshot", {}); toast(d.ok ? "已存截圖：" + d.path : (d.error || "存截圖失敗"), !d.ok); };
 
-  // ---- 換包裝方式：一張清單（只列有步驟、有模型、啟用中的），型體／地區／客戶篩選，點一列；配色預設帶這個包裝方式最近記的（優先已驗證）
+  // ---- 換包裝方式：只有一個搜尋框（使用者裁示 11-05：不分開選型體和地區），打型體就把它所有地區一起列出來，點一列再確認。
+  // 沒有配色這層（型體尾碼就是配色），換線不帶配色，所以不會算試跑
   const withPk = () => methods.filter((m) => !m.error && m.steps > 0 && m.model_trained_at && m.enabled !== false);
   let swSel = null;
-  async function openSwitch() {
+  async function openSwitch(preset) {
     const l = curLine(); if (!l) { toast("請先到「產線設定」新增產線", true); return; }
     const d = await api("/api/methods"); methods = d.methods || [];
     const pk = l.packaging;
     $("dlgTitle").textContent = "換包裝方式　" + l.name;
-    $("dNow").textContent = pk ? `目前 ${pk.style || pk.name}／${pk.region || "–"}　配色 ${colorText(l.color)}` : "目前還沒指定包裝方式";
-    for (const [id, k] of [["dRegion", "region"], ["dCust", "customer"]]) { const s = $(id); s.innerHTML = ""; s.appendChild(el("option", null, "全部")); for (const v of [...new Set(withPk().map((m) => m[k]).filter(Boolean))]) s.appendChild(el("option", null, v)); }
-    $("dKey").value = ""; swSel = null;
+    $("dNow").textContent = pk ? `目前 ${pk.style || pk.name}／${pk.region || "–"}` : "目前還沒指定包裝方式";
+    $("dKey").value = typeof preset === "string" ? preset : ""; swSel = null;
     const want = fromLabel(); if (want) swSel = withPk().find((m) => m.name === want) || null;   // 從「產生步驟」過來：先幫忙選好
     $("dCycle").hidden = !(running && lastState.line && lastState.line.id === l.id);
     renderSwitchGrid(); fillSwitchSel(); $("dlg").hidden = false; $("dKey").focus();
   }
+  window.__openSwitchFor = (style) => openSwitch(style);       // 監控畫面的型體彈出框「新增包裝方式」以外，要換別的就開這個
   function renderSwitchGrid() {
     const t = $("dGrid"); t.innerHTML = "";
     const th = el("thead"), tr0 = el("tr");
-    [["型體", 110, "pinL"], ["地區", 80], ["型體名稱", 160], ["客戶", 100], ["步驟", 60, "r"], ["辨識模型", 150], ["配色（已驗證）", 160]].forEach(([n, w, c], i) => { const h = el("th", c || "", n); h.style.minWidth = w + "px"; if (i === 2) h.style.width = "100%"; tr0.appendChild(h); });
+    [["型體", 110, "pinL"], ["地區", 80], ["型體名稱", 160], ["客戶", 100], ["步驟", 60, "r"], ["辨識模型", 150]].forEach(([n, w, c], i) => { const h = el("th", c || "", n); h.style.minWidth = w + "px"; if (i === 2) h.style.width = "100%"; tr0.appendChild(h); });
     th.appendChild(tr0); t.appendChild(th);
-    const q = $("dKey").value.trim(), reg = $("dRegion").value, cust = $("dCust").value, tb = el("tbody"); let n = 0;
-    for (const m of withPk()) {
-      if (q && !((m.style || "").includes(q) || (m.style_name || "").includes(q) || m.name.includes(q))) continue;
-      if (reg && reg !== "全部" && m.region !== reg) continue;
-      if (cust && cust !== "全部" && m.customer !== cust) continue;
+    const q = $("dKey").value.trim().toLowerCase(), tb = el("tbody"); let n = 0;
+    const rows = withPk().filter((m) => !q || [(m.style || ""), (m.style_name || ""), m.name].some((v) => v.toLowerCase().includes(q)))
+      .sort((a, b) => (a.style || a.name).localeCompare(b.style || b.name) || (a.region || "").localeCompare(b.region || ""));
+    for (const m of rows) {
       n++;
       const tr = el("tr", "pick" + (swSel && swSel.name === m.name ? " sel" : ""));
-      const ok = (m.colors || []).filter((c) => c.status === "verified").map((c) => c.name);
-      [m.has_packaging ? m.style : "（未設定）" + m.name, m.region || "–", m.style_name || "", m.customer || "", String(m.steps), m.model_trained_at, m.has_packaging ? (ok.length ? ok.join("、") : "（還沒驗證過）") : "（舊專案不分配色）"]
+      [m.has_packaging ? m.style : "（未設定）" + m.name, m.region || "–", m.style_name || "", m.customer || "", String(m.steps), m.model_trained_at]
         .forEach((v, i) => tr.appendChild(el("td", i === 0 ? "pinL" : i === 4 ? "r n" : i === 5 ? "n" : "", v)));
       tr.onclick = () => { swSel = m; renderSwitchGrid(); fillSwitchSel(); };
       tr.ondblclick = () => { swSel = m; fillSwitchSel(); $("dOk").click(); };
       tb.appendChild(tr);
     }
-    if (!n) { const tr = el("tr", "empty"), td = el("td", null, withPk().length ? "沒有符合的包裝方式" : "還沒有可以監控的包裝方式：要有步驟、而且模型訓練好"); td.colSpan = 7; tr.appendChild(td); tb.appendChild(tr); }
+    if (!n) { const tr = el("tr", "empty"), td = el("td", null, withPk().length ? "沒有符合的包裝方式" : "還沒有可以監控的包裝方式：要有步驟、而且模型訓練好"); td.colSpan = 6; tr.appendChild(td); tb.appendChild(tr); }
     t.appendChild(tb);
+    const styles = new Set(rows.map((m) => m.style || m.name));
+    $("dHint").textContent = q && n ? `「${$("dKey").value.trim()}」找到 ${styles.size} 個型體、${n} 個包裝方式（地區）` : "同一個型體的每個地區各一列；只列有步驟、有模型、啟用中的";
   }
   function fillSwitchSel() {
-    const m = swSel, dc = $("dColor"); dc.innerHTML = ""; dc.disabled = !m; $("dOk").disabled = !m;
-    $("dColorNewWrap").hidden = true;
-    if (!m) { $("dSel").textContent = "（點上面一列）"; $("dTrial").hidden = true; return; }
-    $("dSel").textContent = `${m.has_packaging ? m.style + "／" + m.region : m.name}　${m.style_name || ""}　${m.steps} 步`;
-    if (!m.has_packaging) { const o = el("option", null, "（舊專案不分配色）"); o.value = ""; dc.appendChild(o); dc.disabled = true; $("dTrial").hidden = true; return; }
-    for (const c of m.colors || []) { const o = el("option", null, c.name + "（" + colorStatusText[c.status] + "）"); o.value = c.name; dc.appendChild(o); }
-    const o = el("option", null, "新配色（模型沒看過）"); o.value = NEW; dc.appendChild(o);
-    const l = curLine(); const keep = l && l.packaging && l.packaging.name === m.name ? l.color : null;
-    const first = (m.colors || []).find((c) => c.status === "verified") || (m.colors || [])[0];
-    dc.value = keep && [...dc.options].some((x) => x.value === keep) ? keep : first ? first.name : NEW;
-    switchTrialNote();
+    const m = swSel; $("dOk").disabled = !m;
+    $("dSel").textContent = m ? `${m.has_packaging ? m.style + "／" + m.region : m.name}　${m.style_name || ""}　${m.steps} 步` : "（點上面一列）";
   }
-  function switchTrialNote() {
-    const m = swSel, dc = $("dColor"); if (!m || !m.has_packaging) return;
-    $("dColorNewWrap").hidden = dc.value !== NEW;
-    const c = (m.colors || []).find((x) => x.name === dc.value);
-    const t = dc.value === NEW ? "模型沒看過這個配色。可以啟動，但這段時間的輪次算試跑，不計入錯誤率、不響警報；錄 2～3 輪後到「包裝方式設定 → 辨識模型」驗證。"
-      : c && c.status !== "verified" ? `「${c.name}」${c.status === "failed" ? "離線驗證判錯過" : "還沒做過離線驗證"}，啟動後算試跑，不計入錯誤率、不響警報。` : "";
-    $("dTrial").hidden = !t; $("dTrial").textContent = t;
-  }
-  $("dKey").oninput = renderSwitchGrid; $("dRegion").onchange = renderSwitchGrid; $("dCust").onchange = renderSwitchGrid; $("dSearch").onclick = renderSwitchGrid;
-  $("dColor").onchange = switchTrialNote;
+  $("dKey").oninput = renderSwitchGrid;
   $("dCancel").onclick = () => { $("dlg").hidden = true; };
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("dlg").hidden = true; });
+  async function switchTo(l, m) {          // 換線（換包裝方式視窗、監控畫面的型體彈出框、復原都走這裡）
+    const d = await api("/api/lines/switch", { line: l.id, project: m.name, color: "" });
+    if (!d.ok) { toast(d.error || "換線失敗", true); return null; }
+    await loadLines(l.id); return d;
+  }
+  window.__switchTo = switchTo;
   $("dOk").onclick = async () => {
-    const l = curLine(); if (!l || !swSel) return; let color = $("dColor").value;
-    if (color === NEW && $("dColorNew").value.trim()) color = $("dColorNew").value.trim();
-    $("dOk").disabled = true;
-    const d = await api("/api/lines/switch", { line: l.id, project: swSel.name, color });
-    $("dOk").disabled = false;
-    if (!d.ok) { toast(d.error || "換線失敗", true); return; }
-    $("dlg").hidden = true; await loadLines(l.id);
-    toast(d.restarted ? "已換線，正在用新的包裝方式重新載入" : "已換線");
+    const l = curLine(); if (!l || !swSel) return;
+    $("dOk").disabled = true; const before = l.packaging ? l.packaging.name : null;
+    const d = await switchTo(l, swSel); $("dOk").disabled = false; if (!d) return;
+    $("dlg").hidden = true;
+    undoToast(`已切到 ${swSel.name}` + (d.restarted ? "，正在重新載入" : ""), l, before);
   };
-  $("mSwitch").onclick = openSwitch;
+  /* 切換後右下角「已切到…」旁邊有「復原」，10 秒內點就換回上一個包裝方式（就是再換線一次，使用者裁示 11-05：不另開確認視窗） */
+  function undoToast(text, l, before) {
+    if (!before) { toast(text); return; }
+    const t = $("toast"); t.textContent = text; t.className = "toast"; t.hidden = false;
+    const b = el("button", "undo", "復原"); b.type = "button";
+    b.onclick = async () => { t.hidden = true; const d = await switchTo(l, { name: before }); if (d) toast(`已復原到 ${before}`); };
+    t.appendChild(b); clearTimeout(toast._h); toast._h = setTimeout(() => { t.hidden = true; }, 10000);
+  }
+  window.__undoToast = undoToast;
+  $("mSwitch").onclick = () => openSwitch();
 
   loadLines().then(() => { if (new URLSearchParams(location.search).get("switch") === "1") openSwitch(); });
   setInterval(() => { if (!running) loadLines(); }, 15000);

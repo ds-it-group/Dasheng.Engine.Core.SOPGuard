@@ -113,7 +113,8 @@
     if (t) { const m = $(t.dataset.menu); m.hidden = !m.hidden; }
   });
   const COLS = [["產線", 100, "pinL"], ["廠別", 100], ["相機", 250], ["桌面範圍 (x, y, w, h)", 155], ["型體", 100], ["地區", 100], ["型體名稱", 155],
-    ["客戶", 100], ["包裝方式", 120], ["配色", 100], ["換線時間", 140], ["監控狀態", 100, "c"], ["操作", 96, "pinR c"]];
+    ["客戶", 100], ["包裝方式", 120], ["換線時間", 140], ["監控狀態", 100, "c"], ["操作", 96, "pinR c"]];
+  const NFILTER = COLS.length - 2;   // 監控狀態、操作兩欄不篩選
   const filters = {};
 
   async function load() {
@@ -126,8 +127,7 @@
   function vals(r) {
     const pk = r.packaging || {};
     return [r.name, r.factory, r.has_camera ? r.camera : "（未設定）", r.table_region ? r.table_region.join(", ") : "（用包裝方式的）",
-      pk.style || "", pk.region || "", pk.style_name || "", pk.customer || "", r.project || "",
-      r.color === "__new" ? "新配色" : r.color || "", r.switched_at || ""];
+      pk.style || "", pk.region || "", pk.style_name || "", pk.customer || "", r.project || "", r.switched_at || ""];
   }
   function render(runningLine) {
     const t = $("grid"); t.innerHTML = "";
@@ -135,7 +135,7 @@
     COLS.forEach((c, i) => {
       const x = el("th", c[2] || "", c[0]); x.style.minWidth = c[1] + "px"; if (i === 6) x.style.width = "100%"; h1.appendChild(x);
       const f = el("th", c[2] || "");
-      if (i < 11) { const inp = el("input"); inp.value = filters[i] || ""; inp.setAttribute("aria-label", c[0] + " 篩選"); inp.oninput = () => { filters[i] = inp.value; render(runningLine); setTimeout(() => { const n = $("grid").querySelectorAll("tr.ff input")[i]; n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 0); }; f.appendChild(inp); }
+      if (i < NFILTER) { const inp = el("input"); inp.value = filters[i] || ""; inp.setAttribute("aria-label", c[0] + " 篩選"); inp.oninput = () => { filters[i] = inp.value; render(runningLine); setTimeout(() => { const n = $("grid").querySelectorAll("tr.ff input")[i]; n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 0); }; f.appendChild(inp); }
       h2.appendChild(f);
     });
     th.appendChild(h1); th.appendChild(h2); t.appendChild(th);
@@ -148,7 +148,7 @@
       if (Object.entries(filters).some(([i, q]) => q && !String(v[i]).includes(q))) continue;
       shown++;
       const tr = el("tr", !r.enabled ? "t-danger" : !r.can_run || !r.has_camera ? "t-warn" : "");
-      v.forEach((x, j) => tr.appendChild(el("td", j === 0 ? "pinL" : j === 10 ? "n" : "", x)));
+      v.forEach((x, j) => tr.appendChild(el("td", j === 0 ? "pinL" : j === v.length - 1 ? "n" : "", x)));
       const st = el("td", "c"), running = runningLine === r.id;
       st.appendChild(el("span", "chip " + (!r.enabled ? "off" : running ? "ok" : r.can_run ? "ok" : "warn"),
         !r.enabled ? "停用" : running ? "監控中" : r.can_run ? (r.trial ? "可啟動（試跑）" : "可啟動") : "不能啟動"));
