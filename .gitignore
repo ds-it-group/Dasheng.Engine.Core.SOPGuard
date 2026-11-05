@@ -23,3 +23,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+
+# 這台電腦的設定（共用硬碟路徑、EIP 網址與設備金鑰），不進 git
+shared_root.txt
+eip_api.txt
+eip_device_key.txt

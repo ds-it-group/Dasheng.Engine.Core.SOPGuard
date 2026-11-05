@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/eip.css">
 <script src="/eip.js"></script>
 <script src="/train_result.js"></script>
+<script src="/share.js"></script>
 <style>
   /* SFTT05 左右主從：左＝型體地區清單、右＝步驟清單／辨識模型 */
   .split { flex: 1; min-height: 0; display: flex; gap: 8px; padding-top: 8px; }
@@ -56,6 +57,7 @@
           <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden>
             <a id="mLabel" href="/label">標記物品（框選、錄影、訓練、產生步驟）</a>
+            <a id="mShare" href="#">共用硬碟（載入／上傳專案）</a>
           </div>
         </div>
       </div>
@@ -290,6 +292,8 @@
       const tone = m.error ? "t-danger" : m.enabled === false ? "t-danger" : (!m.has_packaging || !m.model_trained_at) ? "t-warn" : "";
       const tr = el("tr", tone + (m.name === sel ? " sel" : ""));
       v.forEach((x, j) => tr.appendChild(el("td", j === 0 ? "pinL" : j === 5 ? "r n" : "", x)));
+      const shr = shareMap[m.name];
+      if (shr && shr.status === "shared_newer") { const c = el("span", "chip warn", "共用硬碟有新版"); c.style.marginLeft = "6px"; c.title = `本機 v${shr.local_version}、共用硬碟目前 v${shr.current}：操作 → 共用硬碟 → 載入`; tr.children[4].appendChild(c); }
       const op = el("td", "pinR c"), box = el("span", "ops");
       box.appendChild(EIP.iconBtn("edit", "c-edit", m.has_packaging ? "編輯型體地區" : "設定型體地區", (e) => { e.stopPropagation(); openPk(m, false); }));
       if (m.has_packaging) {
@@ -301,9 +305,12 @@
       tr.ondblclick = () => openPk(m, true);
       tb.appendChild(tr);
     }
-    if (!shown) { const tr = el("tr", "empty"), td = el("td", null, methods.length ? "沒有符合條件的包裝方式" : "還沒有任何專案，先到「新增包裝方式」"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
+    if (!shown) { const tr = el("tr", "empty"), td = el("td", null, methods.length ? "沒有符合條件的包裝方式" : "還沒有任何專案：到「新增包裝方式」，或「操作 → 共用硬碟」載入"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
     t.appendChild(tb); EIP.resizable(t, "methods");
   }
+  // 共用硬碟的狀態（shared_store）：清單上標「共用硬碟有新版」、辨識模型分頁顯示版本並給上傳／更新鈕
+  let shareMap = {};
+  window.sopgShareRefresh = (d) => { shareMap = {}; for (const r of (d && d.local) || []) shareMap[r.name] = r; renderMethods(); if (detail) renderModel(); };
 
   async function select(name, quiet) {
     sel = name; renderMethods();
@@ -363,7 +370,14 @@
     const lines = [["目前模型", d.model_trained_at ? (d.model_source ? `參考 ${d.model_source}（${d.model_trained_at}）` : `本型體地區（${d.model_trained_at}）`) : "還沒訓練（到「標記物品」按「開始訓練」）"],
       ["模型認得的物品", (d.model_items || []).join("、") || "–"]];
     if (d.model_stale) lines.push(["注意", d.model_stale + "：到「標記物品」按「重新訓練」"]);
+    const shr = shareMap[d.name];
+    if (shr) lines.push(["共用硬碟", shr.status === "not_on_share" ? "還沒上傳" : `本機 ${shr.local_version != null ? "v" + shr.local_version : "（沒上傳過）"}、目前版本 v${shr.current}` + (shr.status === "local_changed" ? "，本機改過還沒上傳" : shr.status === "shared_newer" ? "，共用硬碟有新版" : "")]);
     for (const [k, v] of lines) { const s = el("span"); s.appendChild(document.createTextNode(k + "：")); s.appendChild(el("b", null, v)); $("modelLine").appendChild(s); }
+    if (shr && shr.status !== "same") {
+      const newer = shr.status === "shared_newer";
+      const b = el("button", "btn btn-secondary raised", newer ? "從共用硬碟更新" : "上傳到共用硬碟"); b.style.cssText = "height:28px;margin-left:auto";
+      b.onclick = () => window.sopgShare.open(newer ? "load" : "up"); $("modelLine").appendChild(b);
+    }
     const t = $("cGrid"); t.innerHTML = "";
     head(t, [["配色", 100, "pinL"], ["驗證結果", 100, "c"], ["驗證日期", 140], ["說明", 250], ["操作", 120, "pinR c"]], 3, 0, null);
     const tb = el("tbody"); let ok = 0;
@@ -419,6 +433,8 @@
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("pkDlg").hidden = true; });
   EIP.styleFmt($("pStyle"));
   window.sopgMethods = { get detail() { return detail; }, get methods() { return methods; }, reload: () => load(sel), toast };
+  $("mShare").onclick = (ev) => { ev.preventDefault(); $("opMenu").hidden = true; window.sopgShare.open("load"); };
+  fetch("/api/share/list").then((r) => r.json()).then((d) => { if (!d.error) window.sopgShareRefresh(d); }).catch(() => {});
   const q = new URLSearchParams(location.search);  // select() 會改網址，先記下來
   load().then(async () => {                      // ?train=1 直接開訓練燈箱；&preview=段號 再開那一段的預覽
     if (q.get("tab") === "model") setTab("model");

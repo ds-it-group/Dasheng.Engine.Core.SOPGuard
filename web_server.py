@@ -154,8 +154,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._file(os.path.join(WEB_DIR, "eip.css"), "text/css; charset=utf-8")
             elif path == "/eip.js":
                 self._file(os.path.join(WEB_DIR, "eip.js"), "application/javascript; charset=utf-8")
-            elif path == "/train_result.js":
-                self._file(os.path.join(WEB_DIR, "train_result.js"), "application/javascript; charset=utf-8")
+            elif path in ("/train_result.js", "/share.js"):
+                self._file(os.path.join(WEB_DIR, path[1:]), "application/javascript; charset=utf-8")
             elif path == "/fonts/MaterialIcons-Regular.ttf":
                 self._file(os.path.join(WEB_DIR, "fonts", "MaterialIcons-Regular.ttf"), "font/ttf")
             elif path == "/api/lines":
@@ -171,6 +171,13 @@ class Handler(BaseHTTPRequestHandler):
                 import lines as line_store
                 import packing_methods as pkg
                 self._json(pkg.method_detail(self._query().get("name", ""), line_store.lines_by_project()))
+            elif path == "/api/share/list":
+                import shared_store as sh
+                root = sh.get_root()
+                try:
+                    self._json({"root": root, "shared": sh.list_shared(), "local": sh.list_local(), "running": self._running_projects()})
+                except ValueError as e:
+                    self._json({"root": root, "shared": [], "local": [], "error": str(e)})
             elif path == "/api/state":
                 self._json(self.service.snapshot())
             elif path == "/api/projects":
@@ -264,6 +271,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True, **plan})
             elif self.label is not None and path == "/api/train/start":
                 self.label.train.start(str(body.get("project", ""))); self._json({"ok": True})
+            elif path.startswith("/api/share/"):
+                self._json({"ok": True, **self._share_action(path, body)})
             elif self.label is not None and path == "/api/train/install":
                 self._json({"ok": True, **self.label.train.install_candidate(str(body.get("project", "")))})
             elif self.label is not None and path == "/api/steps/generate":
@@ -280,6 +289,25 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": str(e)}, 400)
         except Exception as e:
             self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
+
+    def _running_projects(self) -> list[str]:
+        p = getattr(self.service, "project", None) if getattr(self.service, "running", False) else None
+        return [p.project_name] if p is not None and getattr(p, "project_name", None) else []
+
+    def _share_action(self, path: str, body: dict) -> dict:
+        """共用硬碟：設定路徑、載入、上傳、設成目前版本（shared_store）。"""
+        import shared_store as sh
+        name = str(body.get("name", ""))
+        if path == "/api/share/root":
+            return {"root": sh.set_root(str(body.get("path", "")))}
+        if path == "/api/share/load":
+            v = body.get("version")
+            return sh.load(name, int(v) if v not in (None, "") else None, bool(body.get("video")), tuple(self._running_projects()))
+        if path == "/api/share/upload":
+            return sh.upload(name, str(body.get("note", "")), bool(body.get("publish", True)), bool(body.get("video")))
+        if path == "/api/share/current":
+            return {"current": sh.set_current(name, int(body.get("version")))}
+        raise ValueError("沒有這個路徑")
 
     def _settings_action(self, path: str, body: dict) -> dict:
         """產線設定／包裝方式設定的寫入動作。"""
