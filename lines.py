@@ -31,6 +31,15 @@ class Line:
     color: str = ""                         # 目前做的配色；"__new"＝模型沒看過的新配色
     switched_at: str = ""                   # YYYY/MM/DD HH:MM
     enabled: bool = True
+    eip_department_id: int | None = None    # EIP 產線（部門檔 DepartmentID）；None＝沒接 EIP。廠別用上面的 factory
+    eip_department_name: str = ""           # 顯示用（選的時候記下來，連不上 EIP 也看得到）
+    station_label: str = ""                 # 這台電腦的顯示名稱（例如 A 站），只在這台顯示；上傳用電腦名稱
+
+
+def computer_name() -> str:
+    """站別＝這台電腦的名稱（自動帶、不用填；一條 EIP 產線接多台電腦時靠它分開）。"""
+    import socket
+    return os.environ.get("COMPUTERNAME") or socket.gethostname() or "unknown"
 
 
 def _path() -> str:
@@ -61,7 +70,9 @@ def load_lines() -> list[Line]:
         out.append(Line(id=str(r["id"]), name=str(r.get("name", r["id"])), factory=str(r.get("factory", "")), camera=str(r.get("camera", "")),
                         table_region=[int(v) for v in reg] if isinstance(reg, list) and len(reg) == 4 else None,
                         project=r.get("project") or None, color=str(r.get("color", "")), switched_at=str(r.get("switched_at", "")),
-                        enabled=bool(r.get("enabled", True))))
+                        enabled=bool(r.get("enabled", True)),
+                        eip_department_id=int(r["eip_department_id"]) if str(r.get("eip_department_id") or "").isdigit() else None,
+                        eip_department_name=str(r.get("eip_department_name", "") or ""), station_label=str(r.get("station_label", "") or "")))
     return out
 
 
@@ -97,6 +108,7 @@ def line_public(l: Line) -> dict:
     d = asdict(l)
     d["camera"] = mask_camera(l.camera)
     d["has_camera"] = bool(l.camera.strip())
+    d["station"] = computer_name()
     d["packaging"] = None
     d["can_run"] = False
     d["problem"] = "停用" if not l.enabled else ("還沒指定包裝方式" if not l.project else "")
@@ -146,6 +158,14 @@ def save_line(data: dict) -> Line:
     cur.name = name; cur.camera = cam; cur.table_region = reg
     cur.factory = str(data.get("factory", cur.factory)).strip()
     cur.enabled = bool(data.get("enabled", cur.enabled))
+    if "eip_department_id" in data:
+        v = data.get("eip_department_id")
+        cur.eip_department_id = int(v) if v not in (None, "") and str(v).isdigit() else None
+        cur.eip_department_name = str(data.get("eip_department_name", "") or "").strip() if cur.eip_department_id else ""
+        if cur.eip_department_id and not cur.factory:
+            raise ValueError("接 EIP 要先填廠別")
+    if "station_label" in data:
+        cur.station_label = str(data.get("station_label") or "").strip()
     save_lines(lines)
     return cur
 

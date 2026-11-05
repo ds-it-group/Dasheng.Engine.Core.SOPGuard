@@ -56,6 +56,13 @@
         <div class="fld w140"><label for="fFactory">廠別</label><input id="fFactory"></div>
         <label style="display:inline-flex;gap:6px;align-items:center;padding-top:14px"><input type="checkbox" id="fEnabled"> 啟用</label>
       </div>
+      <div class="frow" style="align-items:flex-end">
+        <div class="fld w200"><label for="fEipLine">EIP 產線（不選＝不接 EIP）</label><select id="fEipLine"><option value="">（不接）</option></select></div>
+        <button class="btn btn-cancel" id="fEipReload" style="height:30px" title="依上面的廠別重新向 EIP 讀產線清單">重新讀取</button>
+        <div class="fld w140"><label>站別（這台電腦，自動帶）</label><div class="ro n" id="fStation"></div></div>
+        <div class="fld w120"><label for="fStationLabel">顯示名稱（選填）</label><input id="fStationLabel" placeholder="例如 A 站"></div>
+      </div>
+      <div class="hint2" id="fEipMsg" style="font-size:12.5px;color:var(--ink-2)"></div>
       <div class="frow">
         <div class="fld" style="width:100%"><label for="fCamera">相機來源（編號 0、1… 或 rtsp 網址；密碼只存在這台電腦、畫面上遮成 ***）</label><input id="fCamera" placeholder="rtsp://帳號:密碼@192.168.1.10:554/stream1"></div>
       </div>
@@ -113,7 +120,7 @@
     if (t) { const m = $(t.dataset.menu); m.hidden = !m.hidden; }
   });
   const COLS = [["產線", 100, "pinL"], ["廠別", 100], ["相機", 250], ["桌面範圍 (x, y, w, h)", 155], ["型體", 100], ["地區", 100], ["型體名稱", 155],
-    ["客戶", 100], ["包裝方式", 120], ["換線時間", 140], ["監控狀態", 100, "c"], ["操作", 96, "pinR c"]];
+    ["客戶", 100], ["包裝方式", 120], ["EIP 產線", 120], ["換線時間", 140], ["監控狀態", 100, "c"], ["操作", 96, "pinR c"]];
   const NFILTER = COLS.length - 2;   // 監控狀態、操作兩欄不篩選
   const filters = {};
 
@@ -127,7 +134,8 @@
   function vals(r) {
     const pk = r.packaging || {};
     return [r.name, r.factory, r.has_camera ? r.camera : "（未設定）", r.table_region ? r.table_region.join(", ") : "（用包裝方式的）",
-      pk.style || "", pk.region || "", pk.style_name || "", pk.customer || "", r.project || "", r.switched_at || ""];
+      pk.style || "", pk.region || "", pk.style_name || "", pk.customer || "", r.project || "",
+      r.eip_department_id ? (r.eip_department_name || String(r.eip_department_id)) : "（沒接）", r.switched_at || ""];
   }
   function render(runningLine) {
     const t = $("grid"); t.innerHTML = "";
@@ -170,13 +178,31 @@
     $("dTitle").textContent = r ? (ro ? "查看產線　" : "編輯產線　") + r.name : "新增產線";
     $("fName").value = r ? r.name : ""; $("fFactory").value = r ? r.factory : ""; $("fEnabled").checked = r ? r.enabled : true;
     $("fCamera").value = r ? r.camera : "";
+    $("fStation").textContent = (r && r.station) || (rows[0] && rows[0].station) || ""; $("fStationLabel").value = r ? (r.station_label || "") : "";
+    const sel = $("fEipLine"); sel.innerHTML = ""; sel.appendChild(new Option("（不接）", ""));
+    if (r && r.eip_department_id) sel.appendChild(new Option(r.eip_department_name || String(r.eip_department_id), String(r.eip_department_id), true, true));
+    loadEipLines(r ? r.eip_department_id : null);
     const reg = r && r.table_region; ["fX", "fY", "fW", "fH"].forEach((id, k) => { $(id).value = reg ? reg[k] : ""; });
-    ["fName", "fFactory", "fEnabled", "fCamera", "fX", "fY", "fW", "fH"].forEach((id) => { $(id).disabled = ro; });
+    ["fName", "fFactory", "fEnabled", "fCamera", "fX", "fY", "fW", "fH", "fEipLine", "fEipReload", "fStationLabel"].forEach((id) => { $(id).disabled = ro; });
     $("dSave").hidden = ro; $("dCancel").textContent = ro ? "關閉" : "取消"; $("fErr").hidden = true; $("fClear").hidden = ro;
     $("fAdv").open = !!reg; showSide();          // 有填自己的範圍才展開進階；畫面區跟著進階一起開關
     $("dlg").hidden = false; if (!ro) $("fName").focus();
     loadSnap(r);
   }
+  /* EIP 產線：依廠別向 EIP 讀成型線清單（不用手打編號）；連不上就只留目前選的那一個 */
+  async function loadEipLines(keep) {
+    const f = $("fFactory").value.trim(), sel = $("fEipLine"), msg = $("fEipMsg");
+    if (!f) { msg.textContent = "填了廠別才讀得到 EIP 產線"; return; }
+    msg.textContent = "讀取 EIP 產線清單中…";
+    const d = await api("/api/eip/lines?factory=" + encodeURIComponent(f));
+    if (!d.ok) { msg.textContent = "讀不到 EIP 產線：" + (d.error || "") + "（EIP 網址設在 eip_api.txt）"; return; }
+    const cur = keep != null ? String(keep) : sel.value; sel.innerHTML = ""; sel.appendChild(new Option("（不接）", ""));
+    for (const x of d.lines) sel.appendChild(new Option(x.name + (x.code && x.code !== x.name ? `（${x.code}）` : ""), String(x.id)));
+    if (cur && ![...sel.options].some((o) => o.value === cur)) sel.appendChild(new Option(`（${cur}，清單裡沒有）`, cur));
+    sel.value = cur || ""; msg.textContent = `${f} 有 ${d.lines.length} 條成型線。同一條 EIP 產線可以接多台電腦，上傳時用站別（電腦名稱）分開。`;
+  }
+  $("fEipReload").onclick = () => loadEipLines(null);
+  $("fFactory").addEventListener("change", () => loadEipLines(null));
   function showSide() { $("fSide").style.display = $("fAdv").open ? "flex" : "none"; if ($("fAdv").open) drawRegion(); }
   $("fAdv").addEventListener("toggle", showSide);
   // ---- 在畫面上框桌面範圍
@@ -229,7 +255,8 @@
       table_region = reg.map(Number);
     }
     const line = { id: editing ? editing.id : "", name: $("fName").value.trim(), factory: $("fFactory").value.trim(), camera: $("fCamera").value.trim(),
-      enabled: $("fEnabled").checked, table_region };
+      enabled: $("fEnabled").checked, table_region, station_label: $("fStationLabel").value.trim(),
+      eip_department_id: $("fEipLine").value || null, eip_department_name: $("fEipLine").value ? $("fEipLine").selectedOptions[0].textContent.replace(/（\d+，清單裡沒有）$/, "") : "" };
     const d = await api("/api/lines/save", { line });
     if (!d.ok) { $("fErr").textContent = d.error; $("fErr").hidden = false; return; }
     $("dlg").hidden = true; toast("已儲存"); load();

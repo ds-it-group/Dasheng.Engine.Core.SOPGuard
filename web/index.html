@@ -18,6 +18,30 @@
   .pk .v.sm { font-size: 17px; }
   .pk .s { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pk .ttl .when { margin-left: auto; font-size: 12px; color: var(--ink-2); }
+  /* 畫面上只有一個型體方塊（使用者裁示 11-05：同時間只有一個模型在辨識、一個型體顯示）：卡片裡「型體」那格可以點，
+     點了彈出 EIP 今天要做的型體，一個型體一塊，點模型（地區）就切換；選到的模型顯示在方塊下面那行小字 */
+  .pk .kv.pick { cursor: pointer; background: var(--primary-wash); border-radius: 4px; outline: none; }
+  .pk .kv.pick:hover, .pk .kv.pick:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); }
+  .pk .kv.pick .hintk { margin-left: 6px; font-size: 11px; color: var(--primary); border: 1px solid var(--primary); border-radius: 10px; padding: 0 6px; vertical-align: 1px; }
+  .pk .kv.pick .s { color: var(--primary); }
+  #eipBox { border-top: 1px solid var(--line); }
+  .eipFoot { display: flex; gap: 18px; align-items: center; padding: 3px 12px; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+  .eipFoot b { color: var(--ink); font-weight: 500; }
+  #eipPop { position: fixed; z-index: 50; min-width: min(720px, calc(100vw - 16px)); max-width: min(1180px, calc(100vw - 16px)); background: var(--card); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.2); padding: 10px 12px; font-size: 13px; }
+  #eipPop .ph { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; font-size: 15px; } #eipPop .ph .sub { font-size: 12px; color: var(--ink-2); }
+  #eipPop .tiles { display: flex; flex-wrap: wrap; gap: 10px; max-height: 60vh; overflow: auto; }
+  #eipPop .tile { width: 262px; border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; background: var(--card); }
+  #eipPop .tile.now { border: 2px solid var(--primary); background: var(--primary-wash); }
+  #eipPop .tile.none { background: #f3f3f3; color: var(--ink-3); }
+  #eipPop .tile .th { display: flex; justify-content: space-between; align-items: baseline; font-size: 16px; font-weight: 600; } #eipPop .tile .th small { font-weight: 400; font-size: 12px; color: var(--ink-2); }
+  #eipPop .tile.now .th small { color: var(--primary); font-weight: 600; }
+  #eipPop .tile .row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; align-items: center; } #eipPop .tile .row .lbl { font-size: 11px; color: var(--ink-2); width: 100%; }
+  #eipPop .tile .cb { padding: 4px 10px; border: 1px solid var(--line); border-radius: 3px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; background: var(--card); color: var(--ink); }
+  #eipPop .tile .cb:hover { background: var(--primary-wash); } #eipPop .tile .cb.now { background: var(--st-ok); cursor: default; }
+  #eipPop .tile .cb small { font-weight: 400; color: var(--ink-2); font-size: 11px; margin-left: 4px; }
+  #eipPop .hint { font-size: 11px; color: var(--ink-2); width: 100%; }
+  #eipPop a { font-size: 13px; color: var(--primary); cursor: pointer; }
+  #eipPop .foot { margin-top: 8px; display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-2); }
   .trialbar { flex: none; margin: 8px 8px 0; padding: 8px 14px; background: var(--accent); color: #2a1d00; border-radius: 2px; font-size: 14px; }
   .status { flex: none; display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)); margin: 8px 8px 0; background: var(--card); border: 1px solid var(--line); }
   .lamp { padding: 8px 16px; background: var(--lamp-idle); color: #fff; min-height: 72px; display: flex; flex-direction: column; justify-content: center; }
@@ -120,11 +144,13 @@
         <div class="ttl"><span class="mi mark">rate_review</span><h4>目前包裝方式</h4><span class="when n" id="pkWhen"></span></div>
         <div class="row">
           <div class="kv"><div class="k">產線</div><div class="v" id="pkLine">–</div><div class="s" id="pkCam"></div></div>
-          <div class="kv"><div class="k">型體</div><div class="v big" id="pkStyle">–</div><div class="s" id="pkStyleInfo"></div></div>
+          <div class="kv pick" id="pkPick" tabindex="0" role="button" title="點了選今天要做的型體和它要用的模型"><div class="k">型體 <span class="hintk">點我換</span></div><div class="v big" id="pkStyle">–</div><div class="s" id="pkStyleInfo"></div></div>
           <div class="kv"><div class="k">地區</div><div class="v big" id="pkRegion">–</div><div class="s" id="pkCode"></div></div>
           <div class="kv"><div class="k">步驟</div><div class="v n" id="pkSteps">–</div><div class="s" id="pkReq"></div></div>
           <div class="kv"><div class="k">辨識模型</div><div class="v sm n" id="pkModel">–</div><div class="s" id="pkModelInfo"></div></div>
         </div>
+        <div id="eipBox" hidden><div class="eipFoot" id="eipFoot"></div></div>
+        <div id="eipPop" hidden></div>
         <div id="pkHint" hidden style="margin:0 14px 10px;padding:8px 12px;background:var(--st-warn);border-left:4px solid var(--accent);font-size:13px"></div>
       </div>
       <div class="trialbar" id="trialBar" hidden></div>
@@ -239,8 +265,9 @@
     $("pkLine").textContent = l ? l.name : "–"; $("pkCam").textContent = l ? (l.has_camera ? "相機 " + l.camera : "還沒設定相機") : "";
     $("pkWhen").textContent = l && l.switched_at ? l.switched_at + " 換線" : (l ? "還沒指定包裝方式" : "");
     $("pkStyle").textContent = pk ? (pk.style || pk.name) : "–";
-    $("pkStyleInfo").textContent = pk ? [pk.style_name, pk.customer].filter(Boolean).join("　") || (pk.has_packaging ? "" : "還沒設定型體地區") : "";
-    $("pkRegion").textContent = pk ? (pk.region || "–") : "–"; $("pkCode").textContent = pk ? "包裝方式 " + pk.name : "";
+    $("pkStyleInfo").textContent = pk ? "模型 " + pk.name : "還沒選";                 // 型體方塊下面那行：現在用的模型（包裝方式）
+    $("pkRegion").textContent = pk ? (pk.region || "–") : "–";
+    $("pkCode").textContent = pk ? [pk.style_name, pk.customer].filter(Boolean).join("　") || (pk.has_packaging ? "" : "還沒設定型體地區") : "";
     $("pkSteps").textContent = pk ? pk.steps + " 步" : "–"; $("pkReq").textContent = "";
     $("pkModel").textContent = pk ? (pk.model_trained_at || "還沒訓練") : "–";
     $("pkModelInfo").textContent = pk ? (pk.model_source ? "參考 " + pk.model_source : pk.model_trained_at ? "本型體地區" : "不能啟動監控") : "";
@@ -252,7 +279,7 @@
     if (fromProj) $("pkHint").textContent = `剛產生步驟的「${fromProj}」還沒排到這條線。要開始做它時按「操作 ▾ → 換包裝方式」，清單裡已幫你選好，按確認就好。`;
   }
   function fromLabel() { const q = new URLSearchParams(location.search); return q.get("from") === "label" ? q.get("project") : null; }
-  $("selLine").onchange = () => { renderLine(); history.replaceState(null, "", "/?line=" + encodeURIComponent($("selLine").value)); };
+  $("selLine").onchange = () => { renderLine(); history.replaceState(null, "", "/?line=" + encodeURIComponent($("selLine").value)); pollEip(true); };
 
   function setStream(on) {
     if (on === streamOn) return;
@@ -432,7 +459,79 @@
   window.__undoToast = undoToast;
   $("mSwitch").onclick = () => openSwitch();
 
-  loadLines().then(() => { if (new URLSearchParams(location.search).get("switch") === "1") openSwitch(); });
+  // ---- EIP 看板：今天這條線的型體（只讀，eip_client.py）。每 30 秒問一次；連不上留最後一次的資料
+  let eip = null, eipTimer = null, popAnchor = null;
+  const agoText = (s) => s == null ? "" : s < 60 ? `${s} 秒前更新` : s < 3600 ? `${Math.round(s / 60)} 分鐘前更新` : `${Math.round(s / 3600)} 小時前更新`;
+  async function pollEip(now) {
+    clearTimeout(eipTimer); const l = curLine();
+    if (l) { try { eip = await api("/api/eip/today?line=" + encodeURIComponent(l.id)); } catch (e) { eip = null; } } else eip = null;
+    renderEip(); if (!$("eipPop").hidden) openPop();
+    eipTimer = setTimeout(pollEip, 30000);
+  }
+  function renderEip() {
+    const box = $("eipBox"), f = $("eipFoot"); f.innerHTML = "";
+    if (!eip || !eip.configured) { box.hidden = true; return; }
+    box.hidden = false; box.style.opacity = eip.ok ? "" : ".75";
+    f.appendChild(el("span", "chip " + (eip.ok ? "ok" : "no"), eip.ok ? "EIP 已連線" : "EIP 連不上"));
+    if (!eip.ok) f.lastChild.title = eip.error || "";
+    const add = (k, v) => { const s = el("span"); if (k) { s.appendChild(document.createTextNode(k + "：")); s.appendChild(el("b", null, v)); } else s.textContent = v; f.appendChild(s); };
+    if (eip.ago_sec != null) add(null, agoText(eip.ago_sec)); else add(null, "還沒拿到資料");
+    add("EIP 產線", `${eip.line}・${eip.station_label ? eip.station_label + "（" + eip.station + "）" : eip.station}`);
+    add("今日目標", `${(eip.target || 0).toLocaleString()} 雙`); add("EIP 今日報工", `${(eip.eip_done || 0).toLocaleString()} 雙`);
+    const extra = window.__eipFootExtra; if (extra) extra(f);            // 當天統計（daily_stats）在這一列最後面加本站完成與上傳狀態
+  }
+  window.__renderEip = renderEip;
+  /* 點型體方塊：彈出 EIP 今天要做的型體，一個型體一塊；塊裡是這個型體在本機的模型（地區），點哪個就切到哪個。
+     沒接 EIP 的線：直接開「換包裝方式」搜尋視窗 */
+  async function openPop() {
+    const l = curLine(); if (!l) { toast("請先到「產線設定」新增產線", true); return; }
+    if (!eip || !eip.configured) { closePop(); openSwitch(); return; }
+    if (!methods.length) { const d = await api("/api/methods"); methods = d.methods || []; }
+    const pop = $("eipPop"); pop.innerHTML = ""; const pk = l.packaging, cs = pk ? pk.style : "";
+    const h = el("div", "ph"); h.appendChild(el("b", null, "今天要做的"));
+    h.appendChild(el("span", "sub", (eip.ok ? "" : "EIP 連不上，這是 " + agoText(eip.ago_sec) + "的資料。") + "點模型就切換（同型體有幾個地區就幾個），模型載入約 10～30 秒")); pop.appendChild(h);
+    const grid = el("div", "tiles"); pop.appendChild(grid);
+    const styles = eip.styles || [];
+    for (const o of styles) {
+      const ms = withPk().filter((m) => m.has_packaging && m.style === o.style); const mon = !!pk && o.style === cs;
+      const t = el("div", "tile" + (mon ? " now" : ms.length ? "" : " none")); t.dataset.style = o.style;
+      t.title = (o.orders.length > 1 ? `${o.orders.length} 張訂單：` : "訂單 ") + o.orders.join("、");
+      const th = el("div", "th"); th.appendChild(el("span", null, o.style)); th.appendChild(el("small", null, mon ? "監控中" : (ms[0] && ms[0].style_name) || "")); t.appendChild(th);
+      const dayDone = window.__styleDone ? window.__styleDone(o.style) : null;
+      t.appendChild(el("div", "hint", `${o.qty.toLocaleString()} 雙` + (dayDone != null ? `・本站完成 ${dayDone.toLocaleString()} 輪` : "")));
+      if (!ms.length) {
+        t.appendChild(el("div", "hint", "還沒有包裝方式，要先標記、訓練"));
+        const a = el("a", null, "新增包裝方式 ›"); a.href = "/new?style=" + encodeURIComponent(o.style); t.appendChild(a); grid.appendChild(t); continue;
+      }
+      const r1 = el("div", "row"); r1.appendChild(el("span", "lbl", ms.length > 1 ? `模型（${ms.length} 個地區，點哪個就切到哪個）` : "模型（點了就切換）"));
+      for (const m of ms) {
+        const isNow = !!pk && m.name === pk.name;
+        const b = el("button", "cb" + (isNow ? " now" : "")); b.type = "button"; b.dataset.name = m.name;
+        b.appendChild(document.createTextNode(m.region || m.name)); b.appendChild(el("small", null, isNow ? "監控中" : `訓練 ${m.model_trained_at}`));
+        b.title = m.name; b.disabled = isNow;
+        if (!isNow) b.onclick = async () => {
+          closePop(); const before = pk ? pk.name : null; const d = await switchTo(l, m); if (!d) return;
+          undoToast(`已切到 ${m.name}` + (d.restarted ? "，正在重新載入" : ""), l, before);
+        };
+        r1.appendChild(b);
+      }
+      t.appendChild(r1); grid.appendChild(t);
+    }
+    if (!styles.length) grid.appendChild(el("div", "hint", eip.ok ? "EIP 轉數表今天這條線沒有訂單（沒建或沒填時段）" : "連不上 EIP，也還沒有拿到過今天的資料"));
+    const ft = el("div", "foot"); ft.appendChild(el("span", null, "訂單編號放在每一塊的滑鼠提示"));
+    const a = el("a", null, "清單裡沒有？用搜尋換 ›"); a.onclick = () => { closePop(); openSwitch(); }; ft.appendChild(a); pop.appendChild(ft);
+    pop.hidden = false; popAnchor = $("pkPick");
+    const b = popAnchor.getBoundingClientRect();
+    pop.style.left = Math.max(8, Math.min(b.left, innerWidth - pop.offsetWidth - 8)) + "px"; pop.style.top = (b.bottom + 4) + "px";
+  }
+  function closePop() { $("eipPop").hidden = true; popAnchor = null; }
+  // 用 composedPath 判斷點在彈出框裡：點按鈕會重畫彈出框，事件冒泡到這裡時原本的按鈕已不在 DOM，contains 會誤判成點外面
+  document.addEventListener("click", (e) => { const pop = $("eipPop"); if (pop.hidden) return; const path = e.composedPath ? e.composedPath() : []; if (path.includes(pop) || (popAnchor && path.includes(popAnchor))) return; closePop(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePop(); });
+  $("pkPick").onclick = () => { if (popAnchor) closePop(); else openPop(); };
+  $("pkPick").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("pkPick").click(); } };
+
+  loadLines().then(() => { pollEip(true); if (new URLSearchParams(location.search).get("switch") === "1") openSwitch(); });
   setInterval(() => { if (!running) loadLines(); }, 15000);
   poll();
 })();

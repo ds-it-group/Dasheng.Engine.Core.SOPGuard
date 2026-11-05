@@ -171,6 +171,25 @@ class Handler(BaseHTTPRequestHandler):
                 import lines as line_store
                 import packing_methods as pkg
                 self._json(pkg.method_detail(self._query().get("name", ""), line_store.lines_by_project()))
+            elif path == "/api/eip/config":
+                import eip_client
+                self._json({"api": eip_client.api_base()})
+            elif path == "/api/eip/lines":
+                import eip_client
+                try:
+                    self._json({"ok": True, "lines": eip_client.departments(self._query().get("factory", ""))})
+                except (OSError, ValueError) as e:
+                    self._json({"ok": False, "lines": [], "error": str(getattr(e, "reason", e))})
+            elif path == "/api/eip/today":
+                import eip_client
+                import lines as line_store
+                l = line_store.get_line(self._query().get("line", ""))
+                if not l.eip_department_id or not l.factory:
+                    self._json({"configured": False})
+                else:
+                    self._json({"configured": True, "line": l.eip_department_name or str(l.eip_department_id), "factory": l.factory,
+                                "station": line_store.computer_name(), "station_label": l.station_label,
+                                **eip_client.today(l.factory, l.eip_department_id)})
             elif path == "/api/share/list":
                 import shared_store as sh
                 root = sh.get_root()
@@ -271,6 +290,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True, **plan})
             elif self.label is not None and path == "/api/train/start":
                 self.label.train.start(str(body.get("project", ""))); self._json({"ok": True})
+            elif path == "/api/eip/config":
+                import eip_client
+                self._json({"ok": True, "api": eip_client.set_api_base(str(body.get("api", "")))})
             elif path.startswith("/api/share/"):
                 self._json({"ok": True, **self._share_action(path, body)})
             elif self.label is not None and path == "/api/train/install":
