@@ -59,17 +59,23 @@
       <div class="frow">
         <div class="fld" style="width:100%"><label for="fCamera">相機來源（編號 0、1… 或 rtsp 網址；密碼只存在這台電腦、畫面上遮成 ***）</label><input id="fCamera" placeholder="rtsp://帳號:密碼@192.168.1.10:554/stream1"></div>
       </div>
-      <div class="frow">
-        <div class="fld w100"><label for="fX">桌面範圍 x</label><input id="fX" type="number" min="0"></div>
-        <div class="fld w100"><label for="fY">y</label><input id="fY" type="number" min="0"></div>
-        <div class="fld w100"><label for="fW">寬</label><input id="fW" type="number" min="1"></div>
-        <div class="fld w100"><label for="fH">高</label><input id="fH" type="number" min="1"></div>
-      </div>
-      <div class="note info">桌面範圍跟著相機位置走，所以放在產線。可以在右邊畫面上拖拉框選，或直接改數字；四格都留空＝用包裝方式自己標記時的範圍（只有相機來源會套用產線的範圍；示範影片一律用包裝方式自己的）。</div>
-      <div><button class="btn btn-cancel" id="fClear">清除桌面範圍（改用包裝方式的）</button></div>
+      <details id="fAdv">
+        <summary style="cursor:pointer; color:var(--ink-2); font-size:13px">進階：這條線自己的桌面範圍（平常留空，用包裝方式自動算的）</summary>
+        <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px">
+          <div class="frow">
+            <div class="fld w100"><label for="fX">桌面範圍 x</label><input id="fX" type="number" min="0"></div>
+            <div class="fld w100"><label for="fY">y</label><input id="fY" type="number" min="0"></div>
+            <div class="fld w100"><label for="fW">寬</label><input id="fW" type="number" min="1"></div>
+            <div class="fld w100"><label for="fH">高</label><input id="fH" type="number" min="1"></div>
+          </div>
+          <div class="note info">只有現場相機裝的位置跟錄示範影片時不一樣才需要填。可以在右邊畫面上拖拉框選，或直接改數字；只有相機來源會套用，示範影片一律用包裝方式自己的。</div>
+          <div class="note warn" id="fRegWarn" hidden></div>
+          <div><button class="btn btn-cancel" id="fClear">清除（改用包裝方式的）</button></div>
+        </div>
+      </details>
       <div class="note danger" id="fErr" hidden></div>
     </div>
-    <div style="flex:0 0 46%; min-width:0; display:flex; flex-direction:column; border:1px solid var(--line)">
+    <div id="fSide" style="flex:0 0 46%; min-width:0; display:none; flex-direction:column; border:1px solid var(--line)">
       <div class="ttl"><span class="mi mark">rate_review</span><h4>框選桌面範圍</h4><span class="sum" id="fSnapInfo"></span></div>
       <div id="fStage" style="flex:1; min-height:200px; position:relative; background:#15181d; overflow:hidden">
         <img id="fImg" alt="畫面" style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; user-select:none; -webkit-user-drag:none">
@@ -167,9 +173,12 @@
     const reg = r && r.table_region; ["fX", "fY", "fW", "fH"].forEach((id, k) => { $(id).value = reg ? reg[k] : ""; });
     ["fName", "fFactory", "fEnabled", "fCamera", "fX", "fY", "fW", "fH"].forEach((id) => { $(id).disabled = ro; });
     $("dSave").hidden = ro; $("dCancel").textContent = ro ? "關閉" : "取消"; $("fErr").hidden = true; $("fClear").hidden = ro;
+    $("fAdv").open = !!reg; showSide();          // 有填自己的範圍才展開進階；畫面區跟著進階一起開關
     $("dlg").hidden = false; if (!ro) $("fName").focus();
     loadSnap(r);
   }
+  function showSide() { $("fSide").style.display = $("fAdv").open ? "flex" : "none"; if ($("fAdv").open) drawRegion(); }
+  $("fAdv").addEventListener("toggle", showSide);
   // ---- 在畫面上框桌面範圍
   let snap = null, drag = null;     // snap：{w, h, projRegion}
   const cv = () => $("fCv");
@@ -194,6 +203,15 @@
     const g = c.getContext("2d"); g.clearRect(0, 0, c.width, c.height);
     if (snap.projRegion) { const [x, y, w, h] = snap.projRegion; g.setLineDash([8, 6]); g.strokeStyle = "#7986cb"; g.lineWidth = 2; g.strokeRect(x * b.s, y * b.s, w * b.s, h * b.s); g.setLineDash([]); }
     const r = curRegion(); if (r) { g.strokeStyle = "#ff9f1c"; g.lineWidth = 3; g.strokeRect(r[0] * b.s, r[1] * b.s, r[2] * b.s, r[3] * b.s); g.fillStyle = "#ff9f1c"; g.font = "bold 14px sans-serif"; g.fillText("產線桌面範圍", r[0] * b.s + 4, Math.max(14, r[1] * b.s - 4)); }
+    checkRegion();
+  }
+  // 產線範圍的長邊跟包裝方式訓練時的差超過三成：模型看到的東西大小不一樣，提醒（不擋存檔）
+  function checkRegion() {
+    const w = $("fRegWarn"), r = curRegion(), pr = snap && snap.projRegion;
+    if (!r || !pr) { w.hidden = true; return; }
+    const a = Math.max(r[2], r[3]), b = Math.max(pr[2], pr[3]);
+    if (b > 0 && Math.abs(a - b) / b > 0.3) { w.textContent = `這條線的範圍長邊 ${a} px，包裝方式訓練時是 ${b} px，差超過三成：模型看到的東西大小會不一樣，準度可能會掉。`; w.hidden = false; }
+    else w.hidden = true;
   }
   function toImg(e) { const b = imgBox(), rc = cv().getBoundingClientRect(); return [Math.round(Math.min(snap.w, Math.max(0, (e.clientX - rc.left) / b.s))), Math.round(Math.min(snap.h, Math.max(0, (e.clientY - rc.top) / b.s)))]; }
   cv().onpointerdown = (e) => { if (!snap || readOnly) return; cv().setPointerCapture(e.pointerId); drag = toImg(e); };

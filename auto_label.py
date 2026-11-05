@@ -49,7 +49,7 @@ def auto_label(project, detector, analysis: dict, reader, progress=None, should_
     fps = float(analysis.get("fps") or project.fps or 30.0)
     reg = tuple(project.state_fixed) if project.state_fixed else None
     if reg is None:
-        raise ValueError("自動標記要有桌面範圍（固定範圍），請先在「標記物品」框一次桌面範圍")
+        raise ValueError("自動標記要有桌面範圍（固定範圍）：先在「標記物品」存至少一個物品的框，範圍會自動算")
     seeds = items.ItemSeeds(project.dir_path)
     label_of = {s.step_index: s.label for s in project.steps if s.type == "item" and s.label}
     jobs = []

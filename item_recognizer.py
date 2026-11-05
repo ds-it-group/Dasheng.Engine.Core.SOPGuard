@@ -24,6 +24,8 @@ SEEDS_FILE = os.path.join(ITEMS_DIR, "seeds.json")
 TRACE_FILE = os.path.join(ITEMS_DIR, "trace.json")
 MODEL_DIR = os.path.join(ITEMS_DIR, "model")
 MODEL_FILE = os.path.join(MODEL_DIR, "best.pt")
+MODEL_INFO_FILE = os.path.join(MODEL_DIR, "model_info.json")   # 模型換上時記下訓練用的桌面範圍；範圍改了就提醒要重訓
+AUTO_REGION_MARGIN = 0.2        # 自動桌面範圍：全部框的聯集往外擴這個比例（跟著盒子裁的 suggest_work_area 用同一個值）
 
 
 def dataset_dir(project) -> str:
@@ -55,6 +57,23 @@ def is_fixed(project) -> bool:
     return getattr(project, "state_fixed", None) is not None
 
 
+def auto_region(rects, W: int, H: int, margin: float = AUTO_REGION_MARGIN) -> list[int] | None:
+    """桌面範圍自動算：全部框（手框＋自動追的）的聯集往外擴 margin 倍、夾在畫面內；沒有框回 None。
+    範圍決定模型看到的東西有多大（裁圖長邊縮放到 FIXED_IMGSZ）：直的 1080×1920 整個畫面會把 54 px 的貼標縮成 27 px，
+    現場專案 489 個框算出來 803×851、縮放 1.13 倍。範圍小的代價：盒子放到示範影片沒出現過的位置，那一輪不會開始。"""
+    rects = [r for r in rects if r is not None]
+    if not rects:
+        return None
+    x1 = min(r[0] for r in rects); y1 = min(r[1] for r in rects)
+    x2 = max(r[0] + r[2] for r in rects); y2 = max(r[1] + r[3] for r in rects)
+    w, h = x2 - x1, y2 - y1
+    X1 = max(0, int(x1 - w * margin)); Y1 = max(0, int(y1 - h * margin))
+    X2 = min(int(W), int(x2 + w * margin)); Y2 = min(int(H), int(y2 + h * margin))
+    if X2 - X1 < 8 or Y2 - Y1 < 8:
+        return None
+    return [X1, Y1, X2 - X1, Y2 - Y1]
+
+
 # ---------------------------------------------------------------- 種子（操作者的標記）
 
 @dataclass
@@ -69,10 +88,12 @@ class Seed:
 
 class ItemSeeds:
     """<專案>/items/seeds.json：{"order": [物品名...], "refs": [空盒參考格...], "closed": [蓋著的盒子格...], "seeds": [{"name","frame","rect"}],
-    "region": [x, y, w, h] 或 null, "box_labels": [物品名...]}
+    "region": [x, y, w, h] 或 null, "region_mode": "auto"／"manual"／"", "box_labels": [物品名...]}
     refs 兼作「開著的盒子」範例、closed 是「蓋著的盒子」範例：蓋著的盒子 YOLO 一樣認成盒子，要靠這兩組分開（蓋著＝不算盒子在）。
     region 有值＝看整張桌面的固定範圍（refs 就是「空桌面」格）；box_labels＝哪些物品是「盒子的樣子」（立著、翻面、鞋子放在上面…），
-    看到任一個就當盒子還在桌上，推走後才算一輪結束。"""
+    看到任一個就當盒子還在桌上，推走後才算一輪結束。
+    region_mode：auto＝程式從全部框自動算（網頁標記頁預設，框一改就重算）、manual＝使用者自己框的（不自動蓋掉）、""＝沒有範圍（跟著盒子裁）。
+    舊檔沒有 region_mode：有範圍當 manual，但範圍剛好是整個畫面（舊版網頁沒框時自動填的）在 sync_auto_region 時改成 auto。"""
 
     def __init__(self, project_dir: str):
         self.path = os.path.join(project_dir, SEEDS_FILE)
@@ -81,12 +102,15 @@ class ItemSeeds:
         self.closed: list[int] = []
         self.seeds: list[Seed] = []
         self.region: list[int] | None = None
+        self.region_mode: str = ""
+        self._legacy_region = True           # 檔案裡沒有 region_mode（舊檔或還沒存過）
         self.box_labels: list[str] = []
         self.hand_steps: list[dict] = []     # [{"name": 步驟名, "prompt": 物件的英文提示（YOLO-World）, "dwell": 連續停留秒數}]
         self.load()
 
     def load(self) -> None:
         self.order, self.refs, self.closed, self.seeds, self.region, self.box_labels, self.hand_steps = [], [], [], [], None, [], []
+        self.region_mode = ""; self._legacy_region = True
         if os.path.isfile(self.path):
             with open(self.path, "r", encoding="utf-8-sig") as f:
                 d = json.load(f)
@@ -98,6 +122,9 @@ class ItemSeeds:
                           for s in d.get("seeds", []) if isinstance(s, dict)]
             reg = d.get("region")
             self.region = [int(v) for v in reg] if isinstance(reg, list) and len(reg) == 4 else None
+            mode = d.get("region_mode")
+            self._legacy_region = mode not in ("auto", "manual", "")
+            self.region_mode = mode if mode in ("auto", "manual") else ("manual" if self.region and self._legacy_region else "")
             self.box_labels = [s for s in d.get("box_labels", []) if isinstance(s, str) and s in self.order]
             # prompt＝用 YOLO-World 的英文提示找物件（舊做法）；item＝用自己訓練的物品框（標記頁時間軸的「動作」）
             self.hand_steps = [dict({"name": str(h["name"]), "prompt": str(h.get("prompt") or ""), "dwell": float(h.get("dwell", 0.7))},
@@ -108,7 +135,9 @@ class ItemSeeds:
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump({"order": self.order, "refs": self.refs, "closed": self.closed, "seeds": [s.__dict__ for s in self.seeds],
-                       "region": self.region, "box_labels": self.box_labels, "hand_steps": self.hand_steps}, f, ensure_ascii=False, indent=2)
+                       "region": self.region, "region_mode": self.region_mode, "box_labels": self.box_labels, "hand_steps": self.hand_steps},
+                      f, ensure_ascii=False, indent=2)
+        self._legacy_region = False
 
     def add_hand_step(self, name: str, prompt: str = "", dwell: float = 0.7, item: str | None = None) -> None:
         """「手停在某個物件上」的步驟。prompt：物件用 YOLO-World 的英文提示找（例如 shoe），不用框、不用訓練；
@@ -126,7 +155,37 @@ class ItemSeeds:
         self.hand_steps = [h for h in self.hand_steps if h["name"] != name]; self.save()
 
     def set_region(self, rect: Rect | None) -> None:
-        self.region = None if rect is None else [int(v) for v in rect]; self.save()
+        """使用者自己框的範圍（manual）；None＝拿掉範圍、跟著盒子裁（桌面程式取消「看整張桌面」）。要改回自動算用 set_region_auto。"""
+        self.region = None if rect is None else [int(v) for v in rect]
+        self.region_mode = "manual" if rect is not None else ""
+        self.save()
+
+    def set_region_auto(self, resolution) -> None:
+        """改成程式自動算（網頁標記頁預設），馬上算一次。"""
+        self.region_mode = "auto"
+        if not self.sync_auto_region(resolution):
+            self.save()
+
+    def _auto_mode(self, resolution) -> bool:
+        W, H = int(resolution[0]), int(resolution[1])
+        legacy_whole = self._legacy_region and self.region_mode == "manual" and self.region == [0, 0, W, H]
+        return self.region_mode == "auto" or legacy_whole
+
+    def effective_region(self, resolution) -> list[int] | None:
+        """訓練／監控實際會用的範圍（不寫檔）：自動模式＝從全部框算，否則就是存的那個。"""
+        if self._auto_mode(resolution):
+            return auto_region([s.rect for s in self.seeds], int(resolution[0]), int(resolution[1]))
+        return list(self.region) if self.region else None
+
+    def sync_auto_region(self, resolution) -> bool:
+        """自動模式：用現在的框重算範圍並寫檔。回傳有沒有改動（手動模式一律 False）。"""
+        if not self._auto_mode(resolution):
+            return False
+        new = self.effective_region(resolution)
+        if new == self.region and self.region_mode == "auto" and not self._legacy_region:
+            return False
+        self.region = new; self.region_mode = "auto"; self.save()
+        return True
 
     def set_box_label(self, name: str, is_box: bool) -> None:
         self.box_labels = [n for n in self.box_labels if n != name] + ([name] if is_box and name in self.order else []); self.save()
@@ -883,6 +942,40 @@ class ItemDetector:
 def own_model_path(project) -> str:
     """本專案自己訓練的模型（訓練一律寫這裡）。"""
     return os.path.join(project.dir_path, MODEL_FILE)
+
+
+def save_model_info(project) -> None:
+    """模型換上時記下它是用哪個桌面範圍（state_fixed）訓練的；之後範圍改了 model_stale_reason 才能提醒要重訓。"""
+    import time
+    info = {"region": None if project.state_fixed is None else [int(v) for v in project.state_fixed],
+            "resolution": [int(v) for v in project.resolution], "saved_at": time.strftime("%Y/%m/%d %H:%M")}
+    path = os.path.join(project.dir_path, MODEL_INFO_FILE)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(info, f, ensure_ascii=False, indent=2)
+
+
+def model_stale_reason(project, seeds: "ItemSeeds | None" = None) -> str | None:
+    """自己訓練的模型在訓練後桌面範圍改了 → 回傳要重訓的原因；沒有自己的模型、舊模型沒記範圍、範圍沒變 → None。
+    比的是現在會用的範圍（effective_region，自動模式從框算），不寫檔。"""
+    if not os.path.isfile(own_model_path(project)):
+        return None
+    path = os.path.join(project.dir_path, MODEL_INFO_FILE)
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            info = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if seeds is None:
+        seeds = ItemSeeds(project.dir_path)
+    cur = seeds.effective_region(project.resolution)
+    old = info.get("region")
+    old = [int(v) for v in old] if isinstance(old, list) and len(old) == 4 else None
+    if old == cur:
+        return None
+    return "桌面範圍改了，要重新訓練"
 
 
 def model_path(project) -> str:

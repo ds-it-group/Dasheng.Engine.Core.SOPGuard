@@ -137,10 +137,12 @@ def test_label_service_frames_seeds_and_multipart(tmp_path):
     jpg = svc.frame_jpeg(pdir, 10); assert jpg[:2] == b"\xff\xd8"
     small = cv2.imdecode(np.frombuffer(svc.frame_jpeg(pdir, 10, max_w=160), np.uint8), cv2.IMREAD_COLOR); assert small.shape[1] == 160
     s = svc.seed_action(pdir, {"action": "add_ref", "frame": 3}); assert s["refs"] == [3]
-    s = svc.seed_action(pdir, {"action": "add_seed", "frame": 10, "name": "標籤", "rect": [100, 80, 80, 60]}); assert s["counts"] == {"標籤": 1}
+    s = svc.seed_action(pdir, {"action": "add_seed", "frame": 10, "name": "標籤", "rect": [100, 80, 80, 60], "track_sec": 0}); assert s["counts"] == {"標籤": 1}
     with pytest.raises(ValueError):
         svc.seed_action(pdir, {"action": "add_seed", "frame": 10, "name": "x", "rect": [0, 0, 5, 5]})
-    s = svc.seed_action(pdir, {"action": "set_region", "rect": [0, 0, 320, 240]}); assert s["region"] == [0, 0, 320, 240]
+    s = svc.seed_action(pdir, {"action": "set_region", "rect": [0, 0, 320, 240]}); assert s["region"] == [0, 0, 320, 240] and s["region_mode"] == "manual"
+    # 改回自動：從唯一的框 [100, 80, 80, 60] 往外擴 20% → [84, 68, 112, 84]
+    s = svc.seed_action(pdir, {"action": "set_region", "rect": None}); assert s["region"] == [84, 68, 112, 84] and s["region_mode"] == "auto"
     s = svc.seed_action(pdir, {"action": "set_box_label", "name": "標籤", "is_box": True}); assert s["box_labels"] == ["標籤"]
     s = svc.seed_action(pdir, {"action": "add_hand_step", "name": "檢查", "prompt": "shoe", "dwell": 0.7}); assert s["hand_steps"][0]["prompt"] == "shoe"
     s = svc.seed_action(pdir, {"action": "remove_seed", "index": 0}); assert s["counts"] == {}

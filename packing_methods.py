@@ -69,6 +69,7 @@ def method_row(p, lines_by_project: dict | None = None) -> dict:
         "enabled": pk.enabled if pk else True, "has_packaging": pk is not None,
         "model_source": pk.model_source if pk else None,
         "model_trained_at": model_trained_at(mp), "own_model": os.path.isfile(own),
+        "model_stale": items.model_stale_reason(p),       # 訓練後桌面範圍改了 → 要重新訓練（不擋監控）
         "steps": len(p.steps), "item_steps": len(item_steps),
         "colors": [{"name": c.name, "status": c.status, "checked_at": c.checked_at, "note": c.note} for c in pk.colors] if pk else [],
         "lines": (lines_by_project or {}).get(p.project_name, []),

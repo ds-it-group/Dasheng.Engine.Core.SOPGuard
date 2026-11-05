@@ -261,6 +261,7 @@ class TrainJob:
             if tgt.packaging is not None and tgt.packaging.model_source:
                 tgt.packaging.model_source = None
                 _save_config(tgt)
+            training.sync_item_region(tgt); items.save_model_info(load_project(target))   # 記下換上時的桌面範圍
         if tgt.packaging is not None:
             for r in results:
                 if r["ok"] is None or not r["color"]:
@@ -325,6 +326,7 @@ class TrainJob:
             if project.packaging is not None and project.packaging.model_source:
                 project.packaging.model_source = None          # 自己訓練好了 → 改用自己的模型
                 _save_config(project)
+            items.save_model_info(project)                     # 記下訓練用的桌面範圍；之後範圍改了會提醒重訓
             with self._lock:
                 self.finished = True; self.stage = "訓練完成"
         except Exception as e:
@@ -611,7 +613,7 @@ class LabelService:
         return {"name": p.project_name, "resolution": list(p.resolution), "fps": p.fps, "has_video": r is not None,
                 "frame_count": r.frame_count if r else 0, "has_model": os.path.isfile(items.model_path(p)),
                 "steps": [s.step_name for s in p.steps], "item_steps": any(s.type in ("item", "hand_on_object") for s in p.steps),
-                "seeds": self._seeds_dict(seeds), "segments": self._segments_dict(segs)}
+                "seeds": self._seeds_dict(seeds, p), "segments": self._segments_dict(segs)}
 
     # ---- 時間軸（名稱／段落）：見 label_segments.py
 
@@ -682,13 +684,20 @@ class LabelService:
         elif act == "set_box_label":
             seeds.set_box_label(str(body.get("name", "")), bool(body.get("is_box", True)))
         elif act == "set_region":
-            rect = body.get("rect")
-            if rect is not None and not (isinstance(rect, list) and len(rect) == 4):
-                raise ValueError("桌面範圍要是 [x, y, w, h]")
-            seeds.set_region(None if rect is None else tuple(int(v) for v in rect))
+            self._set_region(p, seeds, body.get("rect"))
         else:
             raise ValueError(f"不認得的動作：{act}")
-        return {"segments": self._segments_dict(segs), "seeds": self._seeds_dict(seeds), **extra}
+        seeds.sync_auto_region(p.resolution)        # 框有增減就重算自動範圍（手動模式不動）
+        return {"segments": self._segments_dict(segs), "seeds": self._seeds_dict(seeds, p), **extra}
+
+    @staticmethod
+    def _set_region(p, seeds: items.ItemSeeds, rect) -> None:
+        """網頁的「桌面範圍」：給框＝使用者自己框（之後不自動蓋掉）；None＝改回程式自動算。"""
+        if rect is None:
+            seeds.set_region_auto(p.resolution); return
+        if not (isinstance(rect, list) and len(rect) == 4):
+            raise ValueError("桌面範圍要是 [x, y, w, h]")
+        seeds.set_region(tuple(int(v) for v in rect))
 
     def _save_segment(self, p, seeds: items.ItemSeeds, segs, sid: int) -> dict:
         """物品：把框沿整段追出來寫進 seeds（同一組）；動作：看手碰到哪個已框物品，寫成 hand_steps（item）。"""
@@ -709,16 +718,14 @@ class LabelService:
             return {"touch": touch, "stats": stats}
         if not s.box or s.box_frame is None:
             raise ValueError(f"這一段還沒畫框。把時間移到這一段裡面，在畫面上拖拉框住「{s.name}」")
-        region_set = False
-        if seeds.region is None:
-            W, H = p.resolution
-            seeds.set_region((0, 0, int(W), int(H))); region_set = True     # 沒設桌面範圍就看整個畫面（之後可在「操作」裡框一次）
+        if seeds.region is None and seeds.region_mode != "manual":
+            seeds.region_mode = "auto"      # 網頁標記頁預設：桌面範圍從全部框自動算（segment_action 結尾 sync_auto_region 會算）
         if s.group:
             seeds.seeds = [x for x in seeds.seeds if x.group != s.group]
         auto = ls.track_segment(p.video_path, s.start, s.end, s.box_frame, s.box, step=items.TRACK_STEP)
         g = seeds.add_seed(s.name, s.box_frame, tuple(s.box), auto)
         segs.mark_saved(sid, group=g, tracked=1 + len(auto))
-        return {"tracked": 1 + len(auto), "expected": (s.end - s.start) // items.TRACK_STEP + 1, "region_set": region_set}
+        return {"tracked": 1 + len(auto), "expected": (s.end - s.start) // items.TRACK_STEP + 1}
 
     @staticmethod
     def _object_boxes(segs, seeds: items.ItemSeeds, frames: list[int]) -> dict[int, dict[str, list]]:
@@ -769,8 +776,10 @@ class LabelService:
         return out
 
     @staticmethod
-    def _seeds_dict(seeds: items.ItemSeeds) -> dict:
+    def _seeds_dict(seeds: items.ItemSeeds, p=None) -> dict:
         return {"order": list(seeds.order), "refs": list(seeds.refs), "closed": list(seeds.closed), "region": seeds.region,
+                "region_mode": seeds.region_mode,
+                "model_stale": items.model_stale_reason(p, seeds) if p is not None else None,   # 訓練後桌面範圍改了 → 要重訓
                 "box_labels": list(seeds.box_labels), "hand_steps": list(seeds.hand_steps), "counts": seeds.counts(),
                 "auto_counts": seeds.auto_counts(),
                 "seeds": [{"name": s.name, "frame": s.frame, "rect": list(s.rect), "auto": s.auto, "group": s.group, "by_model": s.by_model}
@@ -799,7 +808,8 @@ class LabelService:
             r = tuple(int(v) for v in rect)
             auto = items.track_seed(p.video_path, frame, r, window_sec=sec, fps=p.fps) if sec > 0 else []
             g = seeds.add_seed(name, frame, r, auto)
-            d = self._seeds_dict(seeds)
+            seeds.sync_auto_region(p.resolution)
+            d = self._seeds_dict(seeds, p)
             d["last_track"] = {"group": g, "found": len(auto), "frames": [f for f, _ in auto]}
             return d
         elif act == "remove_seed":
@@ -816,10 +826,7 @@ class LabelService:
         elif act == "remove_item":
             seeds.remove_item(str(body.get("name", "")))
         elif act == "set_region":
-            rect = body.get("rect")
-            if rect is not None and not (isinstance(rect, list) and len(rect) == 4):
-                raise ValueError("桌面範圍要是 [x, y, w, h]")
-            seeds.set_region(None if rect is None else tuple(int(v) for v in rect))
+            self._set_region(p, seeds, body.get("rect"))
         elif act == "set_box_label":
             seeds.set_box_label(str(body.get("name", "")), bool(body.get("is_box", True)))
         elif act == "add_hand_step":
@@ -847,7 +854,7 @@ class LabelService:
                 if any(s.name == h.name and items._iou(tuple(rect), tuple(s.rect)) > 0.4 for s in existing):
                     continue
                 preds.append({"name": h.name, "conf": round(float(h.conf), 2), "rect": rect})
-            d = self._seeds_dict(seeds)
+            d = self._seeds_dict(seeds, p)
             d["predictions"] = preds
             return d
         elif act == "add_batch":
@@ -864,18 +871,21 @@ class LabelService:
                 auto = items.track_seed(p.video_path, frame, r, window_sec=sec, fps=p.fps) if sec > 0 else []
                 last_g = seeds.add_seed(name, frame, r, auto)
                 added += 1; auto_total += len(auto)
-            d = self._seeds_dict(seeds)
+            seeds.sync_auto_region(p.resolution)
+            d = self._seeds_dict(seeds, p)
             d["batch_result"] = {"added": added, "auto": auto_total, "group": last_g}
             return d
         elif act == "retrack_all":
             sec = float(body.get("track_sec", 2.0) or 0.0)
             stat = items.retrack_seeds(p.video_path, seeds, window_sec=sec, fps=p.fps)
-            d = self._seeds_dict(seeds)
+            seeds.sync_auto_region(p.resolution)
+            d = self._seeds_dict(seeds, p)
             d["retrack"] = stat
             return d
         else:
             raise ValueError(f"不認得的動作：{act}")
-        return self._seeds_dict(seeds)
+        seeds.sync_auto_region(p.resolution)        # 框有增減就重算自動範圍（手動模式不動）
+        return self._seeds_dict(seeds, p)
 
     # ---- 第 3 步
 

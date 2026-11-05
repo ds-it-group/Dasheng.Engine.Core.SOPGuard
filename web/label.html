@@ -78,6 +78,9 @@
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .hint2 { color: var(--ink-2); white-space: pre-line; font-size: 13px; line-height: 1.6; }
   #qbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 16px; background: var(--st-warn); font-size: 13px; }
+  #btnTrain.attn { box-shadow: 0 0 0 3px var(--st-warn), 0 0 0 5px var(--accent); animation: attn 1.2s ease-in-out 3; }
+  @keyframes attn { 50% { box-shadow: 0 0 0 3px var(--st-warn), 0 0 0 9px rgba(255,159,28,.35); } }
+  #staleHint { background: var(--st-warn); border-left: 4px solid var(--accent); padding: 6px 10px; }
   @media (max-width: 1100px) { .lbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; } .stage { min-height: 56vw; } .names .list { max-height: 280px; } }
 </style>
 </head>
@@ -107,7 +110,8 @@
           <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden>
             <button id="btnNew">新增專案</button>
-            <button id="btnRegion">桌面範圍：在畫面上框一次</button>
+            <button id="btnRegion" title="平常不用：程式會用全部框過的物品自動算。只有要特別放大或縮小看的範圍才自己框">桌面範圍：自己框（進階）</button>
+            <button id="btnRegionAuto" hidden>桌面範圍：改回自動算</button>
             <a id="lnkMethod" href="/methods">到包裝方式設定</a>
             <a href="/">到監控畫面</a>
           </div>
@@ -153,6 +157,7 @@
             <div id="cnt"></div>
             <div class="hint2" id="legacy" hidden></div>
             <button class="btn btn-primary raised" id="btnTrain">開始訓練（約 20～60 分鐘）</button>
+            <div class="hint2" id="staleHint" hidden></div>
             <div class="hint2"><a id="lnkTrainAdv" href="/methods">進階訓練：挑片段、合成配色、產生 GPU 訓練包、匯入 GPU 模型</a></div>
             <div class="bar" id="trainWrap" hidden><div id="trainBar"></div></div>
             <div class="hint2" id="trainStage"></div>
@@ -421,7 +426,7 @@
       ctx.setLineDash(dash || []); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.strokeRect(r[0] * s, r[1] * s, r[2] * s, r[3] * s); ctx.setLineDash([]);
       if (label) { ctx.font = "bold 13px sans-serif"; const w = ctx.measureText(label).width + 10; const y = Math.max(0, r[1] * s - 20); ctx.fillStyle = col; ctx.fillRect(r[0] * s, y, w, 20); ctx.fillStyle = col === "#ffeb3b" ? "#1d2233" : "#fff"; ctx.fillText(label, r[0] * s + 5, y + 14); }
     };
-    const sd = info.seeds; if (sd.region) rect(sd.region, "#ff9f1c", 2, [], "桌面範圍");
+    const sd = info.seeds; if (sd.region) rect(sd.region, "#ff9f1c", 2, [], sd.region_mode === "manual" ? "桌面範圍（自己框的）" : "桌面範圍（自動）");
     const nd = curName();
     for (const m of names()) { if (m.kind === "action" || (nd && m.name === nd.name)) continue; for (const r of nearest(seedsByName[m.name], n)) rect(r, "rgba(255,255,255,.65)", 1, [6, 4], m.name); }
     if (nd && !isAct(nd)) { const g = segAt(n); if (g) { const b = boxFor(g, n); if (b) rect(b, "#ffeb3b", 3, g.saved ? [] : [8, 6], `${nd.name} 第 ${segsOf(nd.name).indexOf(g) + 1} 段`); } }
@@ -459,7 +464,7 @@
   const vidUp = async () => {
     if (!vd) return; const d = vd; vd = null; const b = draft; draft = null; draw();
     if (!b || b[2] < 12 || b[3] < 12) return;
-    if (d.region) { regionMode = false; const r = await segApi({ action: "set_region", rect: b }); if (r) say("桌面範圍已設定（橘框）：監控時只看這個範圍。"); return; }
+    if (d.region) { regionMode = false; const r = await segApi({ action: "set_region", rect: b }); if (r) say("桌面範圍改成自己框的（橘框），之後不會自動改。" + (info.seeds.model_stale ? "模型要重新訓練。" : "")); return; }
     await setBox(d.seg, b);
   };
   ov.addEventListener("pointerup", vidUp); ov.addEventListener("pointercancel", () => { vd = null; draft = null; draw(); });
@@ -519,8 +524,13 @@
     $("legacy").hidden = !legacy; $("legacy").textContent = `另有舊版框選 ${legacy} 格（不在時間軸上），訓練時一樣會用到`;
     const running = $("trainStage").dataset.running === "1";
     $("btnTrain").disabled = !(info && info.has_video && info.seeds.seeds.length) || running;
+    const stale = info && info.seeds.model_stale;          // 訓練後桌面範圍改了：訓練鍵亮起來
+    $("btnTrain").textContent = stale ? "重新訓練（桌面範圍改了）" : "開始訓練（約 20～60 分鐘）";
+    $("btnTrain").classList.toggle("attn", !!stale && !running);
+    $("staleHint").hidden = !stale; $("staleHint").textContent = stale ? stale + "，不然監控時看到的東西大小跟訓練時不一樣" : "";
     $("btnGen").disabled = !(info && (info.has_model || (!info.seeds.order.length && info.seeds.hand_steps.length)));
     $("btnRegion").disabled = !(info && info.has_video);
+    $("btnRegionAuto").hidden = !(info && info.has_video && info.seeds.region_mode === "manual");
   }
   function render() { renderNames(); renderTL(); renderFooter(); draw(); updateHint(); }
 
@@ -586,7 +596,6 @@
     const r = await segApi({ action: "save_segment", id: g.id }); if (!r) { renderTL(); return; }
     let t = `已儲存：${nd.name} 第 ${idx} 段，追到 ${r.tracked}／${r.expected} 格會拿去訓練。`;
     if (r.tracked < r.expected * 0.6) t += "有一半以上沒追到：東西可能被遮住或轉向了，把這段切短、或在沒追到的地方再框一次並重新儲存。";
-    if (r.region_set) t += "（還沒設桌面範圍，先用整個畫面；要縮小請用「操作 → 桌面範圍」）";
     say(t, r.tracked < r.expected * 0.6);
   }
   $("btnSave").onclick = saveSeg;
@@ -605,7 +614,8 @@
     else if (op.op === "box") r = await segApi({ action: "set_box", id: op.id, frame: op.box_frame, rect: op.box });
     if (r) { renderTL(); renderNames(); say("已復原上一步"); }
   }
-  $("btnRegion").onclick = () => { if (!info || !info.has_video) return; regionMode = true; draft = null; draw(); updateHint(); };
+  $("btnRegion").onclick = () => { if (!info || !info.has_video) return; regionMode = true; draft = null; draw(); say(""); };   // say("")：清掉上一則訊息，馬上顯示框選提示
+  $("btnRegionAuto").onclick = async () => { if (!info || !info.has_video) return; const r = await segApi({ action: "set_region", rect: null }); if (r) say("桌面範圍改回自動算（橘框），會跟著框選更新。" + (info.seeds.model_stale ? "模型要重新訓練。" : "")); };
   document.addEventListener("keydown", (e) => {
     const tag = e.target.tagName; if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") { if (e.key === "Escape") e.target.blur(); return; }
     if (!$("newDlg").hidden || !$("cfDlg").hidden || !$("genDlg").hidden) { if (e.key === "Escape") { $("newDlg").hidden = true; $("genDlg").hidden = true; $("cfCancel").click(); } return; }

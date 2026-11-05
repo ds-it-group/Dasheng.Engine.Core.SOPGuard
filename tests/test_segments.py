@@ -142,11 +142,15 @@ def test_service_object_segment_saves_tracked_seeds_and_restores(tmp_path):
         svc.segment_action(pdir, {"action": "save_segment", "id": sid})          # 還沒畫框
     svc.segment_action(pdir, {"action": "set_box", "id": sid, "frame": 40, "rect": [100, 80, 80, 60]})
     d = svc.segment_action(pdir, {"action": "save_segment", "id": sid})
-    assert d["tracked"] >= 15 and d["expected"] == 21 and d["region_set"] is True
+    assert d["tracked"] >= 15 and d["expected"] == 21 and d["seeds"]["region_mode"] == "auto"
     seg = d["segments"]["segments"][0]
     assert seg["saved"] and seg["group"] == 1 and seg["tracked"] == d["tracked"]
     seeds = ItemSeeds(pdir)
-    assert seeds.region == [0, 0, 320, 240] and seeds.order == ["藍盒"]
+    # 桌面範圍不再填整個畫面：從全部追到的框自動算（聯集往外擴 20%），每個框都在裡面
+    from item_recognizer import auto_region
+    assert seeds.region_mode == "auto" and seeds.region == auto_region([s.rect for s in seeds.seeds], 320, 240) and seeds.order == ["藍盒"]
+    rx, ry, rw, rh = seeds.region
+    assert seeds.region != [0, 0, 320, 240] and all(rx <= s.rect[0] and s.rect[0] + s.rect[2] <= rx + rw and ry <= s.rect[1] and s.rect[1] + s.rect[3] <= ry + rh for s in seeds.seeds)
     assert len(seeds.seeds) == d["tracked"] and all(s.group == 1 for s in seeds.seeds) and sum(not s.auto for s in seeds.seeds) == 1
     assert all(10 <= s.frame <= 70 for s in seeds.seeds)
     assert d["segments"]["object_segments"] == 1 and d["segments"]["object_frames"] == d["tracked"]
@@ -159,8 +163,9 @@ def test_service_object_segment_saves_tracked_seeds_and_restores(tmp_path):
     # 刪除 → seeds 跟著走；復原 → 回來
     d = svc.segment_action(pdir, {"action": "remove_segment", "id": sid})
     assert d["segments"]["segments"] == [] and ItemSeeds(pdir).seeds == [] and d["segments"]["trash"] == 1
+    assert d["seeds"]["region"] is None and d["seeds"]["region_mode"] == "auto"      # 框全刪了：自動範圍跟著沒有
     d = svc.segment_action(pdir, {"action": "restore_segment"})
-    assert d["segments"]["segments"][0]["saved"] and len(ItemSeeds(pdir).seeds) == n_after
+    assert d["segments"]["segments"][0]["saved"] and len(ItemSeeds(pdir).seeds) == n_after and d["seeds"]["region"] is not None
     # 名稱還有段落不能刪；刪了段落才能刪名稱
     with pytest.raises(ValueError):
         svc.segment_action(pdir, {"action": "remove_name", "name": "藍盒"})

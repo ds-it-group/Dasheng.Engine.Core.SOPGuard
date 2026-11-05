@@ -353,9 +353,10 @@ def ensure_state_anchor(project: Project, prompt: str = "cardboard box") -> bool
 
 def sync_item_region(project: Project) -> bool:
     """物件版：把種子檔的「桌面範圍」(seeds.region) 套到 project.state_fixed（None＝跟著盒子裁）。建立訓練資料與產生步驟前都要套，
-    延伸資料集（replay）跟監控用的是同一個欄位。回傳是否有改動（有就已寫回 config.json）。"""
+    延伸資料集（replay）跟監控用的是同一個欄位。自動模式的範圍先用現在的框重算一次。回傳是否有改動（有就已寫回 config.json）。"""
     from item_recognizer import ItemSeeds
     seeds = ItemSeeds(project.dir_path)
+    seeds.sync_auto_region(project.resolution)
     new = list(seeds.region) if seeds.region else None
     if new == (None if project.state_fixed is None else list(project.state_fixed)):
         return False

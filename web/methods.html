@@ -359,6 +359,7 @@
     $("modelLine").innerHTML = "";
     const lines = [["目前模型", d.model_trained_at ? (d.model_source ? `參考 ${d.model_source}（${d.model_trained_at}）` : `本型體地區（${d.model_trained_at}）`) : "還沒訓練（到「標記物品」按「開始訓練」）"],
       ["模型認得的物品", (d.model_items || []).join("、") || "–"]];
+    if (d.model_stale) lines.push(["注意", d.model_stale + "：到「標記物品」按「重新訓練」"]);
     if (!d.has_packaging) lines.unshift(["注意", "先按左邊 ✎ 設定型體地區，才能記配色"]);
     for (const [k, v] of lines) { const s = el("span"); s.appendChild(document.createTextNode(k + "：")); s.appendChild(el("b", null, v)); $("modelLine").appendChild(s); }
     const t = $("cGrid"); t.innerHTML = "";

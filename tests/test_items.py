@@ -128,10 +128,67 @@ def test_item_seeds_region_and_box_labels_persist(tmp_path):
     s = ItemSeeds(str(tmp_path)); s.add_seed("藍盒", 10, (0, 0, 50, 40)); s.add_seed("鞋舌翻開", 20, (0, 0, 50, 40))
     s.set_region((5, 6, 300, 200)); s.set_box_label("藍盒", True); s.set_box_label("沒這個", True)
     s2 = ItemSeeds(str(tmp_path))
-    assert s2.region == [5, 6, 300, 200] and s2.box_labels == ["藍盒"]
+    assert s2.region == [5, 6, 300, 200] and s2.region_mode == "manual" and s2.box_labels == ["藍盒"]
     s2.remove_item("藍盒"); s2.set_region(None)
     s3 = ItemSeeds(str(tmp_path))
-    assert s3.box_labels == [] and s3.region is None
+    assert s3.box_labels == [] and s3.region is None and s3.region_mode == ""
+
+
+def test_auto_region_union_margin_and_clamp():
+    from item_recognizer import auto_region
+    # 聯集 [100, 80, 150, 70]，往外擴 20%（30／14）
+    assert auto_region([[100, 80, 80, 60], [200, 100, 50, 50]], 320, 240) == [70, 66, 210, 98]
+    assert auto_region([[0, 0, 10, 10]], 50, 50) == [0, 0, 12, 12]                 # 夾在畫面內
+    assert auto_region([[300, 230, 40, 30]], 320, 240) == [292, 224, 28, 16]       # 右下角超出的部分切掉
+    assert auto_region([], 320, 240) is None and auto_region([[0, 0, 4, 4]], 320, 240) is None
+
+
+def test_item_seeds_region_auto_manual_and_legacy(tmp_path):
+    res = (320, 240)
+    s = ItemSeeds(str(tmp_path)); s.add_seed("標籤", 10, (100, 80, 80, 60))
+    assert s.region is None and s.region_mode == "" and s.sync_auto_region(res) is False        # 沒開自動就不算
+    s.set_region_auto(res)
+    assert s.region == [84, 68, 112, 84] and s.region_mode == "auto"
+    s.add_seed("鞋子", 20, (200, 100, 50, 50)); assert s.sync_auto_region(res) is True and s.region == [70, 66, 210, 98]
+    assert ItemSeeds(str(tmp_path)).region == [70, 66, 210, 98] and ItemSeeds(str(tmp_path)).region_mode == "auto"
+    # 自己框：之後框再多也不蓋掉；effective_region 就是存的那個
+    s.set_region((5, 6, 300, 200)); s.add_seed("盒", 30, (0, 0, 20, 20))
+    assert s.sync_auto_region(res) is False and s.region == [5, 6, 300, 200] and s.effective_region(res) == [5, 6, 300, 200]
+    s.set_region_auto(res); assert s.region == [0, 0, 300, 180] and s.region_mode == "auto"
+    # 舊檔（沒有 region_mode）：自訂範圍當手動；剛好整個畫面＝舊版網頁自動填的 → 改成自動算
+    for reg, mode_after, region_after in (([5, 6, 300, 200], "manual", [5, 6, 300, 200]), ([0, 0, 320, 240], "auto", [84, 68, 112, 84]), (None, "", None)):
+        d = tmp_path / ("legacy_" + str(mode_after or "none")); d.mkdir()
+        (d / "items").mkdir()
+        with open(d / "items" / "seeds.json", "w", encoding="utf-8") as f:
+            json.dump({"order": ["標籤"], "refs": [], "closed": [], "seeds": [{"name": "標籤", "frame": 1, "rect": [100, 80, 80, 60]}],
+                       "region": reg, "box_labels": [], "hand_steps": []}, f)
+        ls = ItemSeeds(str(d))
+        assert ls.effective_region(res) == region_after
+        ls.sync_auto_region(res)
+        assert ls.region_mode == mode_after and ls.region == region_after
+        assert ItemSeeds(str(d)).region_mode == mode_after
+
+
+def test_model_stale_when_region_changes_after_training(tmp_path):
+    from item_recognizer import model_stale_reason, save_model_info
+    cfg = {"schema_version": 2, "project_name": "m", "video_file": "demo.avi", "resolution": [320, 240], "fps": 30.0, "anchors": [], "zones": [], "steps": []}
+    d = tmp_path / "m"; d.mkdir()
+    with open(d / "config.json", "w", encoding="utf-8") as f:
+        json.dump(cfg, f)
+    s = ItemSeeds(str(d)); s.add_seed("標籤", 10, (100, 80, 80, 60)); s.set_region_auto((320, 240))
+    p = load_project(str(d))
+    assert model_stale_reason(p) is None                                    # 沒有模型
+    (d / "items" / "model").mkdir(parents=True); (d / "items" / "model" / "best.pt").write_bytes(b"x")
+    assert model_stale_reason(p) is None                                    # 舊模型沒記範圍：不提醒
+    training.sync_item_region(p); p = load_project(str(d)); save_model_info(p)
+    assert p.state_fixed == [84, 68, 112, 84] and model_stale_reason(p) is None
+    s.add_seed("鞋子", 20, (200, 100, 50, 50)); s.sync_auto_region((320, 240))   # 框多了 → 自動範圍變 → 要重訓
+    assert model_stale_reason(p) == "桌面範圍改了，要重新訓練"
+    s.set_region((84, 68, 112, 84))                                         # 自己框回原來的範圍 → 不用
+    assert model_stale_reason(p) is None
+    import packing_methods as pkg
+    s.set_region((0, 0, 320, 240))
+    assert pkg.method_row(load_project(str(d)))["model_stale"] == "桌面範圍改了，要重新訓練"
 
 
 class _TableDetector:
