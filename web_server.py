@@ -174,6 +174,10 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/eip/config":
                 import eip_client
                 self._json({"api": eip_client.api_base()})
+            elif path == "/api/daily":
+                import daily_stats
+                lid = self._query().get("line", "")
+                self._json({"status": daily_stats.status(lid), "today": daily_stats.day_file(lid)})
             elif path == "/api/eip/lines":
                 import eip_client
                 try:
@@ -259,6 +263,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True, **self._settings_action(path, body)})
             elif path == "/api/stop":
                 self.service.stop(); self._json({"ok": True})
+                import daily_stats
+                daily_stats.kick()                 # 停止監控：馬上上傳一次當天統計
             elif path == "/api/reset":
                 self.service.request_reset(); self._json({"ok": True})
             elif path == "/api/screenshot":
@@ -293,6 +299,9 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/eip/config":
                 import eip_client
                 self._json({"ok": True, "api": eip_client.set_api_base(str(body.get("api", "")))})
+            elif path == "/api/daily/upload":
+                import daily_stats
+                daily_stats.start_uploader(); daily_stats.kick(); self._json({"ok": True})
             elif path.startswith("/api/share/"):
                 self._json({"ok": True, **self._share_action(path, body)})
             elif self.label is not None and path == "/api/train/install":
@@ -351,6 +360,8 @@ class Handler(BaseHTTPRequestHandler):
             if restart:                 # 正在監控這條線：停掉、用新的包裝方式重新啟動（這一輪作廢、不結算）
                 self.service.stop()
                 self.service.start("", src_kind, line_id=lid)
+            import daily_stats
+            daily_stats.kick()                  # 換線：馬上上傳一次當天統計
             return {"line": line_store.line_public(l), "restarted": restart}
         if path == "/api/method/packaging":
             return {"method": pkg.set_packaging(name, body.get("packaging") or {})}
@@ -471,6 +482,8 @@ def main(argv=None) -> int:
     for ip in local_ips():
         print(f"  區網：http://{ip}:{a.port}/")
     print("按 Ctrl+C 結束")
+    import daily_stats
+    daily_stats.start_uploader()          # 程式一開就在背景補傳還沒上傳成功的當天統計，之後每 10 分鐘一次
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

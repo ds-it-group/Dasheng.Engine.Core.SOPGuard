@@ -129,6 +129,7 @@
             <button id="mSwitch">換包裝方式</button>
             <hr>
             <button id="mShot">存截圖</button>
+            <button id="mDay">今日統計</button>
             <a id="mLabel" href="/label">標記物品</a>
             <a href="/lines">產線設定</a>
           </div>
@@ -217,6 +218,18 @@
     </div>
   </div>
 </div>
+<!-- 今日統計（openLarge）：本機當天的統計檔，每個包裝方式一列；上傳到 EIP 的只有各步驟的漏做、超時次數 -->
+<div class="scrim" id="dayDlg" hidden>
+  <div class="dialog large" role="dialog" aria-modal="true" aria-labelledby="dayTitle" style="height:auto;max-height:90vh">
+    <div class="dt"><span class="mi mark">insights</span><h4 id="dayTitle">今日統計</h4><span class="sum n" id="daySum"></span></div>
+    <div class="dc">
+      <div class="gridwrap"><table class="grid" id="dayGrid"></table></div>
+      <div class="note warn" id="dayPending" hidden></div>
+      <div class="note info" id="dayInfo">只算這台電腦、只算相機監控（示範影片不算）。每個包裝方式一列，一天只記總數。程式一開、每 10 分鐘、停止監控、換線時上傳到 EIP，還沒傳成功的日子一起補送；同一天重送會覆蓋。上傳到 EIP 的只有各步驟的漏做、超時次數，完成和漏做輪數只留本機。</div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="dayClose">關閉</button><button class="btn btn-primary raised" id="dayUpload">立即上傳</button></div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -279,7 +292,7 @@
     if (fromProj) $("pkHint").textContent = `剛產生步驟的「${fromProj}」還沒排到這條線。要開始做它時按「操作 ▾ → 換包裝方式」，清單裡已幫你選好，按確認就好。`;
   }
   function fromLabel() { const q = new URLSearchParams(location.search); return q.get("from") === "label" ? q.get("project") : null; }
-  $("selLine").onchange = () => { renderLine(); history.replaceState(null, "", "/?line=" + encodeURIComponent($("selLine").value)); pollEip(true); };
+  $("selLine").onchange = () => { renderLine(); history.replaceState(null, "", "/?line=" + encodeURIComponent($("selLine").value)); pollEip(true); pollDaily(); };
 
   function setStream(on) {
     if (on === streamOn) return;
@@ -528,10 +541,75 @@
   // 用 composedPath 判斷點在彈出框裡：點按鈕會重畫彈出框，事件冒泡到這裡時原本的按鈕已不在 DOM，contains 會誤判成點外面
   document.addEventListener("click", (e) => { const pop = $("eipPop"); if (pop.hidden) return; const path = e.composedPath ? e.composedPath() : []; if (path.includes(pop) || (popAnchor && path.includes(popAnchor))) return; closePop(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePop(); });
+  // ---- 當天統計（daily_stats.py）：EIP 那一列最後面放本站今日完成與上傳狀態；操作 → 今日統計
+  let daily = null;
+  const md = (iso) => { if (!iso) return ""; const p = iso.split("T")[0].split("-"); return `${+p[1]}/${+p[2]}`; };
+  const hm = (iso) => (iso ? iso.split("T")[1].slice(0, 5) : "");
+  async function pollDaily() {
+    const l = curLine(); if (!l) { daily = null; return; }
+    try { daily = await api("/api/daily?line=" + encodeURIComponent(l.id)); } catch (e) { daily = null; }
+    renderEip(); if (!$("dayDlg").hidden) renderDay();
+  }
+  setInterval(pollDaily, 15000);
+  function dayTotals() {
+    const ms = (daily && daily.today && daily.today.methods) || {}; let c = 0, b = 0;
+    for (const m of Object.values(ms)) { c += m.cycles || 0; b += m.bad_cycles || 0; }
+    return { c, b };
+  }
+  window.__styleDone = (style) => {               // 彈出框每一塊「本站完成」：這個型體今天各模型（地區）的完成輪數加總
+    const ms = (daily && daily.today && daily.today.methods) || {}; let n = 0, any = false;
+    for (const [name, m] of Object.entries(ms)) { const meta = methods.find((x) => x.name === name); if (meta && meta.style === style) { n += m.cycles || 0; any = true; } }
+    return any ? n : 0;
+  };
+  function uploadChip() {
+    const s = daily && daily.status; if (!s) return null;
+    const pend = (s.pending || []).filter((d) => d !== new Date().toLocaleDateString("sv-SE"));
+    const more = pend.length ? `；還有 ${pend.map(md).join("、")} 沒傳` : "";
+    const [cls, txt] = s.state === "off" ? ["off", "沒接 EIP，只存本機"]
+      : s.state === "backlog" ? ["warn", `補傳中 ${s.done + 1}/${s.total}（${md(s.current + "T")}）`]
+      : s.state === "fail" ? ["no", `失敗（${s.error || "連不上"}），10 分鐘內再試${more}`]
+      : ["ok", s.last_ok_at ? `已上傳 ${hm(s.last_ok_at)}` + (s.backfilled && s.backfilled.length ? `（補傳了 ${s.backfilled.map(md).join("、")}）` : "") : "還沒有要上傳的"];
+    const span = el("span"); span.style.marginLeft = "auto"; span.appendChild(document.createTextNode("上傳："));
+    const c = el("span", "chip " + cls, txt); c.title = "程式一開、每 10 分鐘、停止監控、換線時上傳；還沒傳成功的日子一起補送。操作 → 今日統計 可以看內容"; span.appendChild(c);
+    return span;
+  }
+  window.__eipFootExtra = (f) => {
+    const t = dayTotals(); const s = el("span"); s.appendChild(document.createTextNode("本站今日完成："));
+    s.appendChild(el("b", null, `${t.c.toLocaleString()} 輪・漏做 ${t.b} 輪`)); f.appendChild(s);
+    const u = uploadChip(); if (u) f.appendChild(u);
+  };
+  function renderDay() {
+    const l = curLine(); const d = (daily && daily.today) || {}; const ms = d.methods || {};
+    $("dayTitle").textContent = `今日統計　${l ? l.name : ""}${l && l.station_label ? "・" + l.station_label : ""}（${(l && l.station) || ""}）　${d.date || new Date().toLocaleDateString("sv-SE")}`;
+    const t = $("dayGrid"); t.innerHTML = "";
+    const th = el("thead"), tr0 = el("tr");
+    [["包裝方式", 160, "pinL"], ["完成", 70, "r"], ["漏做輪", 70, "r"], ["超時", 60, "r"], ["各步驟漏做／超時（上傳到 EIP 的就是這欄）", 360]].forEach(([n, w, c], i) => { const h = el("th", c || "", n); h.style.minWidth = w + "px"; if (i === 4) h.style.width = "100%"; tr0.appendChild(h); });
+    th.appendChild(tr0); t.appendChild(th);
+    const tb = el("tbody"); const names = Object.keys(ms).sort();
+    for (const n of names) {
+      const m = ms[n], tr = el("tr", m.bad_cycles ? "t-warn" : "");
+      const steps = Object.entries(m.steps || {}).filter(([, v]) => v.missed || v.timeout).sort((a, b) => b[1].missed - a[1].missed)
+        .map(([k, v]) => `${k} 漏 ${v.missed}` + (v.timeout ? `／超時 ${v.timeout}` : "")).join("、") || "沒有";
+      [[n, "pinL"], [String(m.cycles || 0), "r n"], [String(m.bad_cycles || 0), "r n"], [String(m.timeouts || 0), "r n"], [steps, ""]].forEach(([v, c]) => tr.appendChild(el("td", c, v)));
+      tb.appendChild(tr);
+    }
+    if (!names.length) { const tr = el("tr", "empty"), td = el("td", null, "今天這條線還沒有用相機監控的紀錄"); td.colSpan = 5; tr.appendChild(td); tb.appendChild(tr); }
+    t.appendChild(tb);
+    const tot = dayTotals(); $("daySum").textContent = `完成 ${tot.c} 輪・漏做 ${tot.b} 輪`;
+    const s = (daily && daily.status) || {}; const pend = s.pending || [];
+    const older = pend.filter((x) => x !== (d.date || ""));
+    $("dayPending").hidden = !(pend.length && s.state !== "off");
+    $("dayPending").textContent = `還沒上傳成功：${pend.map(md).join("、")}` + (s.error ? `（${s.error}）` : "") + "。程式一開會自動由舊到新補送；按「立即上傳」現在就一起送。";
+    $("dayUpload").textContent = older.length ? `立即上傳（含 ${older.map(md).join("、")}）` : "立即上傳";
+    $("dayUpload").disabled = s.state === "off";
+  }
+  $("mDay").onclick = async () => { await pollDaily(); renderDay(); $("dayDlg").hidden = false; };
+  $("dayClose").onclick = () => { $("dayDlg").hidden = true; };
+  $("dayUpload").onclick = async () => { await api("/api/daily/upload", {}); toast("已開始上傳"); setTimeout(pollDaily, 2500); };
   $("pkPick").onclick = () => { if (popAnchor) closePop(); else openPop(); };
   $("pkPick").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("pkPick").click(); } };
 
-  loadLines().then(() => { pollEip(true); if (new URLSearchParams(location.search).get("switch") === "1") openSwitch(); });
+  loadLines().then(() => { pollEip(true); pollDaily(); if (new URLSearchParams(location.search).get("switch") === "1") openSwitch(); });
   setInterval(() => { if (!running) loadLines(); }, 15000);
   poll();
 })();

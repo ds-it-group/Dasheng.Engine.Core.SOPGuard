@@ -51,8 +51,14 @@ class CycleTracker:
         self._prev_counts: tuple[int, int] | None = None     # 第一次 update 只記起始值，不當成剛完成一輪
         self._prev_alert = False
         self._prev_idx = 0
+        self.on_record = None                         # 每結算一輪／超時一次就叫 on_record(kind, missing)（當天統計 daily_stats 用）
 
     def _record(self, t_now: float, ok: bool, kind: str, missing: list[str]) -> None:
+        if self.on_record is not None:
+            try:
+                self.on_record(kind, list(missing))
+            except Exception:
+                pass                                  # 統計寫檔失敗不影響監控
         dur = round(t_now - self.cycle_start, 1) if self.cycle_start is not None else None
         self.history.insert(0, {"time": datetime.now().strftime("%H:%M:%S"), "ok": ok, "kind": kind, "dur": dur, "missing": missing})
         del self.history[MAX_HISTORY:]
@@ -399,6 +405,10 @@ class MonitorService:
         try:
             fsm = SOPStateMachine(p, error_log_dir=os.path.join(p.dir_path, "error_logs"), sound_enabled=False)
             tracker_c = CycleTracker(p.steps)
+            if is_camera and self.line_id and not self.trial:      # 當天統計只記現場相機（示範影片不算、試跑不算）
+                import daily_stats
+                lid, name = self.line_id, p.project_name
+                tracker_c.on_record = lambda kind, missing: daily_stats.record(lid, name, kind, missing)
             self._set_loading("載入中 1/4：手部模型…")
             tracker = HandTracker(HAND_MODEL)
             scene = SceneTracker(p.anchors, tuple(p.work_area) if p.work_area else None)
