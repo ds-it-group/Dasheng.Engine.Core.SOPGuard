@@ -5,7 +5,7 @@
 - 只記相機監控（示範影片播的不算）。試跑（舊資料裡沒驗證過的配色）不記。
 - 上傳：程式一開（背景）、每 UPLOAD_EVERY_SEC 秒、停止監控、換線時，把「最後上傳成功」比「最後更新」舊的檔由舊到新送；
   送成功才記下。不限天數；同一筆重送 EIP 依「日期＋EIP 產線＋站別＋包裝方式＋步驟」覆蓋，不會算兩次。沒接 EIP 的產線只存本機。
-- EIP 端（2026-11-05 使用者定案：一張表 mes.PackingGuardDailyErrors，時間記 UTC、日期記當地班日）：
+- EIP 端（2026-11-05 使用者定案：一張表 mes.PackingGuardDailyErrors，時間記 UTC、日期記這台產線電腦的當地日期，00:00 換天，不分班別）：
   POST /api/MES/PackingGuard/SetDailyErrors，一站一天一個包裝方式送一包：
   {recordDate, factoryCode, departmentID, station, methodName, errors:[{name, missed, timeout}]}；errors 空＝那天這個包裝方式沒出錯（EIP 清掉舊列）。
   比照看板 API 不用登入、不帶金鑰（使用者裁示 11-05：金鑰一樣能仿冒，意義不大）；哪一台送的看內容裡的 station（電腦名稱）。
