@@ -191,9 +191,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not l.eip_department_id or not l.factory:
                     self._json({"configured": False})
                 else:
+                    d = eip_client.today(l.factory, l.eip_department_id)
+                    styles = [{**s, "last_method": line_store.last_choice(s["style"], s.get("orders") or [])} for s in d.get("styles") or []]
+                    import model_warm
+                    model_warm.warm_styles([s["style"] for s in styles])     # 今天會用到的模型先在背景轉好，切換時不用等轉檔
                     self._json({"configured": True, "line": l.eip_department_name or str(l.eip_department_id), "factory": l.factory,
-                                "station": line_store.computer_name(), "station_label": l.station_label,
-                                **eip_client.today(l.factory, l.eip_department_id)})
+                                "station": line_store.computer_name(), "station_label": l.station_label, **d, "styles": styles})
             elif path == "/api/share/list":
                 import shared_store as sh
                 root = sh.get_root()
@@ -360,6 +363,8 @@ class Handler(BaseHTTPRequestHandler):
             if restart:                 # 正在監控這條線：停掉、用新的包裝方式重新啟動（這一輪作廢、不結算）
                 self.service.stop()
                 self.service.start("", src_kind, line_id=lid)
+            if body.get("style"):               # 從型體彈出框選的：記住這張廠編／這個型體選了哪個模型
+                line_store.remember_choice(str(body.get("style")), [str(x) for x in body.get("orders") or []], str(body.get("project", "")))
             import daily_stats
             daily_stats.kick()                  # 換線：馬上上傳一次當天統計
             return {"line": line_store.line_public(l), "restarted": restart}
@@ -484,6 +489,8 @@ def main(argv=None) -> int:
     print("按 Ctrl+C 結束")
     import daily_stats
     daily_stats.start_uploader()          # 程式一開就在背景補傳還沒上傳成功的當天統計，之後每 10 分鐘一次
+    import housekeeping
+    housekeeping.start()                  # error_logs 截圖與 events.csv 只留 30 天，程式一開跑一次、之後每天一次
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

@@ -206,6 +206,45 @@ def switch_line(line_id: str, project_name: str, color: str = "") -> Line:
     return l
 
 
+CHOICE_FILE = os.path.join("logs", "method_choice.json")
+
+
+def remember_choice(style: str, orders: list[str], method: str) -> None:
+    """在監控畫面的型體彈出框點了某個模型：記「這張廠編 → 選的包裝方式」和「這個型體 → 上次選的」，下次點開排前面標「上次用的」。"""
+    style = (style or "").strip(); method = (method or "").strip()
+    if not style or not method:
+        return
+    path = os.path.join(app_base_dir(), CHOICE_FILE)
+    with _lock:
+        try:
+            with open(path, "r", encoding="utf-8-sig") as f:
+                d = json.load(f)
+        except (OSError, ValueError):
+            d = {}
+        d.setdefault("orders", {}); d.setdefault("styles", {})
+        for o in orders or []:
+            if str(o).strip():
+                d["orders"][str(o).strip()] = method
+        d["styles"][style] = method
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False, indent=1)
+
+
+def last_choice(style: str, orders: list[str]) -> str | None:
+    """先看這幾張廠編有沒有選過（同一張單選過的最準），沒有再看這個型體上次選的。"""
+    try:
+        with open(os.path.join(app_base_dir(), CHOICE_FILE), "r", encoding="utf-8-sig") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return None
+    for o in orders or []:
+        m = (d.get("orders") or {}).get(str(o).strip())
+        if m:
+            return m
+    return (d.get("styles") or {}).get((style or "").strip())
+
+
 def _log_switch(l: Line, old: str | None, trial: bool) -> None:
     path = os.path.join(app_base_dir(), SWITCH_LOG)
     os.makedirs(os.path.dirname(path), exist_ok=True)

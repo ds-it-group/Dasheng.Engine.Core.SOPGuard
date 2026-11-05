@@ -444,12 +444,18 @@ class MonitorService:
         obj_interval = max(1, p.detect_every_n_frames) / float(p.fps or 30.0)
         if is_camera:
             disp = threading.Thread(target=self._display_loop, args=(p, src), daemon=True); disp.start()
+        day0 = datetime.now().date()
         try:
             while not self._stop.is_set():
                 frame = src.read()
                 if frame is None:
                     break
                 t_now = src.time_sec
+                if is_camera and datetime.now().date() != day0:
+                    # 過了當地 00:00：畫面上的完成／錯誤數、最近輪次、各步驟漏做次數歸零（當天統計檔本來就一天一個）
+                    day0 = datetime.now().date()
+                    fsm.cycle_count = 0; fsm.bad_cycle_count = 0
+                    on = tracker_c.on_record; tracker_c = CycleTracker(p.steps); tracker_c.on_record = on
                 if not is_camera:
                     # 示範影片照原速播：處理跟不上（1080×1920 的現場影片這台只有 5～7 fps）就跳格，每處理 1 格最多跳 2 格；
                     # 狀態機用影片時間算 dt，跳格不影響停留秒數。相機來源本來就只拿最新一格，不用跳

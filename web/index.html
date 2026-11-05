@@ -345,7 +345,9 @@
     });
   }
   function renderRight(s) {
-    const warns = running && !s.loading ? (s.warnings || []) : [];
+    const warns = running && !s.loading ? [...(s.warnings || [])] : [];
+    const eipDown = window.__eipDownMin ? window.__eipDownMin() : 0;             // EIP 連續 10 分鐘以上連不上：需要注意加一條
+    if (running && eipDown >= 10) warns.push(`EIP 已經 ${eipDown} 分鐘連不上：今天的型體清單和目標是舊的，監控照常；當天統計留在本機，連上後會補傳`);
     $("warnBlock").hidden = !warns.length; const w = $("warns"); w.innerHTML = ""; for (const t of warns) w.appendChild(el("li", "", t));
     const hist = s.history || [], strip = $("strip"); strip.innerHTML = "";
     hist.slice().reverse().forEach((h) => {
@@ -448,10 +450,10 @@
   $("dKey").oninput = renderSwitchGrid;
   $("dCancel").onclick = () => { $("dlg").hidden = true; };
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("dlg").hidden = true; });
-  async function switchTo(l, m) {          // 換線（換包裝方式視窗、監控畫面的型體彈出框、復原都走這裡）
-    const d = await api("/api/lines/switch", { line: l.id, project: m.name, color: "" });
+  async function switchTo(l, m, from) {    // 換線（換包裝方式視窗、監控畫面的型體彈出框、復原都走這裡）；from＝{style, orders}：從彈出框選的，後端記住
+    const d = await api("/api/lines/switch", { line: l.id, project: m.name, color: "", ...(from || {}) });
     if (!d.ok) { toast(d.error || "換線失敗", true); return null; }
-    await loadLines(l.id); return d;
+    await loadLines(l.id); pollEip(); return d;                               // 重拿一次：彈出框的「上次用的」要馬上更新
   }
   window.__switchTo = switchTo;
   $("dOk").onclick = async () => {
@@ -473,11 +475,14 @@
   $("mSwitch").onclick = () => openSwitch();
 
   // ---- EIP 看板：今天這條線的型體（只讀，eip_client.py）。每 30 秒問一次；連不上留最後一次的資料
-  let eip = null, eipTimer = null, popAnchor = null;
+  let eip = null, eipTimer = null, popAnchor = null, eipDownSince = null;
+  // 連不上幾分鐘：以「最後一次連上」算（有資料時用 ago_sec），從沒連上過就從這一頁第一次失敗算
+  window.__eipDownMin = () => !eip || !eip.configured || eip.ok ? 0 : Math.floor((eip.ago_sec != null ? eip.ago_sec * 1000 : Date.now() - (eipDownSince || Date.now())) / 60000);
   const agoText = (s) => s == null ? "" : s < 60 ? `${s} 秒前更新` : s < 3600 ? `${Math.round(s / 60)} 分鐘前更新` : `${Math.round(s / 3600)} 小時前更新`;
   async function pollEip(now) {
     clearTimeout(eipTimer); const l = curLine();
     if (l) { try { eip = await api("/api/eip/today?line=" + encodeURIComponent(l.id)); } catch (e) { eip = null; } } else eip = null;
+    if (eip && eip.configured && !eip.ok) { if (!eipDownSince) eipDownSince = Date.now(); } else eipDownSince = null;
     renderEip(); if (!$("eipPop").hidden) openPop();
     eipTimer = setTimeout(pollEip, 30000);
   }
@@ -506,7 +511,8 @@
     const grid = el("div", "tiles"); pop.appendChild(grid);
     const styles = eip.styles || [];
     for (const o of styles) {
-      const ms = withPk().filter((m) => m.has_packaging && m.style === o.style); const mon = !!pk && o.style === cs;
+      const ms = withPk().filter((m) => m.has_packaging && m.style === o.style)               // 上次選的（同一張廠編優先，再看同型體）排前面
+        .sort((a, b) => (b.name === o.last_method) - (a.name === o.last_method)); const mon = !!pk && o.style === cs;
       const t = el("div", "tile" + (mon ? " now" : ms.length ? "" : " none")); t.dataset.style = o.style;
       t.title = (o.orders.length > 1 ? `${o.orders.length} 張訂單：` : "訂單 ") + o.orders.join("、");
       const th = el("div", "th"); th.appendChild(el("span", null, o.style)); th.appendChild(el("small", null, mon ? "監控中" : (ms[0] && ms[0].style_name) || "")); t.appendChild(th);
@@ -520,10 +526,11 @@
       for (const m of ms) {
         const isNow = !!pk && m.name === pk.name;
         const b = el("button", "cb" + (isNow ? " now" : "")); b.type = "button"; b.dataset.name = m.name;
-        b.appendChild(document.createTextNode(m.region || m.name)); b.appendChild(el("small", null, isNow ? "監控中" : `訓練 ${m.model_trained_at}`));
+        b.appendChild(document.createTextNode(m.region || m.name));
+        b.appendChild(el("small", null, isNow ? "監控中" : ms.length > 1 && m.name === o.last_method ? "上次用的" : `訓練 ${m.model_trained_at}`));
         b.title = m.name; b.disabled = isNow;
         if (!isNow) b.onclick = async () => {
-          closePop(); const before = pk ? pk.name : null; const d = await switchTo(l, m); if (!d) return;
+          closePop(); const before = pk ? pk.name : null; const d = await switchTo(l, m, { style: o.style, orders: o.orders }); if (!d) return;
           undoToast(`已切到 ${m.name}` + (d.restarted ? "，正在重新載入" : ""), l, before);
         };
         r1.appendChild(b);
