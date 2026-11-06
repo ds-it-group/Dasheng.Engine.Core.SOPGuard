@@ -182,11 +182,9 @@
           <div class="list" id="nameList"></div>
           <div class="foot">
             <div id="cnt"></div>
-            <div class="hint2" id="legacy" hidden></div>
-            <div class="hint2" id="trainHint">物品、動作都存好再按。沒有動作就直接按；之後改動作不用重訓。</div>
-            <button class="btn btn-primary raised" id="btnTrain">開始訓練（約 20～60 分鐘）</button>
+            <button class="btn btn-primary raised" id="btnTrain" title="物品、動作都存好再按。沒有動作就直接按；之後改動作不用重訓。">開始訓練（約 20～60 分鐘）</button>
             <div class="hint2" id="staleHint" hidden></div>
-            <div class="hint2"><a id="lnkTrainAdv" href="/methods">進階訓練：挑片段、合成配色、產生 GPU 訓練包、匯入 GPU 模型</a></div>
+            <div class="hint2"><a id="lnkTrainAdv" href="/methods" title="挑片段、合成配色、產生 GPU 訓練包、匯入 GPU 模型">進階訓練</a></div>
             <div class="bar" id="trainWrap" hidden><div id="trainBar"></div></div>
             <div class="hint2" id="trainStage"></div>
             <div id="trainRes" hidden></div>
@@ -642,10 +640,10 @@
   }
   function renderFooter() {
     const c = info && info.segments ? info.segments : { object_segments: 0, object_frames: 0, action_segments: 0 };
-    $("cnt").textContent = `已儲存 物品 ${c.object_segments} 段（${c.object_frames} 格會拿去訓練）、動作 ${c.action_segments} 段`;
     const groups = new Set(allSegs().map((s) => s.group).filter(Boolean));
     const legacy = info ? info.seeds.seeds.filter((x) => !groups.has(x.group)).length : 0;
-    $("legacy").hidden = !legacy; $("legacy").textContent = `另有舊版框選 ${legacy} 格（不在時間軸上），訓練時一樣會用到`;
+    $("cnt").textContent = `已存 物品 ${c.object_segments} 段・動作 ${c.action_segments} 段` + (legacy ? `・舊版 ${legacy} 格` : "");
+    $("cnt").title = `物品 ${c.object_frames} 格會拿去訓練` + (legacy ? `；舊版框選 ${legacy} 格不在時間軸上，訓練時一樣會用到` : "");
     const running = $("trainStage").dataset.running === "1";
     $("btnTrain").disabled = !(info && info.has_video && info.seeds.seeds.length) || running;
     const stale = info && info.seeds.model_stale;          // 訓練後桌面範圍改了：訓練鍵亮起來
