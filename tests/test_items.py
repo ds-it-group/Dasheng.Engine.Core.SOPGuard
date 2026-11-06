@@ -9,7 +9,7 @@ import numpy as np
 import training
 from core_detector import BoxStateRunner, FrameContext, SOPStateMachine
 from item_recognizer import ItemHit, ItemSeeds
-from project_store import load_project, project_from_dict
+from project_store import load_project, project_from_dict, project_to_dict
 
 
 def _project(tmp_path, steps):
@@ -496,3 +496,30 @@ def test_gpu_path_selection_and_cpu_fallback(monkeypatch, tmp_path):
     obj_cpu = od.ObjectDetector(str(w), ["blue box"])
     assert obj_cpu.device == "cpu"
     torch.set_num_threads(orig_threads)
+
+
+def test_steps_done_closes_on_all_steps_or_last_step(tmp_path):
+    # 310237：盒子會被鞋子遮住，改成「步驟都做到／做到最後一步就結算」；結算後物品要離開畫面才開始下一輪
+    names = ["翻鞋舌", "貼紙", "放盒"]
+    cfg = {"schema_version": 2, "project_name": "s", "video_file": "demo.avi", "resolution": [1280, 720], "fps": 30.0,
+           "anchors": [], "zones": [], "state_fixed": [0, 0, 1280, 720], "cycle_min_sec": 0.0, "cycle_arm_clear_sec": 1.0, "cycle_timeout_sec": 120.0,
+           "cycle_end": {"type": "steps_done", "hold_sec": 6.0, "label": "放盒"},
+           "steps": [{"step_index": i, "step_name": n, "type": "item", "label": n, "dwell_time_sec": 0.2, "timeout_sec": 60}
+                     for i, n in enumerate(names)]}
+    p = project_from_dict(cfg, str(tmp_path))
+    assert project_to_dict(p)["cycle_end"] == {"type": "steps_done", "hold_sec": 6.0, "label": "放盒"}
+    fsm = SOPStateMachine(p, sound_enabled=False); t = 0.0
+
+    def feed(items, sec):
+        nonlocal t
+        for _ in range(int(sec * 30)):
+            fsm.update(None, FrameContext(items_present=set(items)), t); t += 1 / 30
+    for n in names:
+        feed([n], 0.5); feed([], 0.5)
+    assert fsm.cycle_count == 1 and fsm.bad_cycle_count == 0
+    feed(["放盒"], 3.0)                # 同一雙鞋停在畫面上：還沒清空，不會再算一輪
+    feed(["翻鞋舌"], 0.5); feed(["貼紙"], 0.5)
+    assert fsm.cycle_count == 1 and not fsm.observed
+    feed([], 1.2)                      # 清空後才開始下一輪
+    feed(["翻鞋舌"], 0.5); feed(["放盒"], 0.5)     # 少了貼紙就做到最後一步：結算報漏做，不等下一輪的貼紙
+    assert fsm.cycle_count == 1 and fsm.bad_cycle_count == 1 and "貼紙" in fsm.alert_message

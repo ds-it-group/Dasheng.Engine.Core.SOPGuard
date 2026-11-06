@@ -25,6 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
+import buzzer  # noqa: E402
 from project_store import app_base_dir, list_projects, load_project  # noqa: E402
 
 WEB_DIR = os.path.join(ROOT, "web")
@@ -218,6 +219,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(self.service.snapshot())
             elif path == "/api/projects":
                 self._json({"projects": project_rows()})
+            elif path == "/api/buzzer":
+                self._json(self._buzzer_state())
             elif path == "/stream.mjpg":
                 self._stream(self.service)
             elif self.label is not None and path == "/api/project":
@@ -243,10 +246,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(self.label.analysis.state())
             elif self.label is not None and path == "/api/train/state":
                 self._json(self.label.train.state())
+            elif self.label is not None and path == "/api/discover/state":
+                name = self._query().get("project", "")
+                self._json({**self.label.discover.state(), **(self.label.discovery(name) if name else {})})
             elif self.label is not None and path == "/api/record/state":
                 self._json(self.label.record.state())
             elif self.label is not None and path == "/api/record/stream.mjpg":
                 self._stream(self.label.record)
+            elif self.label is not None and path == "/api/play_stream":
+                self._stream_playback()
             else:
                 self._json({"error": "沒有這個路徑"}, 404)
         except ValueError as e:
@@ -283,6 +291,10 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/screenshot":
                 out = self.service.save_screenshot()
                 self._json({"ok": out is not None, "path": out, "error": None if out else "還沒有監控畫面"})
+            elif path == "/api/buzzer":
+                self._json({"ok": True, **self._buzzer_save(body)})
+            elif path == "/api/buzzer/test":
+                self.service.buzzer.test(); self._json({"ok": True})
             elif self.label is not None and path == "/api/seeds":
                 self._json({"ok": True, "seeds": self.label.seed_action(str(body.get("project", "")), body)})
             elif self.label is not None and path == "/api/segments":
@@ -321,6 +333,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True, **self._share_action(path, body)})
             elif self.label is not None and path == "/api/train/install":
                 self._json({"ok": True, **self.label.train.install_candidate(str(body.get("project", "")))})
+            elif self.label is not None and path == "/api/discover/start":
+                self.label.discover.start(str(body.get("project", ""))); self._json({"ok": True})
+            elif self.label is not None and path == "/api/discover/apply":
+                self._json({"ok": True, **self.label.apply_discovery(str(body.get("project", "")), list(body.get("picks") or []))})
             elif self.label is not None and path == "/api/steps/generate":
                 self._json({"ok": True, **self.label.generate_steps(str(body.get("project", "")))})
             elif self.label is not None and path == "/api/record/start":
@@ -384,7 +400,7 @@ class Handler(BaseHTTPRequestHandler):
             return {"method": pkg.set_packaging(name, body.get("packaging") or {})}
         if path == "/api/method/delete":
             busy = list(self._running_projects())
-            for job in ("train", "autolabel", "analysis", "record"):
+            for job in ("train", "autolabel", "analysis", "record", "discover"):
                 st = getattr(self.label, job, None) if self.label is not None else None
                 if st is not None and getattr(st, "running", False) and getattr(st, "project_name", None):
                     busy.append(st.project_name)
@@ -438,6 +454,23 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": str(e)}, 400)
         except Exception as e:
             self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
+    def _buzzer_state(self) -> dict:
+        b = self.service.buzzer; st = b.settings
+        return {"mode": st["mode"], "max_sec": st["max_sec"], "has_cmd": bool(st["on_cmd"].strip()),
+                "on": b.on, "error": b.error, "file": buzzer.SETTINGS_FILE}
+
+    def _buzzer_save(self, body: dict) -> dict:
+        """網頁只能改模式和最多叫幾秒；on_cmd／off_cmd 要直接改 buzzer.json（見 buzzer.py 開頭）。"""
+        st = dict(self.service.buzzer.settings)
+        mode = str(body.get("mode", st["mode"]))
+        if mode not in buzzer.MODES:
+            raise ValueError("蜂鳴器模式只能是 off／speaker／command")
+        if mode == "command" and not st["on_cmd"].strip():
+            raise ValueError(f"外接蜂鳴器的指令還沒設定：請在 {buzzer.SETTINGS_FILE} 填 on_cmd／off_cmd")
+        st["mode"] = mode
+        st["max_sec"] = max(0, min(600, int(float(body.get("max_sec", st["max_sec"]) or 0))))
+        buzzer.save_settings(st); self.service.buzzer.configure(st)
+        return self._buzzer_state()
 
     def _upload(self):
         if self.label is None:
@@ -475,6 +508,49 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(jpeg); self.wfile.write(b"\r\n"); self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
             pass
+
+    def _stream_playback(self):
+        q = self._query()
+        proj_name = q.get("project", "")
+        start_frame = int(q.get("from", 0) or 0)
+        speed = float(q.get("speed", 1.0) or 1.0)
+        p = load_project(proj_name)
+        if not os.path.isfile(p.video_path):
+            self._json({"error": "沒有示範影片"}, 404); return
+        import cv2
+        from video_recorder import open_video_oriented
+        cap, rotate, W, H, fps = open_video_oriented(p.video_path)
+        fps = float(fps or p.fps or 30.0)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, start_frame))
+        self.send_response(200)
+        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        interval = 1.0 / max(1.0, fps * speed)
+        try:
+            while True:
+                t0 = time.perf_counter()
+                ok, fr = cap.read()
+                if not ok or fr is None:
+                    break
+                if rotate is not None:
+                    fr = cv2.rotate(fr, rotate)
+                if fr.shape[1] > 1280:
+                    fr = cv2.resize(fr, (1280, int(1280 * fr.shape[0] / fr.shape[1])), interpolation=cv2.INTER_AREA)
+                ok_enc, buf = cv2.imencode(".jpg", fr, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                if not ok_enc:
+                    break
+                jpeg = buf.tobytes()
+                self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(jpeg)).encode() + b"\r\n\r\n")
+                self.wfile.write(jpeg); self.wfile.write(b"\r\n"); self.wfile.flush()
+                dt = time.perf_counter() - t0
+                if dt < interval:
+                    time.sleep(interval - dt)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            pass
+        finally:
+            cap.release()
 
 
 def make_server(service, host: str = "0.0.0.0", port: int = 8765, password: str | None = None, label=None) -> ThreadingHTTPServer:

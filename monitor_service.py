@@ -12,6 +12,7 @@ from datetime import datetime
 
 import cv2
 
+from buzzer import Buzzer
 from core_detector import (DETECT_EVERY_N_FRAMES, HAND_MIN_INTERVAL_SEC, BoxStateRunner, FrameContext, HandTracker, SOPStateMachine,
                            _draw_dev_overlay, limit_torch_threads, union_rect)
 from project_store import Project, app_base_dir, load_project
@@ -143,6 +144,15 @@ def load_camera_source() -> str:
         return "0"
 
 
+def friendly_error(e: Exception) -> str:
+    """給畫面看的錯誤：顯示卡記憶體不足翻成白話，其餘只留第一行（CUDA 錯誤後面一大串驅動訊息）。"""
+    msg = str(e)
+    if "out of memory" in msg.lower() or "CUDA_ERROR_OUT_OF_MEMORY" in msg:
+        return "顯示卡記憶體不足（CUDA out of memory）：這台的記憶體被其他程式（例如訓練或 vLLM）佔滿了，請先關掉或等它們跑完再按開始"
+    first = msg.strip().splitlines()[0] if msg.strip() else ""
+    return f"{type(e).__name__}: {first}"
+
+
 class MonitorService:
     """一台電腦一個監控（一次一個專案、一個來源）。start() 立刻回來，模型在背景載入；snapshot() 隨時可叫。"""
 
@@ -169,6 +179,7 @@ class MonitorService:
         self.loading: str | None = None
         self.error: str | None = None
         self.finished: str | None = None
+        self.buzzer = Buzzer()
 
     # ---- 控制
 
@@ -275,7 +286,7 @@ class MonitorService:
         with self._lock:
             d = {"running": self.running, "loading": self.loading, "error": self.error, "finished": self.finished,
                  "project": self.project.project_name if self.project else None, "source_kind": self.source_kind,
-                 "frame_id": self._frame_id, "started_at": self.started_at,
+                 "frame_id": self._frame_id, "started_at": self.started_at, "buzzer_error": self.buzzer.error,
                  "line": {"id": self.line_id, "name": self.line_name} if self.line_id else None,
                  "color": self.color, "trial": self.trial}
             d.update(self._snap)
@@ -298,7 +309,15 @@ class MonitorService:
             self.loading = text
 
     def _publish_frame(self, vis) -> None:
-        ok, buf = cv2.imencode(".jpg", vis, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+        if vis is None:
+            return
+        vh, vw = vis.shape[:2]
+        if max(vw, vh) > 960:
+            scale = 960.0 / max(vw, vh)
+            disp_vis = cv2.resize(vis, (int(vw * scale), int(vh * scale)), interpolation=cv2.INTER_LINEAR)
+        else:
+            disp_vis = vis
+        ok, buf = cv2.imencode(".jpg", disp_vis, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
         with self._cond:
             if ok:
                 self._jpeg = buf.tobytes(); self._frame_id += 1
@@ -438,7 +457,7 @@ class MonitorService:
             src = CameraSource(source, p.resolution[0], p.resolution[1]) if is_camera else VideoFileSource(source)
         except Exception as e:
             with self._lock:
-                self.error = f"{type(e).__name__}: {e}"; self.loading = None
+                self.error = friendly_error(e); self.loading = None
             self._cleanup(tracker, async_det, src); return
         frames = 0; wall0 = time.perf_counter(); disp = None; last_hand_t = -1.0; last_obj_t = -1e9
         obj_interval = max(1, p.detect_every_n_frames) / float(p.fps or 30.0)
@@ -458,7 +477,8 @@ class MonitorService:
                     on = tracker_c.on_record; tracker_c = CycleTracker(p.steps); tracker_c.on_record = on
                 if not is_camera:
                     # 示範影片照原速播：處理跟不上（1080×1920 的現場影片這台只有 5～7 fps）就跳格，每處理 1 格最多跳 2 格；
-                    # 狀態機用影片時間算 dt，跳格不影響停留秒數。相機來源本來就只拿最新一格，不用跳
+                    # 狀態機用影片時間算 dt，跳格不影響停留秒數。相機來源本來就只拿最新一格，不用跳。
+                    # 處理夠快的電腦（GPU 機器 30 fps 以上）落後不會超過 0.15 秒，自然不跳格
                     skipped = 0
                     while skipped < 2 and (time.perf_counter() - wall0) - src.time_sec > 0.15:
                         nxt = src.read()
@@ -511,6 +531,7 @@ class MonitorService:
                 with self._lock:
                     self._live = (ctx, fsm, state_runner, rec_fps)
                 tracker_c.update(fsm, t_now, bool(points))
+                self.buzzer.set(fsm.alert_active and not self.trial)    # 試跑：照樣判斷，但不響警報
                 self._publish_state(fsm, frames, rec_fps, state_runner, p, tracker_c.info(t_now))
                 if disp is None:                             # 影片檔：沒有顯示執行緒，處理完的格直接送
                     self._publish_frame(_draw_dev_overlay(frame, p, fsm, ctx, "", state_runner, boxes_only=True))
@@ -526,9 +547,10 @@ class MonitorService:
                 self.loading = None
         except Exception as e:
             with self._lock:
-                self.error = f"{type(e).__name__}: {e}"; self.loading = None
+                self.error = friendly_error(e); self.loading = None
         finally:
             self._stop.set()
+            self.buzzer.set(False)
             if disp is not None:
                 disp.join(2.0)
             with self._lock:

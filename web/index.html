@@ -74,6 +74,12 @@
   .video.alerting { box-shadow: inset 0 0 0 4px var(--lamp-alert); }
   .alarm { position: absolute; left: 0; right: 0; top: 0; z-index: 2; background: var(--lamp-alert); color: #fff; padding: 8px 12px; display: flex; align-items: center; gap: 10px; }
   .alarm b { flex: 1; font-size: 18px; }
+  .alarm #btnMute { background: transparent; color: #fff; border: 2px solid #fff; font-weight: 400; }
+  /* 處理速度：影像右下角（GPU 機器 10-30 加的） */
+  #fpsBadge { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,.65); color: #fff; padding: 3px 8px; border-radius: 4px;
+              font-size: 12px; font-family: monospace; pointer-events: none; }
+  /* 蜂鳴器：瀏覽器還沒點過、不能出聲時在卡片標題列提醒 */
+  .pk .ttl .buzzlock { margin-left: 10px; font-size: 12px; background: var(--accent); color: #2a1d00; border: 0; border-radius: 10px; padding: 2px 10px; cursor: pointer; }
   .alarm button { background: #fff; color: var(--danger); border: 0; border-radius: 4px; padding: 6px 14px; font-weight: 700; cursor: pointer; }
   ol.steps { list-style: none; margin: 0; padding: 0; overflow: auto; }
   ol.steps li { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; column-gap: 12px; min-height: 46px; padding: 0 12px; border-bottom: 1px solid var(--line-soft); }
@@ -127,7 +133,7 @@
       <div class="pk card">
         <div class="ttl"><span class="mi mark">rate_review</span><h4>目前包裝方式</h4>
           <span class="legend"><span><i style="background:var(--st-ok)"></i>步驟已完成</span><span><i style="background:var(--st-warn)"></i>正在做</span><span><i style="background:var(--danger)"></i>漏做</span></span>
-          <span class="err" id="err"></span><span class="when n" id="pkWhen"></span>
+          <span class="err" id="err"></span><button class="buzzlock" id="buzzLock" hidden>🔇 點一下啟用警報聲</button><span class="when n" id="pkWhen"></span>
         <div class="menuwrap">
           <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden>
@@ -138,6 +144,7 @@
             <button id="mDay">今日統計</button>
             <a id="mLabel" href="/label">包裝設定（訓練）</a>
             <button id="mPc">這台電腦的產線設定</button>
+            <button id="mBuzz">蜂鳴器設定</button>
           </div>
         </div>
         </div>
@@ -168,7 +175,8 @@
           <div class="video" id="stage">
             <img id="stream" alt="監控畫面" hidden>
             <div class="hint" id="hint">選好產線與來源，按「操作 ▾ → 啟動監控」。<br>第一次載入約 10～30 秒。</div>
-            <div class="alarm" id="alert" hidden><b id="alertMsg"></b><button id="btnReset">解除警告</button></div>
+            <div class="alarm" id="alert" hidden><b id="alertMsg"></b><button id="btnMute" title="這次警告不再叫（只關這個網頁的聲音）">🔕 靜音</button><button id="btnReset">解除警告</button></div>
+            <div id="fpsBadge" hidden></div>
           </div>
         </div>
         <div class="pane">
@@ -229,6 +237,23 @@
     <div class="da"><button class="btn btn-cancel" id="dayClose">關閉</button><button class="btn btn-primary raised" id="dayUpload">立即上傳</button></div>
   </div>
 </div>
+<!-- 蜂鳴器：警告期間一直「嗶嗶嗶、停」，解除警告才停（試跑不響）。網頁的聲音存在這台瀏覽器；主機蜂鳴器存在伺服器的 buzzer.json -->
+<div class="scrim" id="buzzDlg" hidden>
+  <div class="dialog xs" role="dialog" aria-modal="true" aria-labelledby="buzzTitle" style="width:min(420px,calc(100vw - 32px))">
+    <div class="dt"><span class="mi mark">notifications_active</span><h4 id="buzzTitle">蜂鳴器設定</h4></div>
+    <div class="dc" style="gap:12px">
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="buzzWeb"> 這個網頁：警告時一直嗶嗶叫</label>
+      <div class="frow" style="gap:10px"><span style="width:84px;color:var(--ink-2)">音量</span><input type="range" id="buzzVol" min="0.05" max="1" step="0.05" style="flex:1"></div>
+      <div class="note info" id="buzzWebNote"></div>
+      <div class="frow" style="gap:10px"><span style="width:84px;color:var(--ink-2)">主機蜂鳴器</span>
+        <select id="buzzMode" style="flex:1"><option value="off">不響</option><option value="speaker">主機喇叭</option><option value="command">外接蜂鳴器／警示燈</option></select></div>
+      <div class="frow" style="gap:10px"><span style="width:84px;color:var(--ink-2)">最多叫</span><input type="number" id="buzzMax" min="0" max="600" step="5" style="width:90px"> 秒</div>
+      <div class="note info">0 秒＝警告多久就叫多久。主機蜂鳴器裝在跑監控的那台電腦上，不管有沒有人開著這個網頁都會響。試跑不響。</div>
+      <div class="note warn" id="buzzErr" hidden></div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="buzzClose">關閉</button><button class="btn btn-primary raised" id="buzzTest">測試 2 秒</button></div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -242,11 +267,44 @@
   EIP.compactToggle($("btnCompact"));
 
   function toast(text, bad) { const t = $("toast"); t.textContent = text; t.className = "toast" + (bad ? " bad" : ""); t.hidden = false; clearTimeout(toast._h); toast._h = setTimeout(() => { t.hidden = true; }, 4000); }
-  function beep() {
-    try { if (!audioCtx || trial) return; const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.frequency.value = 880; g.gain.value = 0.2; o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.5); } catch (e) {}
+  // ---- 蜂鳴器（網頁端）：警告期間「嗶嗶嗶、停」一直循環，警告解除、按靜音、或試跑時不叫。
+  // 瀏覽器規定要先點過網頁才能出聲：還沒點過時標題列會出現黃色提醒。
+  const BUZZ = { hz: 2700, burst: [[0.18, 0.08], [0.18, 0.08], [0.18, 0.08], [0, 0.45]] };
+  const store = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const keep = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const buzz = { web: store("buzzWeb", true), vol: store("buzzVol", 0.5), timer: null, muted: false };
+  function unlockAudio() {
+    if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    renderBuzz();
   }
-  document.addEventListener("click", () => { if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } }, { once: true });
+  const audioOk = () => !!audioCtx && audioCtx.state === "running";
+  function playBurst() {
+    if (!audioOk()) return 0;
+    let t = audioCtx.currentTime + 0.02;
+    for (const [on, off] of BUZZ.burst) {
+      if (on) {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = "square"; o.frequency.value = BUZZ.hz; o.connect(g); g.connect(audioCtx.destination);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.25 * buzz.vol, t + 0.01);
+        g.gain.setValueAtTime(0.25 * buzz.vol, t + on - 0.01); g.gain.linearRampToValueAtTime(0, t + on);
+        o.start(t); o.stop(t + on);
+      }
+      t += on + off;
+    }
+    return BUZZ.burst.reduce((a, [on, off]) => a + on + off, 0);
+  }
+  function buzzLoop() { buzz.timer = setTimeout(buzzLoop, Math.max(0.3, playBurst()) * 1000); }
+  function buzzSet(on) {
+    if (on && !buzz.timer) buzzLoop();
+    else if (!on && buzz.timer) { clearTimeout(buzz.timer); buzz.timer = null; }
+  }
+  function renderBuzz() {
+    $("buzzLock").hidden = !(buzz.web && !audioOk());
+    $("buzzWebNote").textContent = !buzz.web ? "這個網頁不會出聲。" : audioOk() ? "已啟用：這個網頁會出聲。" : "瀏覽器要先點一下網頁才能出聲。";
+  }
+  document.addEventListener("pointerdown", unlockAudio);
+  document.addEventListener("keydown", unlockAudio);
   document.addEventListener("click", (ev) => {
     const t = ev.target.closest("[data-menu]");
     document.querySelectorAll(".menu").forEach((m) => { if (!t || m.id !== t.dataset.menu) m.hidden = true; });
@@ -319,6 +377,9 @@
     else if (running && s.now) { level = s.now.level; title = s.now.title; detail = s.now.detail; }
     else if (s.finished) { title = "已停止"; detail = s.finished; }
     $("lamp").className = "lamp " + level; $("nowTitle").textContent = title; $("nowDetail").textContent = detail || "";
+    const fpsB = $("fpsBadge"), fpsV = s.display_fps > 0 ? s.display_fps : s.fps;
+    fpsB.hidden = !(running && fpsV > 0);
+    if (!fpsB.hidden) fpsB.textContent = `${s.source_kind === "camera" ? "相機即時" : "示範影片"} ${fpsV.toFixed(1)} FPS`;
     const c = s.cycle || {}, inCycle = running && c.elapsed != null;
     $("timerVal").innerHTML = ""; $("timerVal").append(inCycle ? sec(c.elapsed) : "–");
     if (inCycle) $("timerVal").appendChild(el("small", "", "秒"));
@@ -389,7 +450,10 @@
     renderStatus(s); renderSteps(s); renderRight(s); tickClock();
     $("alert").hidden = !s.alert_active; $("alertMsg").textContent = (s.alert_message || "") + (trial ? "（試跑）" : "");
     $("stage").classList.toggle("alerting", !!s.alert_active);
-    if (s.alert_active && !lastAlert) beep();
+    if (!s.alert_active) buzz.muted = false;                  // 下一次警告重新會叫
+    buzzSet(!!s.alert_active && !trial && buzz.web && !buzz.muted);
+    $("btnMute").hidden = !(s.alert_active && !trial && buzz.web && !buzz.muted);
+    if (s.buzzer_error) { $("buzzErr").textContent = s.buzzer_error; $("buzzErr").hidden = false; }
     lastAlert = !!s.alert_active;
   }
   async function poll() {
@@ -407,6 +471,34 @@
     streamOn = false;
   };
   $("btnReset").onclick = () => api("/api/reset", {});
+  $("btnMute").onclick = () => { buzz.muted = true; buzzSet(false); $("btnMute").hidden = true; };
+
+  async function loadBuzzer() {
+    const d = await api("/api/buzzer");
+    $("buzzMode").value = d.mode; $("buzzMax").value = d.max_sec;
+    const cmd = $("buzzMode").querySelector("option[value=command]");
+    cmd.disabled = !d.has_cmd; cmd.textContent = "外接蜂鳴器／警示燈" + (d.has_cmd ? "" : "（要先在 buzzer.json 設指令）");
+    $("buzzErr").textContent = d.error || ""; $("buzzErr").hidden = !d.error;
+  }
+  async function saveBuzzer() {
+    const d = await api("/api/buzzer", { mode: $("buzzMode").value, max_sec: $("buzzMax").value });
+    if (!d.ok) { $("buzzErr").textContent = d.error || "存檔失敗"; $("buzzErr").hidden = false; await loadBuzzer(); return; }
+    $("buzzErr").hidden = true;
+  }
+  $("buzzWeb").checked = buzz.web; $("buzzVol").value = buzz.vol;
+  $("buzzWeb").onchange = () => { buzz.web = $("buzzWeb").checked; keep("buzzWeb", buzz.web); if (!buzz.web) buzzSet(false); renderBuzz(); };
+  $("buzzVol").oninput = () => { buzz.vol = +$("buzzVol").value; keep("buzzVol", buzz.vol); };
+  $("buzzMode").onchange = saveBuzzer; $("buzzMax").onchange = saveBuzzer;
+  $("mBuzz").onclick = () => { $("buzzDlg").hidden = false; loadBuzzer(); renderBuzz(); };
+  $("buzzLock").onclick = () => unlockAudio();
+  $("buzzClose").onclick = () => { $("buzzDlg").hidden = true; };
+  $("buzzTest").onclick = async () => {
+    unlockAudio();
+    if (buzz.web) { buzzSet(true); setTimeout(() => buzzSet(!!lastState.alert_active && !trial && buzz.web && !buzz.muted), 2000); }
+    await api("/api/buzzer/test", {});
+    setTimeout(loadBuzzer, 2300);                              // 主機端有錯（例如沒有喇叭）會在這裡顯示
+  };
+  renderBuzz();
   $("mShot").onclick = async () => { const d = await api("/api/screenshot", {}); toast(d.ok ? "已存截圖：" + d.path : (d.error || "存截圖失敗"), !d.ok); };
 
   // ---- 換包裝方式：只有一個搜尋框（使用者裁示 11-05：不分開選型體和地區），打型體就把它所有地區一起列出來，點一列再確認。

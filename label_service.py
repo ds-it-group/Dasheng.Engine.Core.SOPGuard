@@ -553,6 +553,54 @@ class AutoLabelJob(AnalysisJob):
         with self._lock:
             self.stage = stage; self.done_n, self.total_n = a, b
 
+class DiscoverJob:
+    """自動找候選步驟（step_discovery）：沒有手部軌跡就先跑 trace，再分群。背景執行，一次一個。"""
+
+    def __init__(self):
+        self._lock = threading.Lock(); self._thread = None
+        self.project_name = None; self.stage = ""; self.done_n = 0; self.total_n = 0; self.error = None; self.finished = False
+
+    @property
+    def running(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def state(self) -> dict:
+        with self._lock:
+            return {"running": self.running, "project": self.project_name, "stage": self.stage, "done": self.done_n,
+                    "total": self.total_n, "error": self.error, "finished": self.finished}
+
+    def _set(self, stage: str, a: int = 0, b: int = 0) -> None:
+        with self._lock:
+            self.stage, self.done_n, self.total_n = stage, a, b
+
+    def start(self, project_name: str) -> None:
+        if self.running:
+            raise ValueError("已經在找候選步驟，請等它跑完")
+        project = load_project(project_name)
+        if not os.path.isfile(project.video_path):
+            raise ValueError("這個專案還沒有示範影片")
+        with self._lock:
+            self.project_name = project_name; self.stage = "準備中"; self.done_n = self.total_n = 0
+            self.error = None; self.finished = False
+        self._thread = threading.Thread(target=self._run, args=(project_name,), daemon=True); self._thread.start()
+
+    def _run(self, project_name: str) -> None:
+        import step_discovery
+        try:
+            project = load_project(project_name)
+            training.sync_item_region(project); training.ensure_state_anchor(project)
+            project = load_project(project_name)
+            trace = items.build_trace(project, HAND_MODEL, YOLO_WEIGHTS,
+                                      progress=lambda a, b: self._set(f"找手的位置：{a}/{b} 格", a, b))
+            step_discovery.discover(project, trace, progress=lambda a, b: self._set(f"分析動作：{a}/{b} 格", a, b),
+                                    lib_progress=lambda n, a, b: self._set(f"建立步驟庫（{n}）：{a}/{b} 格", a, b))
+            with self._lock:
+                self.finished = True; self.stage = "完成"
+        except Exception as e:
+            with self._lock:
+                self.error = str(e) if isinstance(e, ValueError) else f"{type(e).__name__}: {e}"
+                self.stage = "失敗"
+
 
 class RecordJob:
     """新增專案時錄示範影片：開相機、建專案（用相機的解析度／fps）、寫 demo.avi、給預覽 JPEG。"""
@@ -655,6 +703,7 @@ class LabelService:
         self._jpegs: OrderedDict = OrderedDict()
         self._lock = threading.Lock()
         self.train = TrainJob(); self.record = RecordJob(); self.analysis = AnalysisJob(); self.autolabel = AutoLabelJob()
+        self.discover = DiscoverJob()
 
     def _detector(self, project) -> items.ItemDetector:
         mp = items.model_path(project)
@@ -929,7 +978,7 @@ class LabelService:
                 raise ValueError("請輸入物品名稱")
             if not (isinstance(rect, list) and len(rect) == 4 and rect[2] >= 12 and rect[3] >= 12):
                 raise ValueError("請先在畫面上拖拉框住物品")
-            sec = float(body.get("track_sec", 2.0) or 0.0)
+            sec = float(body.get("track_sec", 2.5) or 0.0)
             r = tuple(int(v) for v in rect)
             auto = items.track_seed(p.video_path, frame, r, window_sec=sec, fps=p.fps) if sec > 0 else []
             g = seeds.add_seed(name, frame, r, auto)
@@ -973,11 +1022,24 @@ class LabelService:
             reg = tuple(seeds.region) if seeds.region else None
             crop = items._crop(fr, reg) if reg else fr
             rx, ry = (reg[0], reg[1]) if reg else (0, 0)
+            fh, fw = fr.shape[:2]
+            max_x = rx + reg[2] if reg else fw
+            max_y = ry + reg[3] if reg else fh
+            desk_area = (reg[2] * reg[3]) if reg else (fw * fh)
             hits = det.detect(crop)
             existing = [s for s in seeds.seeds if s.frame == frame]
             preds = []
             for h in hits:
-                rect = [int(rx + h.rect[0]), int(ry + h.rect[1]), int(h.rect[2]), int(h.rect[3])]
+                if h.conf < 0.40:
+                    continue
+                bx1 = max(rx, int(rx + h.rect[0]))
+                by1 = max(ry, int(ry + h.rect[1]))
+                bx2 = min(max_x, int(rx + h.rect[0] + h.rect[2]))
+                by2 = min(max_y, int(ry + h.rect[1] + h.rect[3]))
+                bw, bh = bx2 - bx1, by2 - by1
+                if bw < 16 or bh < 16 or (bw * bh > 0.85 * desk_area):
+                    continue
+                rect = [bx1, by1, bw, bh]
                 if any(s.name == h.name and items._iou(tuple(rect), tuple(s.rect)) > 0.4 for s in existing):
                     continue
                 preds.append({"name": h.name, "conf": round(float(h.conf), 2), "rect": rect})
@@ -988,7 +1050,7 @@ class LabelService:
             boxes = body.get("boxes") or []
             if not isinstance(boxes, list) or not boxes:
                 raise ValueError("沒有要加入的預框")
-            sec = float(body.get("track_sec", 2.0) or 0.0)
+            sec = float(body.get("track_sec", 2.5) or 0.0)
             added = 0; auto_total = 0; last_g = 0
             for b in boxes:
                 name = str(b.get("name", "")).strip(); rect = b.get("rect")
@@ -1003,11 +1065,20 @@ class LabelService:
             d["batch_result"] = {"added": added, "auto": auto_total, "group": last_g}
             return d
         elif act == "retrack_all":
-            sec = float(body.get("track_sec", 2.0) or 0.0)
+            sec = float(body.get("track_sec", 2.5) or 0.0)
             stat = items.retrack_seeds(p.video_path, seeds, window_sec=sec, fps=p.fps)
             seeds.sync_auto_region(p.resolution)
             d = self._seeds_dict(seeds, p)
             d["retrack"] = stat
+            return d
+        elif act == "propagate_rounds":
+            sec = float(body.get("track_sec", 2.5) or 0.0)
+            from tools.propagate_seeds import propagate_project
+            stat = propagate_project(p.project_name, track_sec=sec)
+            seeds = items.ItemSeeds(p.dir_path)
+            seeds.sync_auto_region(p.resolution)
+            d = self._seeds_dict(seeds, p)
+            d["propagate"] = stat
             return d
         else:
             raise ValueError(f"不認得的動作：{act}")
@@ -1026,6 +1097,24 @@ class LabelService:
             raise ValueError("還沒有訓練好的物品模型，請先回第 2 步訓練")
         names = training.apply_item_steps(p, seeds.order)
         return {"steps": names}
+
+    # ---- 自動找候選步驟
+
+    def discovery(self, project_name: str) -> dict:
+        import step_discovery
+        p = load_project(project_name); d = step_discovery.load_discovery(p)
+        if d is None:
+            return {"candidates": None}
+        # 給介面看的：不送每一格的框（很多），只送預覽格
+        return {"candidates": [{k: v for k, v in c.items() if k not in ("frames", "boxes")} | {"n": len(c["frames"])}
+                               for c in d["candidates"]],
+                "stale": d.get("fingerprint") != items.trace_fingerprint(p.video_path)}
+
+    def apply_discovery(self, project_name: str, picks: list) -> dict:
+        import step_discovery
+        p = load_project(project_name)
+        out = step_discovery.apply_candidates(p, picks)
+        return {**out, "seeds": self._seeds_dict(items.ItemSeeds(p.dir_path), p)}
 
     # ---- 新增專案
 

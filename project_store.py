@@ -23,7 +23,7 @@ ERROR_LOGS_DIR_NAME = "error_logs"
 INVALID_NAME_CHARS = set('\\/:*?"<>|')
 TRIGGER_MODES = ("hand_only", "hand_and_visual")
 STEP_TYPES = ("hand_dwell", "object_in_zone", "gesture", "box_state", "item", "hand_on_object")
-END_TYPES = ("object_absent", "hands_absent", "object_in_zone", "hand_dwell", "gesture", "box_state")
+END_TYPES = ("object_absent", "hands_absent", "object_in_zone", "hand_dwell", "gesture", "box_state", "steps_done")
 ANCHOR_PICKS = ("largest", "all", "topmost", "bottommost")
 COUNT_MODES = ("any", "all")
 SUPPORTED_SCHEMAS = (1, 2)
@@ -290,6 +290,10 @@ def _parse_cycle_end(raw, zones, anchor_names, gesture_model) -> Step | None:
     _require(_is_num(hold) and hold > 0, "cycle_end.hold_sec 必須大於 0")
     end = Step(step_index=-1, step_name="cycle_end", dwell_time_sec=float(hold), timeout_sec=1.0, type=etype)
     _parse_condition_fields(raw, "cycle_end", etype, end, zones, anchor_names, gesture_model)
+    if etype == "steps_done":
+        last = raw.get("label")      # 選填：每一輪的最後一步，看到就結算
+        _require(last is None or (isinstance(last, str) and last), "cycle_end.label（最後一步的名稱）必須是 null 或非空字串")
+        end.label = last
     return end
 
 
@@ -514,7 +518,7 @@ def project_to_dict(project: Project) -> dict:
             row.update({"min_overlap": e.min_overlap, "count": e.count})
         if e.type == "gesture":
             row.update({"label": e.label, "min_prob": e.min_prob})
-        if e.type in ("box_state", "item"):
+        if e.type in ("box_state", "item") or (e.type == "steps_done" and e.label):
             row["label"] = e.label
         d["cycle_end"] = row
     for s in project.steps:

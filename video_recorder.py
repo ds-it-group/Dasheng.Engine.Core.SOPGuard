@@ -240,15 +240,15 @@ class FrameReader:
         self._cap, self._rotate, w, h, self.fps = open_video_oriented(path)
         self.resolution = (w, h)
         self.frame_count = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-        self._cache_index = None
-        self._cache_frame = None
         self._next = None           # 下一個 read() 會讀到第幾格（往後不遠就循序讀，不 seek）
+        self._cache: dict[int, np.ndarray] = {}     # 最近讀過的格（標記頁來回看同幾格、播放串流）
+        self._max_cache = 64
 
     FORWARD_READ_MAX = 45           # 往後 45 格內循序讀：HEVC 每次 seek 都要從關鍵格重新解碼，預覽連續幾格時慢好幾倍
 
     def get_frame(self, n: int):
-        if self._cache_index == n and self._cache_frame is not None:
-            return self._cache_frame
+        if n in self._cache:
+            return self._cache[n]
         n = max(0, n)
         ok, frame = False, None
         if self._next is not None and 0 <= n - self._next <= self.FORWARD_READ_MAX:
@@ -272,7 +272,9 @@ class FrameReader:
         self._next = n + 1
         if self._rotate is not None:
             frame = cv2.rotate(frame, self._rotate)
-        self._cache_index, self._cache_frame = n, frame
+        if len(self._cache) >= self._max_cache:
+            self._cache.pop(next(iter(self._cache)))
+        self._cache[n] = frame
         return frame
 
     def release(self) -> None:

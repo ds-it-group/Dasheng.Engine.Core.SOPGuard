@@ -16,9 +16,17 @@ window.I18N_DICT = {
 " {0} s",
 " {0} detik"
 ],
+" 候選 {0}": [
+" Candidate {0}",
+" Kandidat {0}"
+],
 " 缺：{0}": [
 " Missing: {0}",
 " Kurang: {0}"
+],
+"0 秒＝警告多久就叫多久。主機蜂鳴器裝在跑監控的那台電腦上，不管有沒有人開著這個網頁都會響。試跑不響。": [
+"0 s = sound for as long as the alert lasts. The host buzzer is on the PC running the monitor and sounds whether or not anyone has this page open. Silent during trial runs.",
+"0 dtk = berbunyi selama peringatan masih ada. Buzzer host ada di PC yang menjalankan pemantauan dan tetap berbunyi walau halaman ini tidak dibuka. Tidak berbunyi saat uji coba."
 ],
 "1. 解壓縮：unzip <這個檔> -d sopg_train && cd sopg_train\\n": [
 "1. Unzip: unzip <this file> -d sopg_train && cd sopg_train\\n",
@@ -267,6 +275,10 @@ window.I18N_DICT = {
 "cycle_end.hold_sec 必須大於 0": [
 "cycle_end.hold_sec must be greater than 0",
 "cycle_end.hold_sec harus lebih dari 0"
+],
+"cycle_end.label（最後一步的名稱）必須是 null 或非空字串": [
+"cycle_end.label (name of the last step) must be null or a non-empty string",
+"cycle_end.label (nama langkah terakhir) harus null atau teks tidak kosong"
 ],
 "cycle_end.type 只能是 {0}": [
 "cycle_end.type can only be {0}",
@@ -652,6 +664,10 @@ window.I18N_DICT = {
 "{0} (Style/Region not set yet)",
 "{0} (Artikel/Wilayah belum diatur)"
 ],
+"{0}（點一下跳過去）": [
+"{0} (click to jump there)",
+"{0} (klik untuk lompat ke sana)"
+],
 "{0}，要 ≥ {1}）。範圍縮到手真的在碰的那幾秒，或先把被碰的物品框好。": [
 "{0}, need ≥ {1}). Narrow the range to the seconds when the hand really touches it, or box the touched item first.",
 "{0}, perlu ≥ {1}). Persempit rentang ke detik saat tangan benar-benar menyentuh, atau kotak dulu barang yang disentuh."
@@ -736,6 +752,10 @@ window.I18N_DICT = {
 "\"{0}\" confidence ≥ {1}, area ≥ {2}% of desk",
 "\"{0}\" keyakinan ≥ {1}, luas ≥ {2}% area meja"
 ],
+"「{0}」失敗：{1}": [
+"\"{0}\" failed: {1}",
+"\"{0}\" gagal: {1}"
+],
 "「{0}」找到 {1} 個型體、{2} 個包裝方式（地區）": [
 "\"{0}\": found {1} styles, {2} packing methods (regions)",
 "\"{0}\": ketemu {1} artikel, {2} metode kemas (wilayah)"
@@ -763,6 +783,10 @@ window.I18N_DICT = {
 "「{0}」產線 {1} 正在用，不能刪除": [
 "\"{0}\" is in use by line {1} and cannot be deleted",
 "\"{0}\" sedang dipakai lini {1}, tidak bisa dihapus"
+],
+"「{0}」的「{1}」": [
+"\"{1}\" in \"{0}\"",
+"\"{1}\" di \"{0}\""
 ],
 "「{0}」的停留秒數不是數字": [
 "Dwell seconds for \"{0}\" is not a number",
@@ -815,6 +839,10 @@ window.I18N_DICT = {
 "上一輪已結算": [
 "Previous cycle closed",
 "Siklus sebelumnya sudah ditutup"
+],
+"上一輪的物品一直留在畫面上（可能卡住），清空後才會開始下一輪": [
+"Items from the last cycle are still on screen (maybe stuck); the next cycle starts once they are cleared",
+"Barang dari siklus sebelumnya masih di layar (mungkin macet); siklus berikutnya mulai setelah dibersihkan"
 ],
 "上傳": [
 "Upload",
@@ -876,6 +904,10 @@ window.I18N_DICT = {
 "Next",
 "Berikutnya"
 ],
+"不用任何標註：分析示範影片裡每一輪都重複的動作，列出候選步驟讓你挑": [
+"No labels needed: finds actions repeated in every cycle of the demo video and lists them as candidate steps for you to pick",
+"Tanpa label: mencari gerakan yang berulang di setiap siklus video contoh dan menampilkannya sebagai kandidat langkah untuk dipilih"
+],
 "不能參考自己的模型": [
 "Cannot use its own model as reference",
 "Tidak bisa pakai model sendiri sebagai referensi"
@@ -887,6 +919,18 @@ window.I18N_DICT = {
 "不認得的動作：{0}": [
 "Unknown action: {0}",
 "Gerakan tidak dikenal: {0}"
+],
+"不響": [
+"Off",
+"Mati"
+],
+"主機喇叭": [
+"Host speaker",
+"Speaker PC host"
+],
+"主機蜂鳴器": [
+"Host buzzer",
+"Buzzer host"
 ],
 "主鍵＝型體＋地區，兩個合起來不能重複。型體照規定填「6 碼數字＋空一格＋2 碼數字」，例如 310222 01。客戶只是顯示用。": [
 "Key = Style + Region; the combination must be unique. Enter Style as \"6 digits + space + 2 digits\", e.g. 310222 01. Customer is for display only.",
@@ -988,6 +1032,10 @@ window.I18N_DICT = {
 "Keep the previous model",
 "Tetap pakai model sebelumnya"
 ],
+"候選步驟": [
+"Candidate steps",
+"Kandidat langkah"
+],
 "做完的樣子，例如 盒端貼紙": [
 "What it looks like when done, e.g. box-end sticker",
 "Bentuk saat selesai, contoh: stiker ujung kotak"
@@ -1019,6 +1067,10 @@ window.I18N_DICT = {
 "偵測範圍（整張桌面）": [
 "Detection area (whole desk)",
 "Area deteksi (seluruh meja)"
+],
+"像「{0}」的「{1}」（{2}% 的畫面）": [
+"Looks like \"{1}\" in \"{0}\" ({2}% of frames)",
+"Mirip \"{1}\" di \"{0}\" ({2}% bingkai)"
 ],
 "儲存": [
 "Save",
@@ -1136,6 +1188,14 @@ window.I18N_DICT = {
 "Other",
 "Lainnya"
 ],
+"出現 {0} 次，平均 {1} 秒": [
+"Seen {0} times, {1} s on average",
+"Muncul {0} kali, rata-rata {1} dtk"
+],
+"分析動作：{0}/{1} 格": [
+"Analysing actions: {0}/{1} frames",
+"Menganalisis gerakan: {0}/{1} bingkai"
+],
 "分析步驟": [
 "Analyze steps",
 "Analisis langkah"
@@ -1244,9 +1304,17 @@ window.I18N_DICT = {
 "Select",
 "Pilih"
 ],
+"勾選的候選都要取名字": [
+"Every ticked candidate needs a name",
+"Setiap kandidat yang dicentang harus diberi nama"
+],
 "勾選的片段裡沒有任何框": [
 "The selected clips have no boxes",
 "Klip yang dipilih tidak punya kotak"
+],
+"勾選要留下的步驟並取名；同一個步驟出現在兩個候選時取同一個名字就會合併。點縮圖可跳到那一格。 綠色標籤＝跟其他專案取過名的步驟很像，名字已經先填好、勾起來了，請看縮圖確認。沒勾的（伸手、轉身這類過場）會當反例，教模型「手在畫面上不一定在做步驟」。": [
+"Tick the steps to keep and name them; give two candidates the same name to merge them. Click a thumbnail to jump to that frame. Green tag = very similar to a step named in another project; the name is pre-filled and ticked, please check the thumbnails. Unticked ones (reaching, turning and other transitions) become negatives that teach the model \"hands on screen are not always doing a step\".",
+"Centang langkah yang ingin disimpan dan beri nama; beri nama yang sama pada dua kandidat untuk menggabungkannya. Klik gambar kecil untuk lompat ke bingkai itu. Label hijau = sangat mirip langkah yang sudah dinamai di proyek lain; nama sudah diisi dan dicentang, periksa gambar kecilnya. Yang tidak dicentang (meraih, berbalik, dan transisi lain) menjadi contoh negatif yang mengajari model \"tangan di layar belum tentu sedang melakukan langkah\"."
 ],
 "勾選＝拿這一輪的框選來訓練": [
 "Checked = use this cycle's boxes for training",
@@ -1368,6 +1436,10 @@ window.I18N_DICT = {
 "Editable fields (saved on change)",
 "Kolom yang bisa diubah (langsung tersimpan)"
 ],
+"可能是過場動作": [
+"Possibly a transition",
+"Mungkin gerakan transisi"
+],
 "右邊先新增動作": [
 "Add an action on the right first",
 "Tambah gerakan di kanan dulu"
@@ -1403,6 +1475,10 @@ window.I18N_DICT = {
 "同版本": [
 "Same version",
 "Versi sama"
+],
+"名字是照相似度預填的，請看縮圖確認": [
+"The name was pre-filled by similarity; please check the thumbnails",
+"Nama diisi otomatis berdasarkan kemiripan; periksa gambar kecilnya"
 ],
 "名稱": [
 "Name",
@@ -1508,6 +1584,14 @@ window.I18N_DICT = {
 "Style (code/name)",
 "Artikel (kode/nama)"
 ],
+"外接蜂鳴器的指令還沒設定：請在 {0} 填 on_cmd／off_cmd": [
+"External buzzer commands are not set: fill in on_cmd / off_cmd in {0}",
+"Perintah buzzer eksternal belum diatur: isi on_cmd / off_cmd di {0}"
+],
+"外接蜂鳴器／警示燈": [
+"External buzzer / warning light",
+"Buzzer eksternal / lampu peringatan"
+],
 "大小": [
 "Size",
 "Ukuran"
@@ -1532,6 +1616,10 @@ window.I18N_DICT = {
 "Apply",
 "Terapkan"
 ],
+"套用選取的候選": [
+"Apply selected candidates",
+"Terapkan kandidat terpilih"
+],
 "存截圖": [
 "Save screenshot",
 "Simpan screenshot"
@@ -1539,6 +1627,10 @@ window.I18N_DICT = {
 "存截圖失敗": [
 "Save screenshot failed",
 "Gagal simpan screenshot"
+],
+"存檔失敗": [
+"Save failed",
+"Gagal menyimpan"
 ],
 "它追出來的框也會一起刪。": [
 "The boxes it tracked will be deleted too.",
@@ -1664,6 +1756,10 @@ window.I18N_DICT = {
 "Deleted segment {0} (Ctrl＋Z to undo)",
 "Segmen {0} sudah dihapus (Ctrl＋Z untuk batalkan)"
 ],
+"已加入時間軸：": [
+"Added to the timeline: ",
+"Ditambahkan ke linimasa: "
+],
 "已匯入 {0}（{1}x{2} @ {3} fps）": [
 "Imported {0} ({1}x{2} @ {3} fps)",
 "Sudah diimpor {0} ({1}x{2} @ {3} fps)"
@@ -1679,6 +1775,10 @@ window.I18N_DICT = {
 "已啟用「{0}」": [
 "Enabled \"{0}\"",
 "\"{0}\" diaktifkan"
+],
+"已啟用：這個網頁會出聲。": [
+"Enabled: this page will make sound.",
+"Aktif: halaman ini akan berbunyi."
 ],
 "已存 物品 {0} 段・動作 {1} 段": [
 "Saved: items {0} segments・actions {1} segments",
@@ -1752,6 +1852,10 @@ window.I18N_DICT = {
 "No hand seen for {0} s (worker away, or camera blocked)",
 "Sudah {0} detik tidak terlihat tangan (operator tidak ada, atau kamera terhalang)"
 ],
+"已經在找候選步驟，請等它跑完": [
+"Already finding candidate steps, please wait for it to finish",
+"Sedang mencari kandidat langkah, tunggu sampai selesai"
+],
 "已經在訓練中，請等它跑完": [
 "Training already running, please wait until it finishes",
 "Sedang latih, tunggu sampai selesai"
@@ -1767,6 +1871,10 @@ window.I18N_DICT = {
 "已載入「{0}」{1}{2}。到監控畫面「操作 → 換包裝方式」就能選": [
 "Loaded \"{0}\"{1}{2}. Select it in Monitor screen \"Actions → Change packing method\"",
 "\"{0}\"{1}{2} sudah dimuat. Pilih di Layar pantau \"Aksi → Ganti metode kemas\""
+],
+"已選 {0} 個候選 → {1} 個步驟": [
+"{0} candidates selected → {1} steps",
+"{0} kandidat dipilih → {1} langkah"
 ],
 "已選 {0} 段（訓練 {1}、驗證 {2}），共 {3} 框；配色：{4}": [
 "{0} segments selected (train {1}, verify {2}), {3} boxes total; colors: {4}",
@@ -1815,6 +1923,10 @@ window.I18N_DICT = {
 "建立": [
 "Create",
 "Buat"
+],
+"建立步驟庫（{0}）：{1}/{2} 格": [
+"Building step library ({0}): {1}/{2} frames",
+"Membangun pustaka langkah ({0}): {1}/{2} bingkai"
 ],
 "影像來源": [
 "Video source",
@@ -1964,6 +2076,10 @@ window.I18N_DICT = {
 "Hand touch: {0}",
 "Sentuhan tangan: {0}"
 ],
+"手移動很快": [
+"Hands move fast",
+"Tangan bergerak cepat"
+],
 "手要碰的是小地方（例如鞋舌）：先把它框成物品": [
 "If the hand touches a small spot (e.g. tongue): box it as an item first",
 "Kalau tangan menyentuh bagian kecil (contoh: lidah sepatu): beri kotak sebagai barang dulu"
@@ -1979,6 +2095,10 @@ window.I18N_DICT = {
 "找一格桌上沒東西的畫面，按「這一格標成空桌面」": [
 "Find a frame with nothing on the desk and press \"Mark this frame as empty desk\"",
 "Cari bingkai yang mejanya kosong, lalu tekan \"Tandai bingkai ini sebagai meja kosong\""
+],
+"找不到 paplay／aplay，裝 pulseaudio-utils 或 alsa-utils": [
+"paplay/aplay not found; install pulseaudio-utils or alsa-utils",
+"paplay/aplay tidak ditemukan; pasang pulseaudio-utils atau alsa-utils"
 ],
 "找不到 {0}，無法找盒子": [
 "Cannot find {0}, cannot find boxes",
@@ -2044,6 +2164,10 @@ window.I18N_DICT = {
 "Finding other cycles",
 "Mencari siklus lain"
 ],
+"找到 {0} 個候選步驟": [
+"Found {0} candidate steps",
+"Ditemukan {0} kandidat langkah"
+],
 "找到率": [
 "Find rate",
 "Tingkat temuan"
@@ -2051,6 +2175,10 @@ window.I18N_DICT = {
 "找到率（上次 → 這次）": [
 "Find rate (last → this)",
 "Tingkat temuan (sebelum → sekarang)"
+],
+"找手的位置：{0}/{1} 格": [
+"Locating hands: {0}/{1} frames",
+"Mencari posisi tangan: {0}/{1} bingkai"
 ],
 "找桌上什麼都沒有的畫面標起來（建議 2～3 格），模型才學得到「桌上沒東西」": [
 "Mark frames where the desk is completely empty (2–3 recommended) so the model learns what \"nothing on the desk\" looks like",
@@ -2156,6 +2284,10 @@ window.I18N_DICT = {
 "Play",
 "Putar"
 ],
+"播放程式結束碼 {0}": [
+"Player exit code {0}",
+"Kode keluar pemutar {0}"
+],
 "播放／暫停（空白鍵）": [
 "Play/Pause (Space)",
 "Putar/Jeda (Spasi)"
@@ -2255,6 +2387,10 @@ window.I18N_DICT = {
 "暫停": [
 "Pause",
 "Jeda"
+],
+"最多叫": [
+"Sound for at most",
+"Bunyi paling lama"
 ],
 "最多處理幾格，0 = 全部": [
 "Max frames to process, 0 = all",
@@ -2379,6 +2515,10 @@ window.I18N_DICT = {
 "查看": [
 "View",
 "Lihat"
+],
+"查看候選步驟": [
+"View candidate steps",
+"Lihat kandidat langkah"
 ],
 "查詢": [
 "Search",
@@ -2620,6 +2760,10 @@ window.I18N_DICT = {
 "Step names cannot repeat",
 "Nama langkah tidak boleh sama"
 ],
+"步驟名稱（如 翻鞋舌）": [
+"Step name (e.g. flip tongue)",
+"Nama langkah (mis. balik lidah sepatu)"
+],
 "步驟已完成": [
 "Step done",
 "Langkah selesai"
@@ -2672,6 +2816,10 @@ window.I18N_DICT = {
 "Each item: Start here → drag end → box how it looks when done (with the box next to it) → Save",
 "Setiap barang: Mulai dari sini → tarik akhir → beri kotak bentuk saat selesai (dengan kotak di sebelahnya) → Simpan"
 ],
+"每次長短不一": [
+"Length varies a lot",
+"Durasi sangat bervariasi"
+],
 "比上一次": [
 "vs. last time",
 "dibanding sebelumnya"
@@ -2715,6 +2863,10 @@ window.I18N_DICT = {
 "沒有上次可比": [
 "Nothing previous to compare",
 "Tidak ada hasil sebelumnya untuk dibandingkan"
+],
+"沒有候選 {0}": [
+"No candidate {0}",
+"Tidak ada kandidat {0}"
 ],
 "沒有停用的包裝方式": [
 "No disabled packing methods",
@@ -2824,6 +2976,10 @@ window.I18N_DICT = {
 "Not in the list? Search to change ›",
 "Tidak ada di daftar? Cari untuk ganti ›"
 ],
+"測試 2 秒": [
+"Test 2 s",
+"Uji 2 dtk"
+],
 "準備中": [
 "Preparing",
 "Menyiapkan"
@@ -2847,6 +3003,10 @@ window.I18N_DICT = {
 "漏做：": [
 "Missed: ",
 "Terlewat: "
+],
+"瀏覽器要先點一下網頁才能出聲。": [
+"The browser needs one click on the page before it can make sound.",
+"Browser perlu satu klik di halaman sebelum bisa berbunyi."
 ],
 "無": [
 "None",
@@ -3176,6 +3336,10 @@ window.I18N_DICT = {
 "Demo video finished: {0} cycles done, {1} cycles missed",
 "Video contoh selesai: {0} siklus selesai, {1} siklus terlewat"
 ],
+"示範影片裡手在桌面範圍內的畫面太少，找不到候選步驟": [
+"Too few frames with hands on the desk in the demo video to find candidate steps",
+"Terlalu sedikit bingkai dengan tangan di area meja pada video contoh untuk mencari kandidat langkah"
+],
 "秒": [
 "s",
 "detik"
@@ -3400,6 +3564,18 @@ window.I18N_DICT = {
 "Auto",
 "Otomatis"
 ],
+"自動找候選步驟": [
+"Find candidate steps automatically",
+"Cari kandidat langkah otomatis"
+],
+"自動找候選步驟失敗：": [
+"Finding candidate steps failed: ",
+"Gagal mencari kandidat langkah: "
+],
+"自動找候選步驟：{0}": [
+"Finding candidate steps: {0}",
+"Mencari kandidat langkah: {0}"
+],
 "自動標記": [
 "Auto label",
 "Tandai otomatis"
@@ -3431,6 +3607,18 @@ window.I18N_DICT = {
 "處理 {0} fps  t={1}s": [
 "Processing {0} fps  t={1}s",
 "Memproses {0} fps  t={1}s"
+],
+"蜂鳴器模式只能是 off／speaker／command": [
+"Buzzer mode must be off / speaker / command",
+"Mode buzzer hanya boleh off / speaker / command"
+],
+"蜂鳴器沒有響：{0}": [
+"Buzzer did not sound: {0}",
+"Buzzer tidak berbunyi: {0}"
+],
+"蜂鳴器設定": [
+"Buzzer settings",
+"Pengaturan buzzer"
 ],
 "裁斷": [
 "Cutting",
@@ -3592,6 +3780,10 @@ window.I18N_DICT = {
 "Help",
 "Keterangan"
 ],
+"請先勾選要留下的候選步驟": [
+"Tick the candidate steps to keep first",
+"Centang dulu kandidat langkah yang ingin disimpan"
+],
 "請先在左邊選一個包裝方式": [
 "Please select a packing method on the left first",
 "Pilih dulu metode kemas di kiri"
@@ -3607,6 +3799,10 @@ window.I18N_DICT = {
 "請先選 GPU 訓練出來的 best.pt": [
 "Please select the GPU-trained best.pt first",
 "Pilih dulu best.pt hasil latih GPU"
+],
+"請先選一個有示範影片的專案": [
+"Pick a project that has a demo video first",
+"Pilih dulu proyek yang punya video contoh"
 ],
 "請先選影片檔": [
 "Please select a video file first",
@@ -3643,6 +3839,10 @@ window.I18N_DICT = {
 "請至少勾一段訓練素材": [
 "Select at least one training segment",
 "Pilih minimal satu segmen bahan latih"
+],
+"請至少勾選一個候選步驟並取名": [
+"Tick at least one candidate step and name it",
+"Centang minimal satu kandidat langkah dan beri nama"
 ],
 "請輸入密碼": [
 "Enter the password",
@@ -3896,6 +4096,10 @@ window.I18N_DICT = {
 "This project has no steps yet. Generate steps in the desktop app under \"② Label items\" first",
 "Proyek ini belum punya langkah. Buat langkah dulu di aplikasi desktop pada \"② Tandai barang\""
 ],
+"這個專案還沒有示範影片": [
+"This project has no demo video yet",
+"Proyek ini belum punya video contoh"
+],
 "這個專案還沒有示範影片，先用下面任一種方式準備": [
 "This project has no demo video yet. Prepare one using either method below",
 "Proyek ini belum punya video contoh. Siapkan dengan salah satu cara di bawah"
@@ -3923,6 +4127,14 @@ window.I18N_DICT = {
 "這個時間點不在任何一段裡。先按「從這裡開始」新增一段，再畫框。": [
 "This time is not in any segment. Click \"Start here\" to add a segment first, then draw a box.",
 "Waktu ini tidak ada di segmen mana pun. Klik \"Mulai dari sini\" untuk tambah segmen dulu, lalu gambar kotak."
+],
+"這個網頁不會出聲。": [
+"This page will not make sound.",
+"Halaman ini tidak akan berbunyi."
+],
+"這個網頁：警告時一直嗶嗶叫": [
+"This page: keep beeping during alerts",
+"Halaman ini: terus berbunyi saat peringatan"
 ],
 "這台電腦的產線": [
 "This computer's line",
@@ -3975,6 +4187,10 @@ window.I18N_DICT = {
 "這次比上次": [
 "This time vs. last",
 "Kali ini dibanding sebelumnya"
+],
+"這次警告不再叫（只關這個網頁的聲音）": [
+"Stop beeping for this alert (this page only)",
+"Hentikan bunyi untuk peringatan ini (hanya halaman ini)"
 ],
 "這版改了什麼（選填，寫進版本紀錄）": [
 "What changed in this version (optional, saved in the version log)",
@@ -4144,6 +4360,10 @@ window.I18N_DICT = {
 "No empty-desk frames yet",
 "Belum ada bingkai meja kosong"
 ],
+"還沒有自動找步驟的結果": [
+"No automatic step-finding result yet",
+"Belum ada hasil pencarian langkah otomatis"
+],
 "還沒有要上傳的": [
 "Nothing to upload",
 "Tidak ada yang perlu diupload"
@@ -4220,6 +4440,14 @@ window.I18N_DICT = {
 "Re-analyze",
 "Analisis ulang"
 ],
+"重新分析會覆蓋目前的候選清單（已套用的段落不受影響），確定嗎？": [
+"Re-analysing replaces the current candidate list (segments already applied are kept). Continue?",
+"Analisis ulang akan mengganti daftar kandidat saat ini (segmen yang sudah diterapkan tetap ada). Lanjutkan?"
+],
+"重新找候選步驟": [
+"Find candidate steps again",
+"Cari ulang kandidat langkah"
+],
 "重新訓練": [
 "Retrain",
 "Latih ulang"
@@ -4272,6 +4500,10 @@ window.I18N_DICT = {
 "Start analyzing steps",
 "Mulai analisis langkah"
 ],
+"開始分析示範影片，約 2～4 分鐘，好了會自動跳出候選清單": [
+"Analysing the demo video, about 2–4 minutes; the candidate list opens when done",
+"Menganalisis video contoh, sekitar 2–4 menit; daftar kandidat terbuka setelah selesai"
+],
 "開始產生 GPU 訓練包": [
 "Start building GPU training package",
 "Mulai buat paket latih GPU"
@@ -4316,6 +4548,10 @@ window.I18N_DICT = {
 "Shoe",
 "Sepatu"
 ],
+"音量": [
+"Volume",
+"Volume"
+],
 "順序": [
 "Order",
 "Urutan"
@@ -4335,6 +4571,10 @@ window.I18N_DICT = {
 "預覽（逐段看畫面、刪錯框）": [
 "Preview (view each segment, delete wrong boxes)",
 "Pratinjau (lihat tiap segmen, hapus kotak yang salah)"
+],
+"顯示卡記憶體不足（CUDA out of memory）：這台的記憶體被其他程式（例如訓練或 vLLM）佔滿了，請先關掉或等它們跑完再按開始": [
+"Graphics card out of memory (CUDA out of memory): other programs on this PC (e.g. training or vLLM) are using it all; close them or wait for them to finish, then press Start",
+"Memori kartu grafis habis (CUDA out of memory): program lain di PC ini (mis. pelatihan atau vLLM) memakai semuanya; tutup atau tunggu selesai, lalu tekan Mulai"
 ],
 "顯示整支影片（快速鍵 \\）": [
 "Show whole video (shortcut \\)",
@@ -4408,6 +4648,10 @@ window.I18N_DICT = {
 "(click a name on the right)",
 "(klik satu nama di kanan)"
 ],
+"（影片換過了，請重新分析）": [
+" (the video changed, please analyse again)",
+" (video sudah diganti, analisis ulang)"
+],
 "（待刪 {0}）": [
 "(to delete {0})",
 "(akan dihapus {0})"
@@ -4456,6 +4700,10 @@ window.I18N_DICT = {
 " (resent {0})",
 " (kirim ulang {0})"
 ],
+"（要先在 buzzer.json 設指令）": [
+" (set the commands in buzzer.json first)",
+" (atur perintah di buzzer.json dulu)"
+],
 "（試跑）": [
 " (trial run)",
 " (uji coba)"
@@ -4476,6 +4724,10 @@ window.I18N_DICT = {
 "(Optional)",
 "(Opsional)"
 ],
+"（還有 {0} 個沒取名）": [
+" ({0} still unnamed)",
+" ({0} belum diberi nama)"
+],
 "（還沒選名稱）": [
 "(no name selected yet)",
 "(belum pilih nama)"
@@ -4491,6 +4743,10 @@ window.I18N_DICT = {
 "，不然監控時看到的東西大小跟訓練時不一樣": [
 ", otherwise items will look a different size in monitoring than in training",
 ", kalau tidak, ukuran barang saat dipantau beda dengan saat dilatih"
+],
+"，共 {0} 段（另加 {1} 格反例）。可以檢查、刪掉不對的段落，再按訓練。": [
+", {0} segments in total (plus {1} negative frames). Check and delete wrong segments, then train.",
+", total {0} segmen (ditambah {1} bingkai negatif). Periksa dan hapus segmen yang salah, lalu latih."
 ],
 "，共用硬碟有新版": [
 ", shared drive has a newer version",
@@ -4543,5 +4799,13 @@ window.I18N_DICT = {
 "；還有 {0} 沒傳": [
 "; {0} still not sent",
 "; {0} masih belum terkirim"
+],
+"🔇 點一下啟用警報聲": [
+"🔇 Click to enable alarm sound",
+"🔇 Klik untuk mengaktifkan bunyi alarm"
+],
+"🔕 靜音": [
+"🔕 Mute",
+"🔕 Bisukan"
 ]
 };

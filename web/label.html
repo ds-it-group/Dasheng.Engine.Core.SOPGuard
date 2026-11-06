@@ -114,6 +114,16 @@
   #btnTrain.attn { box-shadow: 0 0 0 3px var(--st-warn), 0 0 0 5px var(--accent); animation: attn 1.2s ease-in-out 3; }
   @keyframes attn { 50% { box-shadow: 0 0 0 3px var(--st-warn), 0 0 0 9px rgba(255,159,28,.35); } }
   #staleHint { background: var(--st-warn); border-left: 4px solid var(--accent); padding: 6px 10px; }
+  /* 自動找候選步驟（GPU 機器 10-30～11-02 加的）：不用任何標註，示範影片裡每輪都重複的動作片段＝候選步驟 */
+  .cand { border: 1px solid var(--line); border-radius: 4px; padding: 10px; background: var(--card); }
+  .cand.on { border-color: var(--primary); background: var(--primary-wash); }
+  .cand .head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .cand .stats { color: var(--ink-2); font-size: 13px; }
+  .cand .tip { font-size: 12px; color: #8a4b00; background: #fff3e0; border-radius: 10px; padding: 1px 8px; }
+  .cand .sugg { font-size: 12px; color: #1b5e20; background: #e8f5e9; border-radius: 10px; padding: 1px 8px; }
+  .cand .cname { width: 200px; height: 30px; padding: 0 8px; border: 1px solid #c5cae9; border-radius: 2px; }
+  .cand .thumbs { display: flex; gap: 6px; overflow-x: auto; margin-top: 8px; }
+  .cand .thumbs img { height: 110px; border-radius: 2px; cursor: pointer; flex: none; }
   @media (max-width: 1100px) { .lbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; } .stage { min-height: 56vw; } .names .list { max-height: 280px; } }
 </style>
 </head>
@@ -140,6 +150,8 @@
           <div class="menu" id="opMenu" hidden>
             <button id="btnNew">新增包裝方式</button>
             <button id="btnRetrain" hidden title="框選沒改也可以再訓練一次">重新訓練</button>
+            <button id="btnDiscover" title="不用任何標註：分析示範影片裡每一輪都重複的動作，列出候選步驟讓你挑">自動找候選步驟</button>
+            <button id="btnShowCands" hidden>查看候選步驟</button>
             <a id="lnkTrainAdv" href="/methods" title="挑片段、合成配色、產生 GPU 訓練包、匯入 GPU 模型">進階訓練（GPU 等）</a>
             <a id="lnkMethod" href="/methods">到包裝明細</a>
             <a href="/">到監控畫面</a>
@@ -251,6 +263,18 @@
       <div class="note danger" id="newErr" hidden></div>
     </div>
     <div class="da"><button class="btn btn-cancel" id="newCancel">取消</button><button class="btn btn-primary raised" id="newOk">建立</button></div>
+  </div>
+</div>
+<!-- 自動找候選步驟（openLarge）：勾選、取名後套用，每次出現變成時間軸上的一段（框＝手的周圍） -->
+<div class="scrim" id="candDlg" hidden>
+  <div class="dialog large" role="dialog" aria-modal="true" aria-labelledby="candTitle">
+    <div class="dt"><span class="mi mark">auto_awesome</span><h4 id="candTitle">候選步驟</h4><span class="sum" id="candSummary"></span></div>
+    <div class="dc" style="gap:10px">
+      <div class="note info">勾選要留下的步驟並取名；同一個步驟出現在兩個候選時取同一個名字就會合併。點縮圖可跳到那一格。
+        綠色標籤＝跟其他專案取過名的步驟很像，名字已經先填好、勾起來了，請看縮圖確認。沒勾的（伸手、轉身這類過場）會當反例，教模型「手在畫面上不一定在做步驟」。</div>
+      <div id="candList" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="candClose">關閉</button><button class="btn btn-primary raised" id="candApply">套用選取的候選</button></div>
   </div>
 </div>
 <!-- 確認（380） -->
@@ -846,10 +870,80 @@
     const noObj = !info.seeds.seeds.length && !((info.segments || {}).object_segments > 0);
     setKind(info.has_video && !refs().length && noObj ? "empty" : first && first.kind === "action" ? "action" : "object", true);
     if (info.has_video) seek(0, false);
+    pollDiscover(false);
   }
   document.addEventListener("i18n:change", () => draw());
   async function refreshInfo() { if (!proj) return; const d = await api("/api/project?name=" + enc(proj)); if (!d.error) { info = d; N = info.frame_count || 0; indexSeeds(); render(); } }
   $("project").onchange = () => { openProject($("project").value); history.replaceState(null, "", $("project").value ? "/label?project=" + enc($("project").value) : "/label"); };
+
+  // ---- 自動找候選步驟（step_discovery）
+  let discTimer = null, cands = [];
+  async function pollDiscover(openWhenDone) {
+    clearTimeout(discTimer); if (!proj) return;
+    const s = await api("/api/discover/state?project=" + enc(proj)); const mine = s.project === proj;
+    cands = s.candidates || [];
+    $("btnShowCands").hidden = !cands.length;
+    $("btnDiscover").textContent = cands.length ? "重新找候選步驟" : "自動找候選步驟";
+    if (mine && s.running) { say(`自動找候選步驟：${s.stage || "準備中"}`); discTimer = setTimeout(() => pollDiscover(openWhenDone), 1500); return; }
+    if (mine && s.error && openWhenDone) say("自動找候選步驟失敗：" + s.error, true);
+    if (openWhenDone && mine && s.finished && cands.length) { say(`找到 ${cands.length} 個候選步驟` + (s.stale ? "（影片換過了，請重新分析）" : "")); showCands(); }
+  }
+  function showCands() {
+    const box = $("candList"); box.innerHTML = "";
+    for (const c of cands) {
+      const div = el("div", "cand"); div.dataset.id = c.id;
+      const head = el("div", "head"); div.appendChild(head);
+      const lab = el("label"); lab.style.cssText = "display:inline-flex;align-items:center;gap:6px;font-weight:600;cursor:pointer";
+      const chk = el("input"); chk.type = "checkbox"; chk.className = "pick"; lab.append(chk, ` 候選 ${c.id + 1}`); head.appendChild(lab);
+      const nm = el("input", "cname"); nm.type = "text"; nm.placeholder = "步驟名稱（如 翻鞋舌）"; head.appendChild(nm);
+      const st = el("span", "stats"); st.textContent = `出現 ${c.episodes} 次，平均 ${c.mean_sec.toFixed(1)} 秒`; head.appendChild(st);
+      for (const r of (c.likely_transition ? ["可能是過場動作"] : c.reasons)) { const t = el("span", "tip"); t.textContent = r; head.appendChild(t); }
+      const sg = c.suggest;
+      if (sg) {                                  // 步驟庫（其他專案取過名的步驟）裡最像的那一步：預填名字並勾起來，使用者可改可取消
+        nm.value = sg.name; chk.checked = true; div.classList.add("on");
+        const b = el("span", "sugg"); b.textContent = `像「${sg.project}」的「${sg.name}」（${Math.round(sg.share * 100)}% 的畫面）`;
+        b.title = "名字是照相似度預填的，請看縮圖確認" + (sg.alts && sg.alts.length ? "\n也像：" + sg.alts.map((a) => `「${a.project}」的「${a.name}」`).join("、") : "");
+        head.appendChild(b);
+      }
+      const th = el("div", "thumbs"); div.appendChild(th);
+      for (const f of c.preview) {
+        const im = el("img"); im.loading = "lazy"; im.title = `${fmt(f)}（點一下跳過去）`;
+        im.src = `/api/frame?project=${enc(proj)}&n=${f}&w=240`;
+        im.onclick = () => { $("candDlg").hidden = true; seek(f, true); };
+        th.appendChild(im);
+      }
+      chk.onchange = () => { div.classList.toggle("on", chk.checked); if (chk.checked) nm.focus(); candSummary(); };
+      nm.oninput = () => { if (nm.value.trim() && !chk.checked) chk.checked = true; div.classList.toggle("on", chk.checked); candSummary(); };
+      box.appendChild(div);
+    }
+    candSummary(); $("candDlg").hidden = false;
+  }
+  function candPicks() {
+    return [...document.querySelectorAll("#candList .cand")].filter((d) => d.querySelector(".pick").checked)
+      .map((d) => ({ id: +d.dataset.id, name: d.querySelector(".cname").value.trim() }));
+  }
+  function candSummary() {
+    const p = candPicks(), named = p.filter((x) => x.name), steps = new Set(named.map((x) => x.name));
+    $("candSummary").textContent = p.length ? `已選 ${p.length} 個候選 → ${steps.size} 個步驟` + (named.length < p.length ? `（還有 ${p.length - named.length} 個沒取名）` : "") : "還沒選";
+  }
+  $("btnDiscover").onclick = async () => {
+    if (!proj || !info || !info.has_video) { toast("請先選一個有示範影片的專案", true); return; }
+    if (cands.length && !(await confirmBox("重新分析會覆蓋目前的候選清單（已套用的段落不受影響），確定嗎？", "重新分析"))) return;
+    const d = await api("/api/discover/start", { project: proj }); if (!d.ok) { toast(d.error, true); return; }
+    say("開始分析示範影片，約 2～4 分鐘，好了會自動跳出候選清單"); pollDiscover(true);
+  };
+  $("btnShowCands").onclick = showCands;
+  $("candClose").onclick = () => { $("candDlg").hidden = true; };
+  $("candApply").onclick = async () => {
+    const p = candPicks();
+    if (!p.length) { toast("請先勾選要留下的候選步驟", true); return; }
+    if (p.some((x) => !x.name)) { toast("勾選的候選都要取名字", true); return; }
+    const d = await api("/api/discover/apply", { project: proj, picks: p });
+    if (!d.ok) { toast(d.error, true); return; }
+    $("candDlg").hidden = true;
+    say("已加入時間軸：" + Object.entries(d.added).map(([k, v]) => `${k} ${v} 格`).join("、") + `，共 ${d.segments} 段（另加 ${d.negatives} 格反例）。可以檢查、刪掉不對的段落，再按訓練。`);
+    await refreshInfo();
+  };
 
   // ---- 訓練／前往監控
   async function pollTrain() {
