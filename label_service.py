@@ -198,8 +198,11 @@ class TrainJob:
             env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
             self._proc = subprocess.Popen(cmd, cwd=app_base_dir(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                           encoding="utf-8", errors="replace", env=env)
+            tail: list[str] = []                         # 最後幾行原樣留著：失敗時才說得出原因（例如找不到程式檔）
             for line in self._proc.stdout:
                 line = line.strip()
+                if line:
+                    tail = (tail + [line])[-3:]
                 if line and ("epoch" in line or "訓練" in line or "device" in line or "Error" in line or "錯誤" in line):
                     with self._lock:
                         self.lines.append(line)
@@ -207,7 +210,7 @@ class TrainJob:
                         self._set(line)
             code = self._proc.wait()
             if code != 0 or not os.path.isfile(tmp_model):
-                raise RuntimeError(f"訓練失敗（結束碼 {code}）：" + " / ".join(self.lines[-3:]))
+                raise RuntimeError(f"訓練失敗（結束碼 {code}）：" + " / ".join(tail or self.lines[-3:]))
             self._validate_install(target, tmp_model, hold)
         except Exception as e:
             with self._lock:
@@ -431,8 +434,11 @@ class TrainJob:
             env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
             self._proc = subprocess.Popen(cmd, cwd=app_base_dir(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                           encoding="utf-8", errors="replace", env=env)
+            tail: list[str] = []                         # 最後幾行原樣留著：失敗時才說得出原因（例如找不到程式檔）
             for line in self._proc.stdout:
                 line = line.strip()
+                if line:
+                    tail = (tail + [line])[-3:]
                 if line and ("epoch" in line or "訓練" in line or "device" in line or "Error" in line or "錯誤" in line):
                     with self._lock:
                         self.lines.append(line)
@@ -440,7 +446,7 @@ class TrainJob:
                         self._set(line)
             code = self._proc.wait()
             if code != 0 or not os.path.isfile(tmp_model):
-                raise RuntimeError(f"訓練失敗（結束碼 {code}）：" + " / ".join(self.lines[-3:]))
+                raise RuntimeError(f"訓練失敗（結束碼 {code}）：" + " / ".join(tail or self.lines[-3:]))
             self._proc = None
             self._validate_install(project_name, tmp_model, [])   # 跟上次的模型比；沒變差才換上（換上時改用自己的模型、記桌面範圍）
         except Exception as e:
