@@ -59,6 +59,16 @@
   .hidden { display:none !important; }
   .frames { font-size:13px; color:var(--muted); margin-top:6px; }
   .frames button { margin-left:6px; }
+  #candPanel { position:fixed; inset:0; background:rgba(15,23,42,.55); z-index:50; display:flex; justify-content:center; align-items:flex-start; padding:24px 16px; overflow-y:auto; }
+  #candPanel > .card { width:min(1200px, 100%); }
+  .cand { border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:10px; background:#fff; }
+  .cand.on { border-color:var(--accent); background:#eff6ff; }
+  .cand .head { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .cand .stats { color:var(--muted); font-size:13px; }
+  .cand .tip { font-size:12px; color:#92400e; background:#fef3c7; border-radius:10px; padding:1px 8px; }
+  .cand .sugg { font-size:12px; color:#065f46; background:#d1fae5; border-radius:10px; padding:1px 8px; }
+  .cand .thumbs { display:flex; gap:6px; overflow-x:auto; margin-top:8px; }
+  .cand .thumbs img { height:110px; border-radius:4px; cursor:pointer; flex:none; }
   .adv-box { margin-top:10px; border:1px solid var(--line); border-radius:8px; background:#f9fafb; padding:8px 12px; font-size:14px; }
   .adv-box summary { font-weight:600; color:var(--muted); cursor:pointer; user-select:none; outline:none; }
   .adv-box summary:hover { color:var(--text); }
@@ -118,6 +128,15 @@
     <h2 id="stepTitle">請先選專案</h2>
     <div class="hint" id="stepHint"></div>
     <div id="step1" class="hidden">
+      <div class="card" id="discoverCard" style="margin-bottom:10px;padding:10px 12px;background:#f0fdf4;border-color:#86efac">
+        <div style="font-weight:600;font-size:14px">🔍 自動找候選步驟（試用）</div>
+        <div style="font-size:13px;color:#475569;margin-top:2px">AI 找出示範影片裡每輪都重複的動作；您勾選要留下的、取名，系統自動產生框。</div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn small primary" id="btnDiscover">開始分析</button>
+          <button class="btn small hidden" id="btnShowCands">查看候選步驟</button>
+        </div>
+        <div class="frames" id="discStage"></div>
+      </div>
       <!-- 1. 背景參考格（最重要，單顆清晰按鈕） -->
       <div class="row">
         <button class="btn" id="btnRef" style="width:100%;padding:10px 14px;font-weight:600;font-size:15px">這一格是空桌面（背景）</button>
@@ -202,6 +221,20 @@
     <div id="msg"></div>
   </aside>
 </main>
+<div id="candPanel" class="hidden">
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <h2 style="margin:0;font-size:17px;color:var(--text)">候選步驟</h2>
+      <span class="hint" style="font-size:13px">勾選要留下的步驟並取名；同一個步驟出現在兩個候選時取同一個名字就會合併。點縮圖可跳到那一格。綠色標籤＝跟其他專案取過名的步驟很像，名字已經先填好、勾起來了，請看縮圖確認。</span>
+      <button class="btn small" id="btnCandClose" style="margin-left:auto">關閉</button>
+    </div>
+    <div id="candList"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:12px">
+      <span class="frames" id="candSummary" style="margin-right:auto"></span>
+      <button class="btn primary" id="btnCandApply">套用選取的候選（產生自動框）</button>
+    </div>
+  </div>
+</div>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -231,7 +264,7 @@
     $("setup").classList.toggle("hidden", info.has_video); $("labelArea").classList.toggle("hidden", !info.has_video);
     if (info.has_video) { $("slider").max = Math.max(info.frame_count - 1, 0); n = Math.min(n, info.frame_count - 1); goFrame(0); }
     step = info.item_steps ? 2 : (info.has_model ? 1 : 0);
-    render();
+    render(); pollDiscover(false);
   }
   async function refreshInfo() { if (!proj) return; const d = await api("/api/project?name=" + enc(proj)); if (!d.error) { info = d; render(); draw(); } }
 
@@ -591,6 +624,86 @@
       }
     }
     step = Math.min(2, step + 1); render(); if (step === 1) pollTrain();
+  };
+
+  // ---- 自動找候選步驟
+  let discTimer = null, cands = [];
+  async function pollDiscover(openWhenDone) {
+    clearTimeout(discTimer); if (!proj) return;
+    const s = await api("/api/discover/state?project=" + enc(proj));
+    const mine = s.project === proj;
+    cands = s.candidates || [];
+    $("btnDiscover").disabled = !!s.running;
+    $("btnDiscover").textContent = cands.length ? "重新分析" : "開始分析";
+    $("btnShowCands").classList.toggle("hidden", !cands.length);
+    if (s.running && mine) {
+      const pct = s.total ? `（${Math.round(100 * s.done / s.total)}%）` : "";
+      $("discStage").textContent = "分析中：" + s.stage + pct + "　約 2～5 分鐘，可以先做別的";
+      discTimer = setTimeout(() => pollDiscover(true), 1500); return;
+    }
+    if (mine && s.error) { $("discStage").textContent = "分析失敗：" + s.error; return; }
+    $("discStage").textContent = cands.length ? `找到 ${cands.length} 個候選步驟` + (s.stale ? "（影片換過了，請重新分析）" : "") : "";
+    if (openWhenDone && mine && s.finished && cands.length) showCands();
+  }
+  function showCands() {
+    const box = $("candList"); box.innerHTML = "";
+    const names = info && info.seeds ? info.seeds.order : [];
+    for (const c of cands) {
+      const div = document.createElement("div"); div.className = "cand"; div.dataset.id = c.id;
+      const tips = (c.likely_transition ? ["可能是過場動作"] : c.reasons).map(r => `<span class="tip">${r}</span>`).join(" ");
+      div.innerHTML = `<div class="head">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;cursor:pointer"><input type="checkbox" class="pick"> 候選 ${c.id + 1}</label>
+          <input type="text" class="cname" list="names" placeholder="步驟名稱（如 翻鞋舌）" style="width:200px">
+          <span class="stats">出現 ${c.episodes} 次，平均 ${c.mean_sec.toFixed(1)} 秒</span> ${tips}
+        </div><div class="thumbs"></div>`;
+      const chk = div.querySelector(".pick"), nm = div.querySelector(".cname");
+      const sg = c.suggest;
+      if (sg) {                                  // 步驟庫（其他專案取過名的步驟）裡最像的那一步：預填名字並勾起來，使用者可改可取消
+        nm.value = sg.name; chk.checked = true; div.classList.add("on");
+        const b = document.createElement("span"); b.className = "sugg";
+        b.textContent = `像「${sg.project}」的「${sg.name}」（${Math.round(sg.share * 100)}% 的畫面）`;
+        b.title = "名字是照相似度預填的，請看縮圖確認" + (sg.alts && sg.alts.length ? "\n也像：" + sg.alts.map(a => `「${a.project}」的「${a.name}」`).join("、") : "");
+        div.querySelector(".head").appendChild(b);
+      }
+      const th = div.querySelector(".thumbs");
+      for (const f of c.preview) {
+        const im = document.createElement("img"); im.loading = "lazy"; im.title = `第 ${f} 格（點一下跳過去）`;
+        im.src = `/api/frame?project=${enc(proj)}&n=${f}&w=240`;
+        im.onclick = () => { $("candPanel").classList.add("hidden"); goFrame(f); };
+        th.appendChild(im);
+      }
+      const sync = () => { if (nm.value.trim() && !chk.checked) chk.checked = true; div.classList.toggle("on", chk.checked); candSummary(); };
+      chk.onchange = () => { div.classList.toggle("on", chk.checked); if (chk.checked) nm.focus(); candSummary(); };
+      nm.oninput = sync;
+      if (!names.length) nm.setAttribute("list", "names");
+      box.appendChild(div);
+    }
+    candSummary(); $("candPanel").classList.remove("hidden");
+  }
+  function candPicks() {
+    return [...document.querySelectorAll("#candList .cand")].filter(d => d.querySelector(".pick").checked)
+      .map(d => ({ id: +d.dataset.id, name: d.querySelector(".cname").value.trim() }));
+  }
+  function candSummary() {
+    const p = candPicks(), named = p.filter(x => x.name), steps = new Set(named.map(x => x.name));
+    $("candSummary").textContent = p.length ? `已選 ${p.length} 個候選 → ${steps.size} 個步驟` + (named.length < p.length ? `（還有 ${p.length - named.length} 個沒取名）` : "") : "還沒選";
+  }
+  $("btnDiscover").onclick = async () => {
+    if (cands.length && !confirm("重新分析會覆蓋目前的候選清單（已套用的自動框不受影響），確定嗎？")) return;
+    const d = await api("/api/discover/start", { project: proj }); if (!d.ok) { msg(d.error, true); return; }
+    msg("開始分析示範影片，進度在上面。"); pollDiscover(true);
+  };
+  $("btnShowCands").onclick = showCands;
+  $("btnCandClose").onclick = () => $("candPanel").classList.add("hidden");
+  $("btnCandApply").onclick = async () => {
+    const p = candPicks();
+    if (!p.length) { alert("請先勾選要留下的候選步驟"); return; }
+    if (p.some(x => !x.name)) { alert("勾選的候選都要取名字"); return; }
+    const d = await api("/api/discover/apply", { project: proj, picks: p });
+    if (!d.ok) { alert(d.error); return; }
+    $("candPanel").classList.add("hidden");
+    msg("已產生自動框：" + Object.entries(d.added).map(([k, v]) => `${k} ${v} 格`).join("、") + `（另加 ${d.negatives} 格反例，教模型「手在畫面上不一定在做步驟」）。\n可以在畫面上檢查、刪掉不對的框，再按「下一步 ▶」訓練。`);
+    refreshInfo();
   };
 
   // ---- 訓練

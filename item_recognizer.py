@@ -82,16 +82,19 @@ class ItemSeeds:
         self.region: list[int] | None = None
         self.box_labels: list[str] = []
         self.hand_steps: list[dict] = []     # [{"name": 步驟名, "prompt": 物件的英文提示（YOLO-World）, "dwell": 連續停留秒數}]
+        self.negatives: list[int] = []       # 自動找步驟產生的反例格（手在畫面上、但不是任何步驟）：訓練時當背景圖，介面不列出
         self.load()
 
     def load(self) -> None:
         self.order, self.refs, self.closed, self.seeds, self.region, self.box_labels, self.hand_steps = [], [], [], [], None, [], []
+        self.negatives = []
         if os.path.isfile(self.path):
             with open(self.path, "r", encoding="utf-8-sig") as f:
                 d = json.load(f)
             self.order = [s for s in d.get("order", []) if isinstance(s, str)]
             self.refs = sorted({int(x) for x in d.get("refs", [])})
             self.closed = sorted({int(x) for x in d.get("closed", [])})
+            self.negatives = sorted({int(x) for x in d.get("negatives", [])})
             self.seeds = [Seed(str(s["name"]), int(s["frame"]), [int(v) for v in s["rect"]], bool(s.get("auto", False)), int(s.get("group", 0) or 0))
                           for s in d.get("seeds", []) if isinstance(s, dict)]
             reg = d.get("region")
@@ -104,7 +107,8 @@ class ItemSeeds:
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump({"order": self.order, "refs": self.refs, "closed": self.closed, "seeds": [s.__dict__ for s in self.seeds],
-                       "region": self.region, "box_labels": self.box_labels, "hand_steps": self.hand_steps}, f, ensure_ascii=False, indent=2)
+                       "region": self.region, "box_labels": self.box_labels, "hand_steps": self.hand_steps, "negatives": self.negatives},
+                      f, ensure_ascii=False, indent=2)
 
     def add_hand_step(self, name: str, prompt: str, dwell: float = 0.7) -> None:
         """「手停在某個物件上」的步驟：物件用 YOLO-World 的英文提示找（例如 shoe），不用框、不用訓練、換款式不用改。"""
@@ -594,6 +598,8 @@ def _labels_fixed(project, status: dict, seeds: ItemSeeds, reader, progress=None
         if progress and k % 20 == 0:
             progress(k, len(todo))
     for r in seeds.refs:
+        labels.setdefault(r, [])
+    for r in seeds.negatives:                   # 反例：沒標到任何物品的格才當背景（同一格有標就以標籤為準）
         labels.setdefault(r, [])
     out = {}
     sorted_labels = sorted(labels.items())

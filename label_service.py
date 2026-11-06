@@ -124,6 +124,55 @@ class TrainJob:
             self._proc = None
 
 
+class DiscoverJob:
+    """自動找候選步驟（step_discovery）：沒有手部軌跡就先跑 trace，再分群。背景執行，一次一個。"""
+
+    def __init__(self):
+        self._lock = threading.Lock(); self._thread = None
+        self.project_name = None; self.stage = ""; self.done_n = 0; self.total_n = 0; self.error = None; self.finished = False
+
+    @property
+    def running(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def state(self) -> dict:
+        with self._lock:
+            return {"running": self.running, "project": self.project_name, "stage": self.stage, "done": self.done_n,
+                    "total": self.total_n, "error": self.error, "finished": self.finished}
+
+    def _set(self, stage: str, a: int = 0, b: int = 0) -> None:
+        with self._lock:
+            self.stage, self.done_n, self.total_n = stage, a, b
+
+    def start(self, project_name: str) -> None:
+        if self.running:
+            raise ValueError("已經在找候選步驟，請等它跑完")
+        project = load_project(project_name)
+        if not os.path.isfile(project.video_path):
+            raise ValueError("這個專案還沒有示範影片")
+        with self._lock:
+            self.project_name = project_name; self.stage = "準備中"; self.done_n = self.total_n = 0
+            self.error = None; self.finished = False
+        self._thread = threading.Thread(target=self._run, args=(project_name,), daemon=True); self._thread.start()
+
+    def _run(self, project_name: str) -> None:
+        import step_discovery
+        try:
+            project = load_project(project_name)
+            training.sync_item_region(project); training.ensure_state_anchor(project)
+            project = load_project(project_name)
+            trace = items.build_trace(project, HAND_MODEL, YOLO_WEIGHTS,
+                                      progress=lambda a, b: self._set(f"找手的位置：{a}/{b} 格", a, b))
+            step_discovery.discover(project, trace, progress=lambda a, b: self._set(f"分析動作：{a}/{b} 格", a, b),
+                                    lib_progress=lambda n, a, b: self._set(f"建立步驟庫（{n}）：{a}/{b} 格", a, b))
+            with self._lock:
+                self.finished = True; self.stage = "完成"
+        except Exception as e:
+            with self._lock:
+                self.error = str(e) if isinstance(e, ValueError) else f"{type(e).__name__}: {e}"
+                self.stage = "失敗"
+
+
 class RecordJob:
     """新增專案時錄示範影片：開相機、建專案（用相機的解析度／fps）、寫 demo.avi、給預覽 JPEG。"""
 
@@ -222,7 +271,7 @@ class LabelService:
         self._readers: dict[str, FrameReader] = {}
         self._detectors: dict[str, tuple[float, items.ItemDetector]] = {}
         self._lock = threading.Lock()
-        self.train = TrainJob(); self.record = RecordJob()
+        self.train = TrainJob(); self.record = RecordJob(); self.discover = DiscoverJob()
 
     def _detector(self, project) -> items.ItemDetector:
         mp = items.model_path(project)
@@ -408,6 +457,24 @@ class LabelService:
             raise ValueError("還沒有訓練好的物品模型，請先回第 2 步訓練")
         names = training.apply_item_steps(p, seeds.order)
         return {"steps": names}
+
+    # ---- 自動找候選步驟
+
+    def discovery(self, project_name: str) -> dict:
+        import step_discovery
+        p = load_project(project_name); d = step_discovery.load_discovery(p)
+        if d is None:
+            return {"candidates": None}
+        # 給介面看的：不送每一格的框（很多），只送預覽格
+        return {"candidates": [{k: v for k, v in c.items() if k not in ("frames", "boxes")} | {"n": len(c["frames"])}
+                               for c in d["candidates"]],
+                "stale": d.get("fingerprint") != items.trace_fingerprint(p.video_path)}
+
+    def apply_discovery(self, project_name: str, picks: list) -> dict:
+        import step_discovery
+        p = load_project(project_name)
+        out = step_discovery.apply_candidates(p, picks)
+        return {**out, "seeds": self._seeds_dict(items.ItemSeeds(p.dir_path))}
 
     # ---- 新增專案
 

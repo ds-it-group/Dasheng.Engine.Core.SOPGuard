@@ -415,7 +415,8 @@ def apply_item_steps(project: Project, names: list[str], dwell_sec: float = 0.5)
     if project.state_fixed is not None:
         # 看整張桌面（固定範圍）：物品偵測不跟著盒子；盒子錨點只管「推走＝一輪結束」，沿用時間縮到 1 秒
         # （現場影片兩輪只隔 2.7 秒，沿用 3 秒會把下一雙的翻鞋舌檢查算到上一輪）、下一輪 0.2 秒就能開始
-        project.cycle_arm_clear_sec = 0.2
+        if project.cycle_end is None or project.cycle_end.type != "steps_done":   # steps_done 的清空時間是另外調的
+            project.cycle_arm_clear_sec = 0.2
         for a in project.anchors:
             if a.name == project.state_anchor:
                 a.max_age_sec = min(a.max_age_sec, 1.0)
@@ -431,11 +432,15 @@ def apply_item_steps(project: Project, names: list[str], dwell_sec: float = 0.5)
     # 物件錨點依提示自動補上（名稱＝提示；max_count 2 兩隻鞋都要、沿用 2.5 秒撐過手握住時掉框）
     from scene import AnchorSpec
     hand_names = {h["name"] for h in seeds.hand_steps}
+    # steps_done 專案的停留秒數是看實際偵測調的（310237 鞋底貼紙每次只看得到 0.5 秒，門檻 0.15）：同名步驟沿用
+    keep_dwell = ({s.step_name: s.dwell_time_sec for s in project.steps if s.type == "item"}
+                  if project.cycle_end is not None and project.cycle_end.type == "steps_done" else {})
     steps = []
     for n in names:
         if n in hand_names:
             continue
-        steps.append(Step(step_index=0, step_name=n, dwell_time_sec=dwell_sec, timeout_sec=120.0, type="item", label=n, required=True))
+        steps.append(Step(step_index=0, step_name=n, dwell_time_sec=keep_dwell.get(n, dwell_sec), timeout_sec=120.0, type="item",
+                          label=n, required=True))
     for h in seeds.hand_steps:
         if not any(a.name == h["prompt"] for a in project.anchors):
             # min_conf 0.15：通用提示對黑鞋信心偏低（現場影片第 2 輪檢查時 shoe 只有 0.10～0.23，0.25 整段沒錨點、整輪報漏做）；
@@ -452,8 +457,9 @@ def apply_item_steps(project: Project, names: list[str], dwell_sec: float = 0.5)
     project.schema_version = 2
     # 盒子錨點本身就會沿用 3 秒才算消失，結束條件只要再 0.5 秒去抖；之前設 2 秒，操作者 26.5 秒就把下一個盒子放上來
     # （拿走後 4 秒內），結束倒數被新盒子打斷，整輪永遠不結算（介面實跑抓到）
-    project.cycle_end = Step(step_index=-1, step_name="cycle_end", dwell_time_sec=0.5, timeout_sec=1.0, type="object_absent",
-                             object=project.state_anchor or "box")
+    if project.cycle_end is None or project.cycle_end.type != "steps_done":   # 手動改成「步驟都做到就結算」的專案保留
+        project.cycle_end = Step(step_index=-1, step_name="cycle_end", dwell_time_sec=0.5, timeout_sec=1.0, type="object_absent",
+                                 object=project.state_anchor or "box")
     if project.cycle_min_sec <= 0:
         project.cycle_min_sec = 5.0
     if project.state_every_n_frames > 5:

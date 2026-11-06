@@ -383,6 +383,7 @@ class SOPStateMachine:
         self.last_similarity: float | None = None
         self.armed = True
         self.clear_sec = 0.0
+        self.unarmed_sec = 0.0                   # 清單模式 steps_done：結算後等清空等了多久（太久代表卡住）
         self.reset_dwell_sec_acc = 0.0
         self.reset_zone_armed = True
         self._t_prev: float | None = None
@@ -531,7 +532,11 @@ class SOPStateMachine:
     def _update_checklist(self, frame_bgr, ctx: FrameContext, conds: list[bool], dt: float, t_now: float) -> None:
         """清單模式：步驟不分先後、各自累計成立時間；一輪由 cycle_end 條件結束，結束時缺的步驟一次報出。"""
         end = self.project.cycle_end
-        end_now = self._condition(end, ctx)
+        # steps_done：必做步驟都看到就結算（不靠盒子偵測；鞋子放上盒子會把盒子遮住，盒子消失當結束不可靠）。
+        # 結束條件本身＝畫面上沒有任何步驟成立：做到一半停了 hold_sec 秒就結算報漏做；結算後也要這樣清空才開始下一輪，
+        # 同一雙鞋卡在畫面上不會重複計數
+        by_steps = end.type == "steps_done"
+        end_now = (not any(conds)) if by_steps else self._condition(end, ctx)
         gated = end.type == "object_absent" and self.project.state_fixed is not None
         if gated:
             # 看整張桌面時「盒子被拿走」要先在這一輪看到過盒子才算：翻鞋舌檢查發生在盒子放上來之前，那時盒子本來就不在，
@@ -554,14 +559,20 @@ class SOPStateMachine:
             return
         self._check_reset_zone(ctx.hand_points, dt)
         if not self.armed:
-            # 等結束條件解除（例如鞋子回到工作區）一段時間，下一輪才開始
-            if end_now:
+            # 等結束條件解除（例如鞋子回到工作區）一段時間，下一輪才開始；steps_done 反過來，等步驟物品都離開畫面
+            if end_now != by_steps:
                 self.clear_sec = 0.0
             else:
                 self.clear_sec += dt
                 if self.clear_sec >= self.project.cycle_arm_clear_sec:
                     self.armed = True
+                    self.unarmed_sec = 0.0
                     self._log("armed", None, "")
+                    return
+            self.unarmed_sec += dt
+            if by_steps and self.project.cycle_timeout_sec and self.unarmed_sec > self.project.cycle_timeout_sec:
+                self.unarmed_sec = 0.0
+                self._trigger_alert("alert_timeout", "上一輪的物品一直留在畫面上（可能卡住），清空後才會開始下一輪", frame_bgr)
             return
         for s, ok in zip(self.steps, conds):
             i = s.step_index
@@ -597,6 +608,11 @@ class SOPStateMachine:
         self.end_hold_sec = self.end_hold_sec + dt if end_now else 0.0
         if not self.cycle_active:
             return
+        if by_steps and (all(s.step_index in self.observed for s in self.steps if s.required)
+                         or any(s.step_name == end.label and s.step_index in self.observed for s in self.steps)):
+            # 都做到了、或做到了最後一步（label，例如「鞋子放鞋盒上」）：這一格就結算。有最後一步才分得開緊接著的兩輪——
+            # 示範影片第 7 輪少貼型體紙，隔 2 秒下一輪就開始，只靠空檔結算會把下一輪的貼型體紙算進這一輪
+            self.end_hold_sec = end.dwell_time_sec
         if self.end_hold_sec >= end.dwell_time_sec:
             missing = [s for s in self.steps if s.required and s.step_index not in self.observed]
             cycle_len = t_now - self.cycle_started_at
@@ -917,6 +933,7 @@ def _main(argv=None) -> int:
     parser.add_argument("--model", default=os.path.join(app_base_dir(), "models", "hand_landmarker.task"))
     parser.add_argument("--yolo", default=os.path.join(app_base_dir(), "models", "yolov8s-worldv2.pt"), help="YOLO-World 權重（專案有 anchors 時需要）")
     parser.add_argument("--write-logs", action="store_true", help="把事件與截圖寫進專案的 error_logs/")
+    parser.add_argument("--window-rect", default=None, help="--show 視窗的位置與大小 x,y,w,h（同時開多路時排成格子用）")
     parser.add_argument("--no-pace", action="store_true", help="影片檔來源 + --show 時不照原速播放（預設照 fps 放慢）")
     parser.add_argument("--save-preview", default=None, help="每 150 格把預覽畫面存一張 jpg 到此資料夾（不開視窗也可用）")
     parser.add_argument("--sync-yolo", action="store_true", help="相機來源也用同步偵測（預設相機走背景執行緒、影片檔走同步以便重現）")
@@ -1039,7 +1056,11 @@ def _main(argv=None) -> int:
                     os.makedirs(args.save_preview, exist_ok=True)
                     write_image(os.path.join(args.save_preview, f"preview_{frames:06d}.jpg"), vis)
                 if args.show:
-                    cv2.imshow("SOP-Guard 預覽（按 q 離開）", vis)
+                    title = "SOP-Guard 預覽（按 q 離開）" + (f" {args.window_rect}" if args.window_rect else "")
+                    if args.window_rect and frames == 1:
+                        x, y, w, h = (int(v) for v in args.window_rect.split(","))
+                        cv2.namedWindow(title, cv2.WINDOW_NORMAL); cv2.resizeWindow(title, w, h); cv2.moveWindow(title, x, y)
+                    cv2.imshow(title, vis)
                     wait_ms = 1
                     if not is_camera and not args.no_pace:
                         due = wall0 + t_now - time.perf_counter()
