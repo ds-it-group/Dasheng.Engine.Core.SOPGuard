@@ -8,7 +8,10 @@
 <script src="/eip.js"></script>
 <script src="/pcset.js"></script>
 <style>
-  /* 監控畫面：特殊版型，沿用共用骨架（側欄／topbar／麵包屑／查詢列／顏色註記列），中央改監控版面 */
+  /* 監控畫面：特殊版型，沿用共用側欄；11-06 使用者裁示：不要上方標題列與麵包屑，收合側欄的三條線放在側欄最上面 */
+  .side .brand #btnCompact { margin-left: auto; flex: none; width: 32px; height: 32px; border: 0; border-radius: 4px; background: none; color: var(--ink-2); cursor: pointer; display: grid; place-items: center; }
+  .side .brand #btnCompact:hover { background: var(--hover); color: var(--primary); }
+  body.compact .side .brand { padding: 0 12px; } body.compact .side .brand .logo { display: none; }
   .pk { flex: none; margin: 8px 8px 0; }
   .pk .row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .pk .kv { padding: 8px 14px; border-left: 1px solid var(--line-soft); min-width: 0; }
@@ -110,7 +113,7 @@
 <body>
 <div class="shell">
   <aside class="side">
-    <div class="brand"><span class="logo">S</span><span class="txt">SOP-Guard</span></div>
+    <div class="brand"><span class="logo">S</span><span class="txt">SOP-Guard</span><button id="btnCompact" title="收起／展開側欄（掛在產線旁的螢幕可以收起來）" aria-label="收起／展開側欄"><span class="mi">menu</span></button></div>
     <nav>
       <div class="grp">現場</div>
       <a href="/" class="on"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
@@ -120,8 +123,6 @@
     </nav>
   </aside>
   <div class="main">
-    <header class="topbar"><h1>監控畫面</h1><button id="btnCompact" title="收起／展開側欄（掛在產線旁的螢幕可以收起來）" aria-label="收起／展開側欄"><span class="mi">menu</span></button></header>
-    <div class="crumb"><b>SOP-Guard</b><span>/</span><span>監控畫面</span></div>
     <section class="view">
       <div class="pk card">
         <div class="ttl"><span class="mi mark">rate_review</span><h4>目前包裝方式</h4>

@@ -1,17 +1,15 @@
-/* 這台電腦的產線設定（2026-11-06 使用者裁示：一台電腦一條線；不要獨立的「產線設定」頁，改成每一頁右下角一個設定鍵）。
+/* 這台電腦的產線設定（2026-11-06 使用者裁示：一台電腦一條線；不要獨立的「產線設定」頁，改成每一頁左側欄最下面一個齒輪「這台電腦的產線」）。
    只設產線名稱、廠別、相機、接哪條 EIP 產線、站別顯示名稱；桌面範圍自動算，不在這裡設。
    存檔走 /api/lines/save（第一條線；沒有就新增）。存好會發 "pcset:saved" 事件，監控畫面據此重讀。 */
 (function () {
   const H = (tag, attrs, html) => { const e = document.createElement(tag); Object.assign(e, attrs || {}); if (html != null) e.innerHTML = html; return e; };
   const css = H("style", null, `
-    #pcBtn { position: fixed; right: 14px; bottom: var(--pcset-bottom, 14px); z-index: 40; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line);
-      background: var(--card); color: var(--ink-2); box-shadow: 0 2px 8px rgba(0,0,0,.18); cursor: pointer; display: grid; place-items: center; }
-    #pcBtn:hover, #pcBtn:focus-visible { color: var(--primary); box-shadow: 0 0 0 2px var(--primary); }
-    #pcBtn.warn { color: #fff; background: var(--accent); border-color: var(--accent); }
+    .side a#pcBtn { margin-top: auto; border-top: 1px solid var(--line-soft); }
+    .side a#pcBtn.warn .ico { color: var(--accent); }
     #pcDlg .dc { display: flex; flex-direction: column; gap: 10px; } #pcDlg .row2 { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
     #pcDlg .ro { min-height: 30px; display: flex; align-items: center; color: var(--ink-2); }`);
   document.head.appendChild(css);
-  const btn = H("button", { id: "pcBtn", title: "這台電腦的產線設定（相機、EIP）", ariaLabel: "這台電腦的產線設定" }, '<span class="mi">settings</span>');
+  const btn = H("a", { id: "pcBtn", href: "#", title: "這台電腦的產線設定（相機、EIP）" }, '<span class="mi ico">settings</span><span class="txt">這台電腦的產線</span>');
   const dlg = H("div", { className: "scrim", id: "pcDlg", hidden: true }, `
     <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pcTitle" style="width:min(640px,calc(100vw - 32px));height:auto">
       <div class="dt"><span class="mi mark">settings</span><h4 id="pcTitle">這台電腦的產線</h4></div>
@@ -68,8 +66,8 @@
     try { const c = await current(); const bad = !c.line || !c.line.has_camera; btn.classList.toggle("warn", bad); btn.title = bad ? "這台電腦還沒設好產線或相機，按這裡設定" : "這台電腦的產線設定（相機、EIP）"; } catch (e) {}
   }
   function init() {
-    document.body.appendChild(btn); document.body.appendChild(dlg);
-    btn.onclick = open; $("pcCancel").onclick = () => { dlg.hidden = true; }; $("pcSave").onclick = save;
+    (document.querySelector(".side") || document.body).appendChild(btn); document.body.appendChild(dlg);
+    btn.onclick = (e) => { e.preventDefault(); open(); }; $("pcCancel").onclick = () => { dlg.hidden = true; }; $("pcSave").onclick = save;
     $("pcFactory").addEventListener("change", () => loadEip(null));
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !dlg.hidden) dlg.hidden = true; });
     mark();
