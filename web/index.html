@@ -18,6 +18,14 @@
   .pk .v.sm { font-size: 17px; }
   .pk .s { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pk .ttl .when { margin-left: auto; font-size: 12px; color: var(--ink-2); }
+  .pk .ttl .legend { display: inline-flex; gap: 12px; margin: 0 0 0 14px; padding: 0; border: 0; background: none; font-size: 12px; color: var(--ink-2); }
+  .pk .ttl .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; }
+  .pk .ttl .err { margin-left: 10px; }
+  .pk .ttl .menuwrap { margin-left: 12px; }
+  /* 產線、影像來源直接在卡片「產線」那格選（11-06 使用者裁示：不要自己一行） */
+  .pk select.vsel { display: block; width: 100%; max-width: 100%; height: auto; padding: 0 18px 0 0; border: 0; background: transparent; font: inherit; font-size: 22px; font-weight: 700; color: var(--ink); cursor: pointer; }
+  .pk select.ssel { height: auto; padding: 0 14px 0 0; border: 0; background: transparent; font: inherit; font-size: 12px; color: var(--primary); cursor: pointer; }
+  .pk select:disabled { cursor: default; color: inherit; opacity: 1; }
   /* 畫面上只有一個型體方塊（使用者裁示 11-05：同時間只有一個模型在辨識、一個型體顯示）：卡片裡「型體」那格可以點，
      點了彈出 EIP 今天要做的型體，一個型體一塊，點模型（地區）就切換；選到的模型顯示在方塊下面那行小字 */
   .pk .kv.pick { cursor: pointer; background: var(--primary-wash); border-radius: 4px; outline: none; }
@@ -117,11 +125,10 @@
     <header class="topbar"><h1>監控畫面</h1><button id="btnCompact" title="收起／展開側欄（掛在產線旁的螢幕可以收起來）" aria-label="收起／展開側欄"><span class="mi">menu</span></button></header>
     <div class="crumb"><b>SOP-Guard</b><span>/</span><span>監控畫面</span></div>
     <section class="view">
-      <div class="query">
-        <div class="fld w140"><label for="selLine">產線</label><select id="selLine"></select></div>
-        <div class="fld w100"><label for="selSrc">影像來源</label><select id="selSrc"><option value="camera">相機</option><option value="demo">示範影片</option></select></div>
-        <span class="err" id="err"></span>
-        <span class="spacer"></span>
+      <div class="pk card">
+        <div class="ttl"><span class="mi mark">rate_review</span><h4>目前包裝方式</h4>
+          <span class="legend"><span><i style="background:var(--st-ok)"></i>步驟已完成</span><span><i style="background:var(--st-warn)"></i>正在做</span><span><i style="background:var(--danger)"></i>漏做</span></span>
+          <span class="err" id="err"></span><span class="when n" id="pkWhen"></span>
         <div class="menuwrap">
           <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden>
@@ -134,17 +141,10 @@
             <a href="/lines">產線設定</a>
           </div>
         </div>
-      </div>
-      <div class="legend">
-        <span><i style="background:var(--st-ok)"></i>步驟已完成</span>
-        <span><i style="background:var(--st-warn)"></i>正在做（累積中）</span>
-        <span><i style="background:var(--danger)"></i>漏做的輪次</span>
-      </div>
-
-      <div class="pk card">
-        <div class="ttl"><span class="mi mark">rate_review</span><h4>目前包裝方式</h4><span class="when n" id="pkWhen"></span></div>
+        </div>
         <div class="row">
-          <div class="kv"><div class="k">產線</div><div class="v" id="pkLine">–</div><div class="s" id="pkCam"></div></div>
+          <div class="kv"><div class="k">產線</div><select class="v vsel" id="selLine" aria-label="產線"></select>
+            <div class="s"><select class="ssel" id="selSrc" aria-label="影像來源"><option value="camera">相機</option><option value="demo">示範影片</option></select> <span id="pkCam"></span></div></div>
           <div class="kv pick" id="pkPick" tabindex="0" role="button" title="點了選今天要做的型體和它要用的模型"><div class="k">型體 <span class="hintk">點我換</span></div><div class="v big" id="pkStyle">–</div><div class="s" id="pkStyleInfo"></div></div>
           <div class="kv"><div class="k">地區</div><div class="v big" id="pkRegion">–</div><div class="s" id="pkCode"></div></div>
           <div class="kv"><div class="k">步驟</div><div class="v n" id="pkSteps">–</div><div class="s" id="pkReq"></div></div>
@@ -275,7 +275,7 @@
   const curLine = () => lines.find((l) => l.id === $("selLine").value);
   function renderLine() {
     const l = curLine(); const pk = l && l.packaging;
-    $("pkLine").textContent = l ? l.name : "–"; $("pkCam").textContent = l ? (l.has_camera ? "相機 " + l.camera : "還沒設定相機") : "";
+    $("pkCam").textContent = l ? ($("selSrc").value === "demo" ? "" : l.has_camera ? l.camera : "還沒設定相機") : "";
     $("pkWhen").textContent = l && l.switched_at ? l.switched_at + " 換線" : (l ? "還沒指定包裝方式" : "");
     $("pkStyle").textContent = pk ? (pk.style || pk.name) : "–";
     $("pkStyleInfo").textContent = pk ? "模型 " + pk.name : "還沒選";                 // 型體方塊下面那行：現在用的模型（包裝方式）
@@ -292,6 +292,7 @@
     if (fromProj) $("pkHint").textContent = `剛訓練好的「${fromProj}」還沒排到這條線。要開始做它時按「操作 ▾ → 換包裝方式」，清單裡已幫你選好，按確認就好。`;
   }
   function fromLabel() { const q = new URLSearchParams(location.search); return q.get("from") === "label" ? q.get("project") : null; }
+  $("selSrc").onchange = () => renderLine();
   $("selLine").onchange = () => { renderLine(); history.replaceState(null, "", "/?line=" + encodeURIComponent($("selLine").value)); pollEip(true); pollDaily(); };
 
   function setStream(on) {
