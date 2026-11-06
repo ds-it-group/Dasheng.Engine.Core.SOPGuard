@@ -27,3 +27,4 @@ __pycache__/
 # 這台電腦的設定（共用硬碟路徑、EIP 網址），不進 git
 shared_root.txt
 eip_api.txt
+ui_lang.txt

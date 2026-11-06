@@ -25,7 +25,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 /* 外殼 */
 .shell { display: flex; height: 100%; }
-.side { flex: 0 0 200px; background: var(--card); border-right: 1px solid var(--line); display: flex; flex-direction: column; transition: flex-basis .2s; }
+.side { flex: 0 0 200px; min-width: 0; max-width: 200px; background: var(--card); border-right: 1px solid var(--line); display: flex; flex-direction: column; transition: flex-basis .2s; }
 .side .brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line-soft); font-weight: 700; white-space: nowrap; overflow: hidden; }
 .side .brand .logo { flex: none; width: 28px; height: 28px; border-radius: 4px; background: var(--primary); color: #fff; display: grid; place-items: center; font-size: 15px; }
 .side nav { padding: 8px 0; display: flex; flex-direction: column; }
@@ -35,7 +35,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .side a:hover { background: var(--hover); }
 .side a.on { background: var(--primary-wash); border-left-color: var(--primary); color: var(--primary); font-weight: 500; }
 .side a.on .ico { color: var(--primary); }
-body.compact .side { flex-basis: 56px; }
+body.compact .side { flex-basis: 56px; max-width: 56px; }
+.side a .txt { overflow: hidden; text-overflow: ellipsis; }      /* 翻成英文、印尼文比較長：側欄不撐寬，太長用 … */
 body.compact .side .grp, body.compact .side .txt { display: none; }
 /* 收合側欄的三條線在側欄最上面（11-06：三頁都不要上方標題列） */
 .side .brand #btnCompact { margin-left: auto; flex: none; width: 32px; height: 32px; border: 0; border-radius: 4px; background: none; color: var(--ink-2); cursor: pointer; display: grid; place-items: center; }

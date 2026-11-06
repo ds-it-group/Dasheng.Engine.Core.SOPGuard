@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="/eip.css">
 <script src="/eip.js"></script>
 <script src="/pcset.js"></script>
+<script src="/i18n_dict.js"></script>
+<script src="/i18n.js"></script>
 <script src="/train_result.js"></script>
 <style>
   /* 標記頁（時間軸版）：左＝影格＋框選、右＝名稱清單、下＝這個名稱的時間軸。整頁固定在視窗內，影格依剩餘空間縮放 */
@@ -486,7 +488,7 @@
     ctx.clearRect(0, 0, ov.width, ov.height); if (!info || !info.has_video) return; const s = scale();
     const rect = (r, col, lw, dash, label) => {
       ctx.setLineDash(dash || []); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.strokeRect(r[0] * s, r[1] * s, r[2] * s, r[3] * s); ctx.setLineDash([]);
-      if (label) { ctx.font = "bold 13px sans-serif"; const w = ctx.measureText(label).width + 10; const y = Math.max(0, r[1] * s - 20); ctx.fillStyle = col; ctx.fillRect(r[0] * s, y, w, 20); ctx.fillStyle = col === "#ffeb3b" ? "#1d2233" : "#fff"; ctx.fillText(label, r[0] * s + 5, y + 14); }
+      if (label) { label = window.I18N ? I18N.t(label) : label; ctx.font = "bold 13px sans-serif"; const w = ctx.measureText(label).width + 10; const y = Math.max(0, r[1] * s - 20); ctx.fillStyle = col; ctx.fillRect(r[0] * s, y, w, 20); ctx.fillStyle = col === "#ffeb3b" ? "#1d2233" : "#fff"; ctx.fillText(label, r[0] * s + 5, y + 14); }
     };
     const sd = info.seeds; if (sd.region) rect(sd.region, "#ff9f1c", 2, [], sd.region_mode === "manual" ? "桌面範圍（自己框的）" : "桌面範圍（自動）");
     const nd = curName();
@@ -782,6 +784,7 @@
     if (first && first.kind === "action") { newKind = "action"; $("kindAct").classList.add("on"); $("kindObj").classList.remove("on"); }
     render(); if (info.has_video) seek(0, false);
   }
+  document.addEventListener("i18n:change", () => draw());
   async function refreshInfo() { if (!proj) return; const d = await api("/api/project?name=" + enc(proj)); if (!d.error) { info = d; N = info.frame_count || 0; indexSeeds(); render(); } }
   $("project").onchange = () => { openProject($("project").value); history.replaceState(null, "", $("project").value ? "/label?project=" + enc($("project").value) : "/label"); };
 

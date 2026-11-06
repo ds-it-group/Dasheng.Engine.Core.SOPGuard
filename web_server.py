@@ -158,7 +158,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._file(os.path.join(WEB_DIR, "eip.css"), "text/css; charset=utf-8")
             elif path == "/eip.js":
                 self._file(os.path.join(WEB_DIR, "eip.js"), "application/javascript; charset=utf-8")
-            elif path in ("/train_result.js", "/share.js", "/pcset.js"):
+            elif path in ("/train_result.js", "/share.js", "/pcset.js", "/i18n.js", "/i18n_dict.js"):
                 self._file(os.path.join(WEB_DIR, path[1:]), "application/javascript; charset=utf-8")
             elif path == "/fonts/MaterialIcons-Regular.ttf":
                 self._file(os.path.join(WEB_DIR, "fonts", "MaterialIcons-Regular.ttf"), "font/ttf")
@@ -179,6 +179,8 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/eip/config":
                 import eip_client
                 self._json({"api": eip_client.api_base()})
+            elif path == "/api/ui/lang":
+                self._json({"lang": _ui_lang()})
             elif path == "/api/daily":
                 import daily_stats
                 lid = self._query().get("line", "")
@@ -309,6 +311,8 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/eip/config":
                 import eip_client
                 self._json({"ok": True, "api": eip_client.set_api_base(str(body.get("api", "")))})
+            elif path == "/api/ui/lang":
+                self._json({"ok": True, "lang": _ui_lang(str(body.get("lang", "")))})
             elif path == "/api/daily/upload":
                 import daily_stats
                 daily_stats.start_uploader(); daily_stats.kick(); self._json({"ok": True})
@@ -480,6 +484,26 @@ def local_ips() -> list[str]:
         pass
     return ips
 
+UI_LANGS = ("zh", "en", "id")
+UI_LANG_FILE = "ui_lang.txt"          # 這台電腦的介面語言（不進 git）
+
+
+def _ui_lang(new: str | None = None) -> str:
+    """讀或改這台電腦的介面語言：zh 繁中、en English、id Bahasa Indonesia；沒設＝zh。"""
+    from project_store import app_base_dir
+    path = os.path.join(app_base_dir(), UI_LANG_FILE)
+    if new is not None:
+        if new not in UI_LANGS:
+            raise ValueError("語言只能選 " + "、".join(UI_LANGS))
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(new)
+        return new
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            v = f.read().strip()
+        return v if v in UI_LANGS else "zh"
+    except OSError:
+        return "zh"
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="SOP-Guard 網頁版監控")
