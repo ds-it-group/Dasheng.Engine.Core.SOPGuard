@@ -388,6 +388,9 @@ class Handler(BaseHTTPRequestHandler):
                 st = getattr(self.label, job, None) if self.label is not None else None
                 if st is not None and getattr(st, "running", False) and getattr(st, "project_name", None):
                     busy.append(st.project_name)
+            if self.label is not None:          # 包裝設定頁開過的影片還被讀著，Windows 刪不掉資料夾：先放掉
+                for n in body.get("names") or []:
+                    self.label.drop_reader(str(n))
             return {"deleted": pkg.delete_methods(body.get("names") or [], line_store.lines_by_project(), tuple(busy))}
         if path == "/api/method/steps":
             return {"method": pkg.update_steps(name, body.get("steps") or [])}
