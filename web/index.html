@@ -118,8 +118,8 @@
       <div class="grp">現場</div>
       <a href="/" class="on"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
       <div class="grp">設定</div>
-      <a href="/methods"><span class="mi ico">inventory</span><span class="txt">包裝方式設定</span></a>
-      <a href="/label"><span class="mi ico">crop_free</span><span class="txt">標記物品</span></a>
+      <a href="/methods"><span class="mi ico">inventory</span><span class="txt">包裝明細</span></a>
+      <a href="/label"><span class="mi ico">crop_free</span><span class="txt">包裝設定（訓練）</span></a>
     </nav>
   </aside>
   <div class="main">
@@ -136,7 +136,7 @@
             <hr>
             <button id="mShot">存截圖</button>
             <button id="mDay">今日統計</button>
-            <a id="mLabel" href="/label">標記物品</a>
+            <a id="mLabel" href="/label">包裝設定（訓練）</a>
             <button id="mPc">這台電腦的產線設定</button>
           </div>
         </div>
@@ -385,7 +385,7 @@
     if (s.frame_id > 0) setStream(true);
     if (!running && !s.frame_id) $("hint").hidden = false;
     $("trialBar").hidden = !trial;
-    if (trial) $("trialBar").textContent = `試跑中：配色「${colorText(s.color)}」模型還沒驗證過。照樣判斷與顯示漏做，但不計入錯誤率、不響警報。請錄 2～3 輪後到「包裝方式設定 → 辨識模型」驗證。`;
+    if (trial) $("trialBar").textContent = `試跑中：配色「${colorText(s.color)}」模型還沒驗證過。照樣判斷與顯示漏做，但不計入錯誤率、不響警報。請錄 2～3 輪後到「包裝明細 → 辨識模型」驗證。`;
     renderStatus(s); renderSteps(s); renderRight(s); tickClock();
     $("alert").hidden = !s.alert_active; $("alertMsg").textContent = (s.alert_message || "") + (trial ? "（試跑）" : "");
     $("stage").classList.toggle("alerting", !!s.alert_active);

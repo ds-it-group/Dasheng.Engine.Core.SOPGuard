@@ -1,6 +1,6 @@
 /* 共用硬碟（NAS）對話框：載入到這台電腦／上傳這台電腦的專案／看版本、退回。後端 shared_store.py（/api/share/*）。
    共用硬碟上每個專案：v1、v2…版本資料夾只增不改，current.txt 指「目前版本」；載入不用重訓（模型與框一起過來）。
-   由包裝方式設定頁（methods.html）載入；用到 window.sopgMethods（toast、reload）與 window.sopgHead（表頭）。 */
+   由包裝明細頁（methods.html）載入；用到 window.sopgMethods（toast、reload）與 window.sopgHead（表頭）。 */
 (function () {
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };

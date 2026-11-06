@@ -174,7 +174,7 @@ def is_trial(project, color: str | None) -> bool:
 
 
 def update_steps(project_name: str, rows: list[dict]) -> dict:
-    """包裝方式設定頁改步驟清單：只動物品步驟的名稱、辨識物品、停留秒數、必要；可刪、可調順序、可新增物品步驟。
+    """包裝明細頁改步驟清單：只動物品步驟的名稱、辨識物品、停留秒數、必要；可刪、可調順序、可新增物品步驟。
     非物品步驟（手勢等）原樣保留在原位置之後。"""
     p = load_project(project_name)
     known = set(model_items(p))
@@ -219,7 +219,7 @@ def wizard_name(style: str, region: str) -> str:
 
 
 def wizard_state(name: str) -> dict:
-    """精靈的狀態：step 1＝還缺型體地區或示範影片、step 2＝影片有了，到「標記物品」繼續（框選、訓練、產生步驟都在那一頁）。
+    """精靈的狀態：step 1＝還缺型體地區或示範影片、step 2＝影片有了，到「包裝設定（訓練）」繼續（框選、訓練、產生步驟都在那一頁）。
     每個包裝方式都用自己的影片與模型，不參照別的包裝方式。"""
     p = load_project(name)
     has_video = os.path.isfile(p.video_path)

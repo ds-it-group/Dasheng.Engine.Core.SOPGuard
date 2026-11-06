@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SOP-Guard 包裝方式設定</title>
+<title>SOP-Guard 包裝明細</title>
 <link rel="stylesheet" href="/eip.css">
 <script src="/eip.js"></script>
 <script src="/pcset.js"></script>
@@ -40,8 +40,8 @@
       <div class="grp">現場</div>
       <a href="/"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
       <div class="grp">設定</div>
-      <a href="/methods" class="on"><span class="mi ico">inventory</span><span class="txt">包裝方式設定</span></a>
-      <a href="/label"><span class="mi ico">crop_free</span><span class="txt">標記物品</span></a>
+      <a href="/methods" class="on"><span class="mi ico">inventory</span><span class="txt">包裝明細</span></a>
+      <a href="/label"><span class="mi ico">crop_free</span><span class="txt">包裝設定（訓練）</span></a>
     </nav>
   </aside>
   <div class="main">
@@ -55,7 +55,7 @@
         <div class="menuwrap">
           <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden>
-            <a id="mLabel" href="/label">標記物品（框選、錄影、訓練）</a>
+            <a id="mLabel" href="/label">包裝設定（訓練）</a>
             <a id="mShare" href="#">共用硬碟（載入／上傳專案）</a>
           </div>
         </div>
@@ -72,7 +72,7 @@
           <div class="note warn" id="needBar" hidden style="border:1px solid var(--line); border-top:0; border-radius:0; align-items:center"><span id="needText"></span></div>
           <div class="tabs" role="tablist"><button data-tab="steps" class="on">步驟清單</button><button data-tab="model">辨識模型</button></div>
           <div class="pane" id="tab-steps">
-            <div class="note info" style="border:1px solid var(--line); border-top:0; border-radius:0">順序照示範影片第一次出現的先後（標記物品的段落）。要改順序：到「標記物品」調段落再按「前往監控」。停留秒數、必要改了直接存。</div>
+            <div class="note info" style="border:1px solid var(--line); border-top:0; border-radius:0">順序照示範影片第一次出現的先後（包裝設定頁的段落）。要改順序：到「包裝設定（訓練）」調段落再按「前往監控」。停留秒數、必要改了直接存。</div>
             <div class="gridwrap"><table class="grid" id="sGrid"></table></div>
           </div>
           <div class="pane" id="tab-model" hidden>
@@ -277,7 +277,7 @@
   }
   function renderMethods() {
     const t = $("mGrid"); t.innerHTML = "";
-    const cols = [["型體", 100, "pinL"], ["地區", 100], ["型體名稱", 155], ["客戶", 100], ["包裝方式", 120], ["步驟", 60, "r"], ["操作", 96, "pinR c"]];
+    const cols = [["型體", 100, "pinL"], ["地區", 100], ["型體名稱", 155], ["客戶", 100], ["包裝方式", 120], ["步驟", 60, "r"], ["操作", 124, "pinR c"]];
     head(t, cols, 2, 6, renderMethods);
     const tb = el("tbody"), key = $("qKey").value.trim(), reg = $("qRegion").value, cust = $("qCust").value;
     let shown = 0;
@@ -294,6 +294,8 @@
       const shr = shareMap[m.name];
       if (shr && shr.status === "shared_newer") { const c = el("span", "chip warn", "共用硬碟有新版"); c.style.marginLeft = "6px"; c.title = `本機 v${shr.local_version}、共用硬碟目前 v${shr.current}：操作 → 共用硬碟 → 載入`; tr.children[4].appendChild(c); }
       const op = el("td", "pinR c"), box = el("span", "ops");
+      // 直接跳到包裝設定（訓練），打開這一筆（2026-11-06 使用者裁示）
+      box.appendChild(EIP.iconBtn("model_training", "c-edit", "到包裝設定（訓練）", (e) => { e.stopPropagation(); location.href = "/label?project=" + encodeURIComponent(m.name); }));
       box.appendChild(EIP.iconBtn("edit", "c-edit", m.has_packaging ? "編輯型體地區" : "設定型體地區", (e) => { e.stopPropagation(); openPk(m, false); }));
       if (m.has_packaging) {
         box.appendChild(EIP.iconBtn(m.enabled ? "block" : "restore", m.enabled ? "c-del" : "c-edit", m.enabled ? "停用" : "啟用", async (e) => {
@@ -331,8 +333,8 @@
     const need = !d.has_packaging || !d.steps || !d.model_trained_at;
     $("needBar").hidden = !need;
     if (need) $("needText").textContent = !d.has_packaging ? "這個專案還沒設定型體地區。按左邊鉛筆圖示設定。"
-      : !d.model_trained_at ? "這個專案還沒有辨識模型。到「標記物品」框選物品後按「開始訓練」。"
-      : "這個專案還沒有步驟。到「標記物品」訓練，訓練完會自動排好。";
+      : !d.model_trained_at ? "這個專案還沒有辨識模型。到「包裝設定（訓練）」框選物品後按「開始訓練」。"
+      : "這個專案還沒有步驟。到「包裝設定（訓練）」訓練，訓練完會自動排好。";
     renderSteps(); renderModel();
   }
 
@@ -352,7 +354,7 @@
       const c4 = el("td", "c"), ck = el("input"); ck.type = "checkbox"; ck.checked = s.required; ck.setAttribute("aria-label", "必要"); ck.onchange = () => { s.required = ck.checked; saveSteps("必要"); }; c4.appendChild(ck); tr.appendChild(c4);
       tb.appendChild(tr);
     });
-    if (!stepsEdit.length) { const tr = el("tr", "empty"), td = el("td", null, "還沒有步驟。到「標記物品」訓練，訓練完會自動排好。"); td.colSpan = 6; tr.appendChild(td); tb.appendChild(tr); }
+    if (!stepsEdit.length) { const tr = el("tr", "empty"), td = el("td", null, "還沒有步驟。到「包裝設定（訓練）」訓練，訓練完會自動排好。"); td.colSpan = 6; tr.appendChild(td); tb.appendChild(tr); }
     t.appendChild(tb);
   }
   async function saveSteps(what) {
@@ -366,9 +368,9 @@
   function renderModel() {
     const d = detail;
     $("modelLine").innerHTML = "";
-    const lines = [["目前模型", d.model_trained_at ? (d.model_source ? `參考 ${d.model_source}（${d.model_trained_at}）` : `本型體地區（${d.model_trained_at}）`) : "還沒訓練（到「標記物品」按「開始訓練」）"],
+    const lines = [["目前模型", d.model_trained_at ? (d.model_source ? `參考 ${d.model_source}（${d.model_trained_at}）` : `本型體地區（${d.model_trained_at}）`) : "還沒訓練（到「包裝設定（訓練）」按「開始訓練」）"],
       ["模型認得的物品", (d.model_items || []).join("、") || "–"]];
-    if (d.model_stale) lines.push(["注意", d.model_stale + "：到「標記物品」按「重新訓練」"]);
+    if (d.model_stale) lines.push(["注意", d.model_stale + "：到「包裝設定（訓練）」按「重新訓練」"]);
     const shr = shareMap[d.name];
     if (shr) lines.push(["共用硬碟", shr.status === "not_on_share" ? "還沒上傳" : `本機 ${shr.local_version != null ? "v" + shr.local_version : "（沒上傳過）"}、目前版本 v${shr.current}` + (shr.status === "local_changed" ? "，本機改過還沒上傳" : shr.status === "shared_newer" ? "，共用硬碟有新版" : "")]);
     for (const [k, v] of lines) { const s = el("span"); s.appendChild(document.createTextNode(k + "：")); s.appendChild(el("b", null, v)); $("modelLine").appendChild(s); }
@@ -425,7 +427,7 @@
     $("pkDlg").hidden = true; toast("已儲存"); load(pkEditing.name);
   };
 
-  /* 訓練的入口只在「標記物品」頁（開始訓練、進階訓練）；這一頁的訓練燈箱只接受從那邊帶 ?train=1 過來 */
+  /* 訓練的入口只在「包裝設定（訓練）」頁（開始訓練、進階訓練）；這一頁的訓練燈箱只接受從那邊帶 ?train=1 過來 */
 
   $("btnSearch").onclick = () => renderMethods();
   $("qKey").onkeydown = (ev) => { if (ev.key === "Enter") renderMethods(); };
@@ -540,7 +542,7 @@
         tb.appendChild(tr); rowsShown++;
       }
     }
-    if (!rowsShown) { const tr = el("tr", "empty"), td = el("td", null, "沒有可用的素材。先到「標記物品」錄影或上傳影片並框選。"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
+    if (!rowsShown) { const tr = el("tr", "empty"), td = el("td", null, "沒有可用的素材。先到「包裝設定（訓練）」錄影或上傳影片並框選。"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
     t.appendChild(tb); EIP.resizable(t, "train-material");
     const nBox = sel.reduce((a, x) => a + x.s.n, 0), colors = [...new Set(sel.map((x) => x.color || "（未填）"))];
     $("trSum").textContent = `已選 ${sel.length} 段（訓練 ${sel.length - hold.size}、驗證 ${hold.size}），共 ${nBox} 框；配色：${colors.join("、") || "–"}`;

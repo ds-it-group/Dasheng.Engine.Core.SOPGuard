@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SOP-Guard 標記物品</title>
+<title>SOP-Guard 包裝設定</title>
 <link rel="stylesheet" href="/eip.css">
 <script src="/eip.js"></script>
 <script src="/pcset.js"></script>
@@ -118,8 +118,8 @@
       <div class="grp">現場</div>
       <a href="/"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
       <div class="grp">設定</div>
-      <a href="/methods"><span class="mi ico">inventory</span><span class="txt">包裝方式設定</span></a>
-      <a href="/label" class="on"><span class="mi ico">crop_free</span><span class="txt">標記物品</span></a>
+      <a href="/methods"><span class="mi ico">inventory</span><span class="txt">包裝明細</span></a>
+      <a href="/label" class="on"><span class="mi ico">crop_free</span><span class="txt">包裝設定（訓練）</span></a>
     </nav>
   </aside>
   <div class="main">
@@ -136,7 +136,7 @@
             <button id="btnRegionAuto" hidden>桌面範圍：改回自動算</button>
             <button id="btnRetrain" hidden title="框選沒改也可以再訓練一次">重新訓練</button>
             <a id="lnkTrainAdv" href="/methods" title="挑片段、合成配色、產生 GPU 訓練包、匯入 GPU 模型">進階訓練（GPU 等）</a>
-            <a id="lnkMethod" href="/methods">到包裝方式設定</a>
+            <a id="lnkMethod" href="/methods">到包裝明細</a>
             <a href="/">到監控畫面</a>
           </div>
         </div>
@@ -179,7 +179,7 @@
             <button class="btn btn-cancel" id="btnAddName" style="height:30px;padding:0 8px"><span class="mi">add</span>新增</button>
           </div>
           <div id="objTip" style="display:flex;align-items:center;gap:6px;padding:4px 10px 6px;font-size:12px;color:var(--ink-2)" title="貼好的貼紙連盒邊一起框、放好的鞋子連盒蓋一起框。只框東西本身，它還在旁邊沒做完時也會被算成做完。"><span class="mi" style="font-size:16px;color:var(--accent, #d58a00)">lightbulb</span>框做完的樣子，連旁邊的盒子一起框</div>
-          <div id="actTip" hidden style="display:flex;align-items:center;gap:6px;padding:4px 10px 6px;font-size:12px;color:var(--ink-2)" title="例如「檢查鞋舌」：先到「物品」把鞋舌框成一個物品，再拉這個動作的範圍。手同時碰到鞋子和鞋舌時，系統取框比較小的鞋舌。鞋舌這個物品步驟可以到「包裝方式設定」關掉必要，重新排步驟也會照舊。"><span class="mi" style="font-size:16px;color:var(--accent, #d58a00)">lightbulb</span>手要碰的是小地方（例如鞋舌）：先把它框成物品</div>
+          <div id="actTip" hidden style="display:flex;align-items:center;gap:6px;padding:4px 10px 6px;font-size:12px;color:var(--ink-2)" title="例如「檢查鞋舌」：先到「物品」把鞋舌框成一個物品，再拉這個動作的範圍。手同時碰到鞋子和鞋舌時，系統取框比較小的鞋舌。鞋舌這個物品步驟可以到「包裝明細」關掉必要，重新排步驟也會照舊。"><span class="mi" style="font-size:16px;color:var(--accent, #d58a00)">lightbulb</span>手要碰的是小地方（例如鞋舌）：先把它框成物品</div>
           <div class="list" id="nameList"></div>
           <div class="foot">
             <div id="cnt"></div>
@@ -770,7 +770,7 @@
   async function openProject(name) {
     if (playing) togglePlay();
     proj = name; sel = null; segSel = null; undoStack = []; draft = null; regionMode = false; n = 0; zoom = 1; applyZoom();
-    $("lnkMethod").href = name ? "/methods?project=" + enc(name) : "/methods";
+    $("lnkMethod").href = document.querySelector('.side a[href^="/methods"]').href = name ? "/methods?project=" + enc(name) : "/methods";
     $("lnkTrainAdv").href = name ? "/methods?project=" + enc(name) + "&train=1" : "/methods";
     if (!name) { info = null; $("setup").hidden = true; $("stage").hidden = true; $("vidInfo").textContent = ""; render(); return; }
     info = await api("/api/project?name=" + enc(name));
@@ -863,7 +863,7 @@
     $("upInfo").textContent = `已匯入 ${d.video}（${d.resolution[0]}x${d.resolution[1]} @ ${d.fps.toFixed(1)} fps）`; await loadProjects(proj); openProject(proj);
   };
 
-  // ---- 補框清單（從包裝方式設定／精靈的「補框」過來：?queue=格:物品:範圍起:範圍迄:輪;…）：逐處跳過去，在時間軸上補一段
+  // ---- 補框清單（從包裝明細／精靈的「補框」過來：?queue=格:物品:範圍起:範圍迄:輪;…）：逐處跳過去，在時間軸上補一段
   function gotoQ(k) {
     if (!queue.length) return; qi = Math.max(0, Math.min(queue.length - 1, k)); const q = queue[qi];
     $("qbar").hidden = false; $("qText").textContent = `補框 第 ${qi + 1}／${queue.length} 處：第 ${q.round} 輪「${q.label}」大約在 ${fmt(q.from)}～${fmt(q.to)}。畫面上有的話，在這裡按「從這裡開始」補一段並儲存；真的沒做就跳下一處。`;

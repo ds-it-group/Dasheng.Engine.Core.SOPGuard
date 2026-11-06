@@ -146,7 +146,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._file(os.path.join(WEB_DIR, "label.html"), "text/html; charset=utf-8")
             elif path == "/methods":
                 self._file(os.path.join(WEB_DIR, "methods.html"), "text/html; charset=utf-8")
-            elif path in ("/new", "/lines"):        # 舊頁面（11-06 併掉）：新增包裝方式 → 標記物品；產線設定 → 每頁右下角的設定鍵
+            elif path in ("/new", "/lines"):        # 舊頁面（11-06 併掉）：新增包裝方式 → 包裝設定；產線設定 → 每頁右下角的設定鍵
                 q = self.path.split("?", 1)[1] if "?" in self.path else ""
                 self._redirect("/label?new=1" + ("&" + q if q else "") if path == "/new" else "/?pcset=1")
             elif path == "/api/wizard/state":
@@ -355,7 +355,7 @@ class Handler(BaseHTTPRequestHandler):
         raise ValueError("沒有這個路徑")
 
     def _settings_action(self, path: str, body: dict) -> dict:
-        """產線設定／包裝方式設定的寫入動作。"""
+        """產線設定／包裝明細的寫入動作。"""
         import lines as line_store
         import packing_methods as pkg
         name = str(body.get("name", ""))
@@ -398,7 +398,7 @@ class Handler(BaseHTTPRequestHandler):
         other = pkg.find_method(style, region)
         name = pkg.wizard_name(style, region)
         if other and other != name:
-            raise ValueError(f"型體 {style}／{region} 已經有包裝方式了（{other}）；要改它請到「包裝方式設定」")
+            raise ValueError(f"型體 {style}／{region} 已經有包裝方式了（{other}）；要改它請到「包裝明細」")
         if not os.path.isdir(os.path.join(projects_dir(), name)):
             self.label.create(name)
         data = {"style": style, "region": region}

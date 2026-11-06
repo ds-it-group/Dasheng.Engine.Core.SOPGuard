@@ -32,6 +32,10 @@ window.I18N_DICT = {
 "3. When done, copy out/best.pt back to this computer, go to \"Packing method settings → Train detection model\" and click \"Import GPU-trained model\",\\n",
 "3. Setelah selesai, salin out/best.pt ke komputer ini, buka \"Pengaturan metode kemas → Latih model deteksi\" lalu klik \"Impor model hasil latih GPU\",\\n"
 ],
+"3. 跑完把 out/best.pt 拷回這台電腦，在「包裝明細 → 訓練辨識模型」按「匯入 GPU 訓練好的模型」，\\n": [
+"3. When done, copy out/best.pt back to this computer, go to \"Packing details → Train detection model\" and click \"Import GPU-trained model\",\\n",
+"3. Setelah selesai, salin out/best.pt ke komputer ini, buka \"Rincian kemas → Latih model deteksi\" lalu klik \"Impor model hasil latih GPU\",\\n"
+],
 "</div><div class=\"da\"><button class=\"btn btn-cancel\" id=\"shClose\">關閉</button><span></span></div></div>": [
 "</div><div class=\"da\"><button class=\"btn btn-cancel\" id=\"shClose\">Close</button><span></span></div></div>",
 "</div><div class=\"da\"><button class=\"btn btn-cancel\" id=\"shClose\">Tutup</button><span></span></div></div>"
@@ -155,6 +159,14 @@ window.I18N_DICT = {
 "SOP-Guard 包裝方式設定": [
 "SOP-Guard Packing method settings",
 "SOP-Guard Pengaturan metode kemas"
+],
+"SOP-Guard 包裝明細": [
+"SOP-Guard Packing details",
+"SOP-Guard Rincian kemas"
+],
+"SOP-Guard 包裝設定": [
+"SOP-Guard Packing setup",
+"SOP-Guard Pengaturan kemas"
 ],
 "SOP-Guard 核心引擎開發測試入口": [
 "SOP-Guard core engine dev test entry",
@@ -928,6 +940,10 @@ window.I18N_DICT = {
 "For example \"Check tongue\": first go to \"Items\" and box the tongue as an item, then drag the range for this action. When the hand touches both the shoe and the tongue, the system picks the smaller box (the tongue). The tongue item step can be set as not required in \"Packing method settings\", and it stays that way when steps are reordered.",
 "Contoh \"Cek lidah sepatu\": buka \"Barang\" dulu dan beri kotak lidah sepatu sebagai barang, lalu tarik rentang gerakan ini. Kalau tangan menyentuh sepatu dan lidah sepatu sekaligus, sistem memilih kotak yang lebih kecil (lidah sepatu). Langkah barang lidah sepatu bisa dimatikan sebagai wajib di \"Pengaturan metode kemas\", dan tetap begitu walau langkah diurutkan ulang."
 ],
+"例如「檢查鞋舌」：先到「物品」把鞋舌框成一個物品，再拉這個動作的範圍。手同時碰到鞋子和鞋舌時，系統取框比較小的鞋舌。鞋舌這個物品步驟可以到「包裝明細」關掉必要，重新排步驟也會照舊。": [
+"For example \"Check tongue\": first go to \"Items\" and box the tongue as an item, then drag the range for this action. When the hand touches both the shoe and the tongue, the system picks the smaller box (the tongue). The tongue item step can be set as not required in \"Packing details\", and it stays that way when steps are reordered.",
+"Contoh \"Cek lidah sepatu\": buka \"Barang\" dulu dan beri kotak lidah sepatu sebagai barang, lalu tarik rentang gerakan ini. Kalau tangan menyentuh sepatu dan lidah sepatu sekaligus, sistem memilih kotak yang lebih kecil (lidah sepatu). Langkah barang lidah sepatu bisa dimatikan sebagai wajib di \"Rincian kemas\", dan tetap begitu walau langkah diurutkan ulang."
+],
 "依序模式": [
 "Sequential mode",
 "Mode berurutan"
@@ -1104,6 +1120,14 @@ window.I18N_DICT = {
 "Go to Packing method settings",
 "Ke Pengaturan metode kemas"
 ],
+"到包裝明細": [
+"Go to Packing details",
+"Ke Rincian kemas"
+],
+"到包裝設定（訓練）": [
+"Go to Packing setup (training)",
+"Ke Pengaturan kemas (latih)"
+],
 "到標記頁補框": [
 "Add boxes on the label page",
 "Tambah kotak di halaman tandai"
@@ -1183,6 +1207,14 @@ window.I18N_DICT = {
 "包裝方式還沒有步驟": [
 "Packing method has no steps yet",
 "Metode kemas belum punya langkah"
+],
+"包裝明細": [
+"Packing details",
+"Rincian kemas"
+],
+"包裝設定（訓練）": [
+"Packing setup (training)",
+"Pengaturan kemas (latih)"
 ],
 "匯入 GPU 訓練好的模型：": [
 "Import model trained on GPU:",
@@ -1367,6 +1399,10 @@ window.I18N_DICT = {
 "型體 {0}／{1} 已經有包裝方式了（{2}）；要改它請到「包裝方式設定」": [
 "Style {0}/{1} already has a packing method ({2}); to change it, go to \"Packing method settings\"",
 "Artikel {0}/{1} sudah punya metode kemas ({2}); untuk mengubahnya buka \"Pengaturan metode kemas\""
+],
+"型體 {0}／{1} 已經有包裝方式了（{2}）；要改它請到「包裝明細」": [
+"Style {0}/{1} already has a packing method ({2}); to change it, go to \"Packing details\"",
+"Artikel {0}/{1} sudah punya metode kemas ({2}); untuk mengubahnya buka \"Rincian kemas\""
 ],
 "型體名稱": [
 "Style name",
@@ -2556,6 +2592,10 @@ window.I18N_DICT = {
 "No segment to restore",
 "Tidak ada segmen yang bisa dikembalikan"
 ],
+"沒有可用的素材。先到「包裝設定（訓練）」錄影或上傳影片並框選。": [
+"No usable material. First go to \"Packing setup (training)\" to record or upload video and draw boxes.",
+"Tidak ada materi yang bisa dipakai. Ke \"Pengaturan kemas (latih)\" dulu untuk rekam atau unggah video lalu gambar kotak."
+],
 "沒有可用的素材。先到「標記物品」錄影或上傳影片並框選。": [
 "No usable material. First go to \"Label items\" to record or upload video and draw boxes.",
 "Tidak ada materi yang bisa dipakai. Ke \"Tandai barang\" dulu untuk rekam atau unggah video lalu gambar kotak."
@@ -3180,6 +3220,10 @@ window.I18N_DICT = {
 "Auto label",
 "Tandai otomatis"
 ],
+"自動標記要有桌面範圍（固定範圍）：先在「包裝設定（訓練）」存至少一個物品的框，範圍會自動算": [
+"Auto label needs a desk area (fixed area): first save at least one item's box in \"Packing setup (training)\"; the area is calculated automatically",
+"Tandai otomatis butuh area meja (area tetap): simpan dulu kotak minimal satu barang di \"Pengaturan kemas (latih)\"; area dihitung otomatis"
+],
 "自動標記要有桌面範圍（固定範圍）：先在「標記物品」存至少一個物品的框，範圍會自動算": [
 "Auto label needs a desk area (fixed area): first save at least one item's box in \"Label items\"; the area is calculated automatically",
 "Tandai otomatis butuh area meja (area tetap): simpan dulu kotak minimal satu barang di \"Tandai barang\"; area dihitung otomatis"
@@ -3343,6 +3387,10 @@ window.I18N_DICT = {
 "試跑中：配色「{0}」模型還沒驗證過。照樣判斷與顯示漏做，但不計入錯誤率、不響警報。請錄 2～3 輪後到「包裝方式設定 → 辨識模型」驗證。": [
 "Trial run: model for color \"{0}\" is not verified yet. Missed steps are still checked and shown, but not counted in the error rate and no alarm. Record 2–3 cycles, then verify in \"Packing method settings → Recognition model\".",
 "Uji coba: model untuk warna \"{0}\" belum diverifikasi. Langkah terlewat tetap dicek dan ditampilkan, tapi tidak dihitung ke tingkat kesalahan dan alarm tidak bunyi. Rekam 2–3 siklus, lalu verifikasi di \"Pengaturan metode kemas → Model pengenalan\"."
+],
+"試跑中：配色「{0}」模型還沒驗證過。照樣判斷與顯示漏做，但不計入錯誤率、不響警報。請錄 2～3 輪後到「包裝明細 → 辨識模型」驗證。": [
+"Trial run: model for color \"{0}\" is not verified yet. Missed steps are still checked and shown, but not counted in the error rate and no alarm. Record 2–3 cycles, then verify in \"Packing details → Recognition model\".",
+"Uji coba: model untuk warna \"{0}\" belum diverifikasi. Langkah terlewat tetap dicek dan ditampilkan, tapi tidak dihitung ke tingkat kesalahan dan alarm tidak bunyi. Rekam 2–3 siklus, lalu verifikasi di \"Rincian kemas → Model pengenalan\"."
 ],
 "試跑，不計入錯誤率": [
 "Trial run, not counted in error rate",
@@ -3628,6 +3676,10 @@ window.I18N_DICT = {
 "This project has no steps yet",
 "Proyek ini belum punya langkah"
 ],
+"這個專案還沒有步驟。到「包裝設定（訓練）」訓練，訓練完會自動排好。": [
+"This project has no steps yet. Train in \"Packing setup (training)\"; steps are arranged automatically after training.",
+"Proyek ini belum ada langkah. Latih di \"Pengaturan kemas (latih)\", setelah latih langkah otomatis disusun."
+],
 "這個專案還沒有步驟。到「標記物品」訓練，訓練完會自動排好。": [
 "This project has no steps yet. Train in \"Label items\"; steps are arranged automatically after training.",
 "Proyek ini belum ada langkah. Latih di \"Tandai barang\", setelah latih langkah otomatis disusun."
@@ -3643,6 +3695,10 @@ window.I18N_DICT = {
 "這個專案還沒有訓練好的模型，請先手動框幾個樣本並訓練一次": [
 "This project has no trained model yet. Box a few samples by hand and train once first",
 "Proyek ini belum punya model terlatih. Kotak beberapa contoh manual dan latih sekali dulu"
+],
+"這個專案還沒有辨識模型。到「包裝設定（訓練）」框選物品後按「開始訓練」。": [
+"This project has no recognition model yet. Go to \"Packing setup (training)\", draw boxes on items and click \"Start training\".",
+"Proyek ini belum punya model pengenal. Ke \"Pengaturan kemas (latih)\", gambar kotak pada barang lalu klik \"Mulai latih\"."
 ],
 "這個專案還沒有辨識模型。到「標記物品」框選物品後按「開始訓練」。": [
 "This project has no recognition model yet. Go to \"Label items\", draw boxes on items and click \"Start training\".",
@@ -3856,6 +3912,10 @@ window.I18N_DICT = {
 "No items boxed yet",
 "Belum ada barang yang dikotak"
 ],
+"還沒有步驟。到「包裝設定（訓練）」訓練，訓練完會自動排好。": [
+"No steps yet. Train in \"Packing setup (training)\"; steps are arranged automatically after training.",
+"Belum ada langkah. Latih di \"Pengaturan kemas (latih)\", setelah latih langkah otomatis disusun."
+],
 "還沒有步驟。到「標記物品」訓練，訓練完會自動排好。": [
 "No steps yet. Train in \"Label items\"; steps are arranged automatically after training.",
 "Belum ada langkah. Latih di \"Tandai barang\", setelah latih langkah otomatis disusun."
@@ -3895,6 +3955,10 @@ window.I18N_DICT = {
 "還沒訓練": [
 "Not trained",
 "Belum dilatih"
+],
+"還沒訓練（到「包裝設定（訓練）」按「開始訓練」）": [
+"Not trained yet (go to \"Packing setup (training)\" and click \"Start training\")",
+"Belum dilatih (ke \"Pengaturan kemas (latih)\" lalu klik \"Mulai latih\")"
 ],
 "還沒訓練（到「標記物品」按「開始訓練」）": [
 "Not trained yet (go to \"Label items\" and click \"Start training\")",
@@ -4043,6 +4107,10 @@ window.I18N_DICT = {
 "順序": [
 "Order",
 "Urutan"
+],
+"順序照示範影片第一次出現的先後（包裝設定頁的段落）。要改順序：到「包裝設定（訓練）」調段落再按「前往監控」。停留秒數、必要改了直接存。": [
+"The order follows when each item first appears in the demo video (segments on the Packing setup page). To change the order: go to \"Packing setup (training)\", adjust the segments, then press \"Go to monitor\". Hold seconds and Required are saved as soon as you change them.",
+"Urutan mengikuti kapan barang pertama kali muncul di video contoh (segmen di halaman Pengaturan kemas). Untuk ubah urutan: buka \"Pengaturan kemas (latih)\", atur segmen, lalu tekan \"Ke pantau\". Detik tahan dan Wajib langsung tersimpan saat diubah."
 ],
 "順序照示範影片第一次出現的先後（標記物品的段落）。要改順序：到「標記物品」調段落再按「前往監控」。停留秒數、必要改了直接存。": [
 "The order follows when each item first appears in the demo video (the Label items segments). To change the order: go to \"Label items\", adjust the segments, then press \"Go to monitor\". Hold seconds and Required are saved as soon as you change them.",
@@ -4239,6 +4307,10 @@ window.I18N_DICT = {
 "／超時 {0}": [
 " / overtime {0}",
 " / lewat waktu {0}"
+],
+"：到「包裝設定（訓練）」按「重新訓練」": [
+": go to \"Packing setup (training)\" and press \"Retrain\"",
+": buka \"Pengaturan kemas (latih)\" lalu tekan \"Latih ulang\""
 ],
 "：到「標記物品」按「重新訓練」": [
 ": go to \"Label items\" and press \"Retrain\"",

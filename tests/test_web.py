@@ -174,7 +174,7 @@ def test_label_service_create_and_upload(tmp_path, monkeypatch):
 
 def test_label_routes_with_stub(server):
     svc, base = server
-    st, body = _get(base + "/label"); assert st == 200 and "標記物品" in body.decode("utf-8")
+    st, body = _get(base + "/label"); assert st == 200 and "包裝設定" in body.decode("utf-8")
     st, d = _post(base + "/api/seeds", {"project": "p", "action": "add_ref", "frame": 1}); assert st == 404   # 沒掛 label 服務
 
 

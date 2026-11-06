@@ -238,7 +238,7 @@ def write_gpu_package(ds_dir: str, out_zip: str, base_weights: str, train_script
             "1. 解壓縮：unzip <這個檔> -d sopg_train && cd sopg_train\n"
             "2. 用已經裝好 ultralytics 的 Python 跑（GPU 會自動用）：\n"
             f"   python train_items.py dataset/data.yaml out --epochs {epochs} --imgsz {imgsz} --base yolov8n.pt\n"
-            "3. 跑完把 out/best.pt 拷回這台電腦，在「包裝方式設定 → 訓練辨識模型」按「匯入 GPU 訓練好的模型」，\n"
+            "3. 跑完把 out/best.pt 拷回這台電腦，在「包裝明細 → 訓練辨識模型」按「匯入 GPU 訓練好的模型」，\n"
             "   系統會用保留的驗證段離線驗證，通過才換上。\n\n"
             f"合成配色：{', '.join(plan.get('recolor_classes') or []) or '沒有'}（多加 {plan.get('recolor_added', 0)} 張）\n"
             f"訓練圖 {plan.get('train_images')} 張、驗證圖 {plan.get('val_images')} 張；保留驗證段 {len(plan.get('holdout') or [])} 段（在原電腦驗證）\n"))

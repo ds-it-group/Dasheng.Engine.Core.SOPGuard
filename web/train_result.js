@@ -1,5 +1,5 @@
 /* 訓練結果：新舊模型考同一份考卷（後端 model_exam），告訴使用者這次比上次變好、差不多還是變差。
-   標記頁、包裝方式設定共用。TrainResult.summary(容器, 訓練狀態, 專案, 頁面動作) 畫一行摘要；TrainResult.open(...) 開結果視窗。
+   標記頁、包裝明細共用。TrainResult.summary(容器, 訓練狀態, 專案, 頁面動作) 畫一行摘要；TrainResult.open(...) 開結果視窗。
    狀態＝/api/train/state 的回傳（compare、candidate、installed）。變差時預設不換，「仍要換上新模型」打 /api/train/install。 */
 (function () {
   const LABEL = { better: ["ok", "變好"], same: ["off", "差不多"], worse: ["no", "變差"], first: ["info", "第一次"], new: ["info", "新物品"],
