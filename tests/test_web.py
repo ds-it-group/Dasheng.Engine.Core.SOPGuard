@@ -140,9 +140,16 @@ def test_label_service_frames_seeds_and_multipart(tmp_path):
     s = svc.seed_action(pdir, {"action": "add_seed", "frame": 10, "name": "標籤", "rect": [100, 80, 80, 60], "track_sec": 0}); assert s["counts"] == {"標籤": 1}
     with pytest.raises(ValueError):
         svc.seed_action(pdir, {"action": "add_seed", "frame": 10, "name": "x", "rect": [0, 0, 5, 5]})
-    s = svc.seed_action(pdir, {"action": "set_region", "rect": [0, 0, 320, 240]}); assert s["region"] == [0, 0, 320, 240] and s["region_mode"] == "manual"
-    # 改回自動：從唯一的框 [100, 80, 80, 60] 往外擴 20% → [84, 68, 112, 84]
+    with pytest.raises(ValueError, match="不能自己框"):                     # 桌面範圍不給自己框（2026-11-06）
+        svc.seed_action(pdir, {"action": "set_region", "rect": [0, 0, 320, 240]})
+    # 自動：從唯一的框 [100, 80, 80, 60] 往外擴 20% → [84, 68, 112, 84]
     s = svc.seed_action(pdir, {"action": "set_region", "rect": None}); assert s["region"] == [84, 68, 112, 84] and s["region_mode"] == "auto"
+    # 舊的自己框範圍（桌面程式框的）：框一有增減就換成自動算
+    import item_recognizer as ir
+    sd = ir.ItemSeeds(pdir); sd.set_region((0, 0, 320, 240)); assert sd.region_mode == "manual"
+    s = svc.seed_action(pdir, {"action": "add_seed", "frame": 20, "name": "標籤", "rect": [100, 80, 80, 60], "track_sec": 0})
+    assert s["region"] == [84, 68, 112, 84] and s["region_mode"] == "auto"
+    s = svc.seed_action(pdir, {"action": "remove_seed", "index": 1}); assert s["counts"] == {"標籤": 1}
     s = svc.seed_action(pdir, {"action": "set_box_label", "name": "標籤", "is_box": True}); assert s["box_labels"] == ["標籤"]
     s = svc.seed_action(pdir, {"action": "add_hand_step", "name": "檢查", "prompt": "shoe", "dwell": 0.7}); assert s["hand_steps"][0]["prompt"] == "shoe"
     s = svc.seed_action(pdir, {"action": "remove_seed", "index": 0}); assert s["counts"] == {}

@@ -2376,6 +2376,10 @@ window.I18N_DICT = {
 "Desk",
 "Meja"
 ],
+"桌面範圍": [
+"Desk area",
+"Area meja"
+],
 "桌面範圍改了，要重新訓練": [
 "Desk area changed, please train again",
 "Area meja berubah, perlu dilatih ulang"
@@ -2387,6 +2391,10 @@ window.I18N_DICT = {
 "桌面範圍改成自己框的（橘框），之後不會自動改。": [
 "Desk area set to your own box (orange box); it will not change automatically.",
 "Area meja pakai kotak buatan sendiri (kotak oranye), tidak akan berubah otomatis."
+],
+"桌面範圍由程式用框過的物品自動算，不能自己框": [
+"The desk area is calculated automatically from the boxed items and cannot be drawn by hand",
+"Area meja dihitung otomatis dari barang yang sudah diberi kotak, tidak bisa digambar sendiri"
 ],
 "桌面範圍裁切，每 0.5 秒一格。時間軸下方：綠色＝模型判定這一步完成的時間、紅色＝沒看到的步驟大約該在的位置（點一下跳過去）。": [
 "Cropped to desk area, one frame every 0.5 s. Below the timeline: green = when the model judged this step done, red = where a missed step should roughly be (click to jump there).",

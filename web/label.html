@@ -132,8 +132,6 @@
           <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden>
             <button id="btnNew">新增包裝方式</button>
-            <button id="btnRegion" title="平常不用：程式會用全部框過的物品自動算。只有要特別放大或縮小看的範圍才自己框">桌面範圍：自己框（進階）</button>
-            <button id="btnRegionAuto" hidden>桌面範圍：改回自動算</button>
             <button id="btnRetrain" hidden title="框選沒改也可以再訓練一次">重新訓練</button>
             <a id="lnkTrainAdv" href="/methods" title="挑片段、合成配色、產生 GPU 訓練包、匯入 GPU 模型">進階訓練（GPU 等）</a>
             <a id="lnkMethod" href="/methods">到包裝明細</a>
@@ -256,7 +254,7 @@
   const enc = encodeURIComponent;
   const TRACK_STEP = 3;                     // 存檔時每幾格追一個框（跟後端 item_recognizer.TRACK_STEP 一樣），畫框時找最近的
   let proj = "", info = null, N = 0, fps = 30, n = 0, v0 = 0, v1 = 0;
-  let sel = null, segSel = null, newKind = "object", draft = null, drag = null, vd = null, regionMode = false, ovDrag = false;
+  let sel = null, segSel = null, newKind = "object", draft = null, drag = null, vd = null, ovDrag = false;
   let sawTraining = false;                  // 這一頁看著訓練跑完 → 結果視窗自動跳出來（回來才看的不自動跳，用「看結果」）
   let playing = false, playTimer = null, loadTimer = null, trainTimer = null, recTimer = null, msgTimer = null, msgText = "", msgWarn = false, pending = false;
   let undoStack = [], seedByGroup = {}, seedsByName = {}, queue = [], qi = 0;
@@ -490,15 +488,14 @@
       ctx.setLineDash(dash || []); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.strokeRect(r[0] * s, r[1] * s, r[2] * s, r[3] * s); ctx.setLineDash([]);
       if (label) { label = window.I18N ? I18N.t(label) : label; ctx.font = "bold 13px sans-serif"; const w = ctx.measureText(label).width + 10; const y = Math.max(0, r[1] * s - 20); ctx.fillStyle = col; ctx.fillRect(r[0] * s, y, w, 20); ctx.fillStyle = col === "#ffeb3b" ? "#1d2233" : "#fff"; ctx.fillText(label, r[0] * s + 5, y + 14); }
     };
-    const sd = info.seeds; if (sd.region) rect(sd.region, "#ff9f1c", 2, [], sd.region_mode === "manual" ? "桌面範圍（自己框的）" : "桌面範圍（自動）");
+    const sd = info.seeds; if (sd.region) rect(sd.region, "#ff9f1c", 2, [], "桌面範圍");   // 2026-11-06 使用者裁示：桌面範圍只能程式自動算，不給自己框
     const nd = curName();
     for (const m of names()) { if (m.kind === "action" || (nd && m.name === nd.name)) continue; for (const r of nearest(seedsByName[m.name], n)) rect(r, "rgba(255,255,255,.65)", 1, [6, 4], m.name); }
     if (nd && !isAct(nd)) { const g = segAt(n); if (g) { const b = boxFor(g, n); if (b) rect(b, "#ffeb3b", 3, g.saved ? [] : [8, 6], `${nd.name} 第 ${segsOf(nd.name).indexOf(g) + 1} 段`); } }
-    if (draft) rect(draft, regionMode ? "#ff9f1c" : "#ffeb3b", 2, [6, 4]);
-    ov.style.cursor = regionMode || (nd && !isAct(nd) && segAt(n)) ? "crosshair" : "default";
+    if (draft) rect(draft, "#ffeb3b", 2, [6, 4]);
+    ov.style.cursor = nd && !isAct(nd) && segAt(n) ? "crosshair" : "default";
   }
   function hintText() {
-    if (regionMode) return "拖拉框住整個桌面；Esc 取消";
     const nd = curName(); if (!nd) return names().some((m) => m.kind === newKind) ? "右邊點一個名稱" : (newKind === "action" ? "右邊先新增動作" : "右邊先新增物品");
     const g = segAt(n); if (!g) return "按「從這裡開始」";
     if (isAct(nd)) return g.saved ? `手碰：${g.touch || nd.touch || "？"}` : "拉好範圍，按「儲存這一段」";
@@ -554,13 +551,10 @@
   ov.addEventListener("pointerdown", (e) => {
     if (!info || !info.has_video || e.button !== 0) return;
     if (playing) togglePlay();
-    if (regionMode) vd = { region: true };
-    else {
-      const nd = curName(); if (!nd) { say("先在右邊點一個名稱（或新增一個）", true); return; }
-      if (isAct(nd)) { say(`「${nd.name}」是動作，不用畫框，只要在時間軸上拉範圍。`); return; }
-      const g = segAt(n); if (!g) { say("這個時間點不在任何一段裡。先按「從這裡開始」新增一段，再畫框。", true); return; }
-      vd = { seg: g.id };
-    }
+    const nd = curName(); if (!nd) { say("先在右邊點一個名稱（或新增一個）", true); return; }
+    if (isAct(nd)) { say(`「${nd.name}」是動作，不用畫框，只要在時間軸上拉範圍。`); return; }
+    const g = segAt(n); if (!g) { say("這個時間點不在任何一段裡。先按「從這裡開始」新增一段，再畫框。", true); return; }
+    vd = { seg: g.id };
     vd.p0 = toXY(e); ov.setPointerCapture(e.pointerId);
   });
   ov.addEventListener("pointermove", (e) => {
@@ -572,7 +566,6 @@
   const vidUp = async () => {
     if (!vd) return; const d = vd; vd = null; const b = draft; draft = null; draw();
     if (!b || b[2] < 12 || b[3] < 12) return;
-    if (d.region) { regionMode = false; const r = await segApi({ action: "set_region", rect: b }); if (r) say("桌面範圍改成自己框的（橘框），之後不會自動改。" + (info.seeds.model_stale ? "模型要重新訓練。" : "")); return; }
     await setBox(d.seg, b);
   };
   ov.addEventListener("pointerup", vidUp); ov.addEventListener("pointercancel", () => { vd = null; draft = null; draw(); });
@@ -648,8 +641,6 @@
     $("btnTrain").classList.toggle("attn", !!stale && !running);
     $("staleHint").hidden = !stale; $("staleHint").textContent = stale ? (stale.startsWith("桌面") ? stale + "，不然監控時看到的東西大小跟訓練時不一樣" : stale + "，新框的才會被認得") : "";
     $("btnRetrain").hidden = !(ready && info.seeds.seeds.length);
-    $("btnRegion").disabled = !(info && info.has_video);
-    $("btnRegionAuto").hidden = !(info && info.has_video && info.seeds.region_mode === "manual");
   }
   function render() { renderNames(); renderTL(); renderFooter(); draw(); updateHint(); }
 
@@ -737,8 +728,6 @@
     else if (op.op === "box") r = await segApi({ action: "set_box", id: op.id, frame: op.box_frame, rect: op.box });
     if (r) { renderTL(); renderNames(); say("已復原上一步"); }
   }
-  $("btnRegion").onclick = () => { if (!info || !info.has_video) return; regionMode = true; draft = null; draw(); say(""); };   // say("")：清掉上一則訊息，馬上顯示框選提示
-  $("btnRegionAuto").onclick = async () => { if (!info || !info.has_video) return; const r = await segApi({ action: "set_region", rect: null }); if (r) say("桌面範圍改回自動算（橘框），會跟著框選更新。" + (info.seeds.model_stale ? "模型要重新訓練。" : "")); };
   document.addEventListener("keydown", (e) => {
     const tag = e.target.tagName; if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") { if (e.key === "Escape") e.target.blur(); return; }
     if (!$("newDlg").hidden || !$("cfDlg").hidden) { if (e.key === "Escape") { $("newDlg").hidden = true; $("cfCancel").click(); } return; }
@@ -756,7 +745,7 @@
     else if (k === "0") setZoom(1);                                           // 畫面放大還原
     else if (k === "Delete" || k === "Backspace") { const g = curSeg(); if (g) delSeg(g); }
     else if ((e.ctrlKey || e.metaKey) && (k === "z" || k === "Z")) undo();
-    else if (k === "Escape") { regionMode = false; draft = null; vd = null; draw(); updateHint(); }
+    else if (k === "Escape") { draft = null; vd = null; draw(); updateHint(); }
     else ok = false;
     if (ok) e.preventDefault();
   });
@@ -770,7 +759,7 @@
   }
   async function openProject(name) {
     if (playing) togglePlay();
-    proj = name; sel = null; segSel = null; undoStack = []; draft = null; regionMode = false; n = 0; zoom = 1; applyZoom();
+    proj = name; sel = null; segSel = null; undoStack = []; draft = null; n = 0; zoom = 1; applyZoom();
     $("lnkMethod").href = document.querySelector('.side a[href^="/methods"]').href = name ? "/methods?project=" + enc(name) : "/methods";
     $("lnkTrainAdv").href = name ? "/methods?project=" + enc(name) + "&train=1" : "/methods";
     if (!name) { info = null; $("setup").hidden = true; $("stage").hidden = true; $("vidInfo").textContent = ""; render(); return; }

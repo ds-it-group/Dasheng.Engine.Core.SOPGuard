@@ -20,7 +20,10 @@ from project_store import (ProjectConfigError, app_base_dir, load_project, proje
 from video_recorder import CameraSource, FrameReader, Recorder, import_demo_video
 
 PREVIEW_W = 640
-JPEG_CACHE_MAX = 600        # 預覽縮圖約 10～40 KB 一張，600 張約十幾 MB
+# 會改到物品框的動作（標記頁的段落、訓練素材預覽的刪框）：舊的自己框桌面範圍在這時候換成自動算
+BOX_ACTIONS = {"save_segment", "remove_segment", "restore_segment", "update_range", "remove_name",
+               "add_seed", "remove_seed", "remove_indices", "remove_auto_group", "remove_item"}
+JPEG_CACHE_MAX = 600       # 預覽縮圖約 10～40 KB 一張，600 張約十幾 MB
 
 
 def ls_name(name: str, kind: str, index: int):
@@ -808,17 +811,17 @@ class LabelService:
             self._set_region(p, seeds, body.get("rect"))
         else:
             raise ValueError(f"不認得的動作：{act}")
-        seeds.sync_auto_region(p.resolution)        # 框有增減就重算自動範圍（手動模式不動）
+        if act in BOX_ACTIONS and seeds.region is not None and seeds.region_mode != "auto":
+            seeds.set_region_auto(p.resolution)     # 舊的自己框範圍（含桌面程式框的）：框一改就換成自動算，反正框改了本來就要重訓
+        seeds.sync_auto_region(p.resolution)        # 框有增減就重算自動範圍
         return {"segments": self._segments_dict(segs), "seeds": self._seeds_dict(seeds, p), **extra}
 
     @staticmethod
     def _set_region(p, seeds: items.ItemSeeds, rect) -> None:
-        """網頁的「桌面範圍」：給框＝使用者自己框（之後不自動蓋掉）；None＝改回程式自動算。"""
-        if rect is None:
-            seeds.set_region_auto(p.resolution); return
-        if not (isinstance(rect, list) and len(rect) == 4):
-            raise ValueError("桌面範圍要是 [x, y, w, h]")
-        seeds.set_region(tuple(int(v) for v in rect))
+        """網頁的「桌面範圍」一律程式自動算（2026-11-06 使用者裁示：不讓使用者自己框）；只接受 None＝改回自動算。"""
+        if rect is not None:
+            raise ValueError("桌面範圍由程式用框過的物品自動算，不能自己框")
+        seeds.set_region_auto(p.resolution)
 
     def _save_segment(self, p, seeds: items.ItemSeeds, segs, sid: int) -> dict:
         """物品：把框沿整段追出來寫進 seeds（同一組）；動作：看手碰到哪個已框物品，寫成 hand_steps（item）。"""
@@ -930,6 +933,8 @@ class LabelService:
             r = tuple(int(v) for v in rect)
             auto = items.track_seed(p.video_path, frame, r, window_sec=sec, fps=p.fps) if sec > 0 else []
             g = seeds.add_seed(name, frame, r, auto)
+            if seeds.region is not None and seeds.region_mode != "auto":
+                seeds.set_region_auto(p.resolution)
             seeds.sync_auto_region(p.resolution)
             d = self._seeds_dict(seeds, p)
             d["last_track"] = {"group": g, "found": len(auto), "frames": [f for f, _ in auto]}
@@ -1006,7 +1011,9 @@ class LabelService:
             return d
         else:
             raise ValueError(f"不認得的動作：{act}")
-        seeds.sync_auto_region(p.resolution)        # 框有增減就重算自動範圍（手動模式不動）
+        if act in BOX_ACTIONS and seeds.region is not None and seeds.region_mode != "auto":
+            seeds.set_region_auto(p.resolution)     # 舊的自己框範圍（含桌面程式框的）：框一改就換成自動算，反正框改了本來就要重訓
+        seeds.sync_auto_region(p.resolution)        # 框有增減就重算自動範圍
         return self._seeds_dict(seeds, p)
 
     # ---- 第 3 步
