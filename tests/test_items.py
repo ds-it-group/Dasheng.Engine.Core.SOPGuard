@@ -196,6 +196,24 @@ def test_model_stale_when_region_changes_after_training(tmp_path):
     assert pkg.method_row(load_project(str(d)))["model_stale"] == "桌面範圍改了，要重新訓練"
 
 
+def test_model_stale_when_boxes_change_after_training(tmp_path):
+    """訓練開始時記下物品框選的指紋；換上後又框了新的 → 要重訓（標記頁的鍵才不會直接變「前往監控」）。動作不算。"""
+    from item_recognizer import model_stale_reason, save_model_info, seeds_fingerprint
+    cfg = {"schema_version": 2, "project_name": "m", "video_file": "demo.avi", "resolution": [320, 240], "fps": 30.0, "anchors": [], "zones": [], "steps": []}
+    d = tmp_path / "m"; d.mkdir()
+    with open(d / "config.json", "w", encoding="utf-8") as f:
+        json.dump(cfg, f)
+    s = ItemSeeds(str(d)); s.add_seed("標籤", 10, (100, 80, 80, 60)); s.set_region((0, 0, 320, 240))
+    p = load_project(str(d)); training.sync_item_region(p); p = load_project(str(d))
+    (d / "items" / "model").mkdir(parents=True); (d / "items" / "model" / "best.pt").write_bytes(b"x")
+    save_model_info(p, {"seeds_fp": seeds_fingerprint(ItemSeeds(str(d)))})
+    assert model_stale_reason(p) is None
+    s.add_hand_step("檢查鞋舌", item="標籤", dwell=0.7)                      # 動作不進模型
+    assert model_stale_reason(p) is None
+    s.add_seed("標籤", 40, (100, 80, 80, 60))
+    assert model_stale_reason(p) == "物品框選改了，要重新訓練"
+
+
 class _TableDetector:
     """假模型：亮圖＝桌上看到「鞋子在盒上」（盒子的樣子）、暗圖＝什麼都沒有。"""
     def detect(self, crop):

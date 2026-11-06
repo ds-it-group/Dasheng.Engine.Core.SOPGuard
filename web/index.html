@@ -289,7 +289,7 @@
     // 從「產生步驟」過來（?from=label&project=…）而這條線還沒做這個型體：只提示，不逼換線（新包裝方式不一定馬上上線）
     const fromProj = fromLabel();
     $("pkHint").hidden = !(fromProj && l && (!pk || pk.name !== fromProj));
-    if (fromProj) $("pkHint").textContent = `剛產生步驟的「${fromProj}」還沒排到這條線。要開始做它時按「操作 ▾ → 換包裝方式」，清單裡已幫你選好，按確認就好。`;
+    if (fromProj) $("pkHint").textContent = `剛訓練好的「${fromProj}」還沒排到這條線。要開始做它時按「操作 ▾ → 換包裝方式」，清單裡已幫你選好，按確認就好。`;
   }
   function fromLabel() { const q = new URLSearchParams(location.search); return q.get("from") === "label" ? q.get("project") : null; }
   $("selLine").onchange = () => { renderLine(); history.replaceState(null, "", "/?line=" + encodeURIComponent($("selLine").value)); pollEip(true); pollDaily(); };

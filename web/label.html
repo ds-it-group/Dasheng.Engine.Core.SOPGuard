@@ -135,6 +135,7 @@
             <button id="btnNew">新增專案</button>
             <button id="btnRegion" title="平常不用：程式會用全部框過的物品自動算。只有要特別放大或縮小看的範圍才自己框">桌面範圍：自己框（進階）</button>
             <button id="btnRegionAuto" hidden>桌面範圍：改回自動算</button>
+            <button id="btnRetrain" hidden title="框選沒改也可以再訓練一次">重新訓練</button>
             <a id="lnkTrainAdv" href="/methods" title="挑片段、合成配色、產生 GPU 訓練包、匯入 GPU 模型">進階訓練（GPU 等）</a>
             <a id="lnkMethod" href="/methods">到包裝方式設定</a>
             <a href="/">到監控畫面</a>
@@ -179,7 +180,7 @@
             <button class="btn btn-cancel" id="btnAddName" style="height:30px;padding:0 8px"><span class="mi">add</span>新增</button>
           </div>
           <div id="objTip" style="display:flex;align-items:center;gap:6px;padding:4px 10px 6px;font-size:12px;color:var(--ink-2)" title="貼好的貼紙連盒邊一起框、放好的鞋子連盒蓋一起框。只框東西本身，它還在旁邊沒做完時也會被算成做完。"><span class="mi" style="font-size:16px;color:var(--accent, #d58a00)">lightbulb</span>框做完的樣子，連旁邊的盒子一起框</div>
-          <div id="actTip" hidden style="display:flex;align-items:center;gap:6px;padding:4px 10px 6px;font-size:12px;color:var(--ink-2)" title="例如「檢查鞋舌」：先到「物品」把鞋舌框成一個物品，再拉這個動作的範圍。手同時碰到鞋子和鞋舌時，系統取框比較小的鞋舌。鞋舌這個物品步驟可以到「包裝方式設定」關掉必要，重新產生步驟也會照舊。"><span class="mi" style="font-size:16px;color:var(--accent, #d58a00)">lightbulb</span>手要碰的是小地方（例如鞋舌）：先把它框成物品</div>
+          <div id="actTip" hidden style="display:flex;align-items:center;gap:6px;padding:4px 10px 6px;font-size:12px;color:var(--ink-2)" title="例如「檢查鞋舌」：先到「物品」把鞋舌框成一個物品，再拉這個動作的範圍。手同時碰到鞋子和鞋舌時，系統取框比較小的鞋舌。鞋舌這個物品步驟可以到「包裝方式設定」關掉必要，重新排步驟也會照舊。"><span class="mi" style="font-size:16px;color:var(--accent, #d58a00)">lightbulb</span>手要碰的是小地方（例如鞋舌）：先把它框成物品</div>
           <div class="list" id="nameList"></div>
           <div class="foot">
             <div id="cnt"></div>
@@ -189,7 +190,6 @@
             <div class="hint2" id="trainStage"></div>
             <div id="trainRes" hidden></div>
             <pre class="log" id="trainLog" hidden></pre>
-            <button class="btn btn-secondary raised" id="btnGen">產生步驟，前往監控</button>
           </div>
         </aside>
         <div class="card tl" id="tl">
@@ -232,19 +232,6 @@
       <div class="note danger" id="newErr" hidden></div>
     </div>
     <div class="da"><button class="btn btn-cancel" id="newCancel">取消</button><button class="btn btn-primary raised" id="newOk">建立</button></div>
-  </div>
-</div>
-<!-- 產生步驟（openSmall）：先看順序再確認；換產線在監控畫面做 -->
-<div class="scrim" id="genDlg" hidden>
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="genTitle">
-    <div class="dt"><span class="mi mark">rate_review</span><h4 id="genTitle">產生步驟</h4></div>
-    <div class="dc">
-      <div>步驟照示範影片第一次出現的先後（每個名稱已儲存的第 1 段）：</div>
-      <ol id="genList" style="margin:0;padding-left:22px;line-height:2;font-size:15px"></ol>
-      <div class="hint2" id="genLegacy" hidden></div>
-      <div class="note info">停留秒數用預設（物品 0.5 秒、動作 0.7 秒），要改再到「包裝方式設定」。這裡不換產線：哪條線要開始做這個型體時，再到監控畫面「操作 ▾ → 換包裝方式」。</div>
-    </div>
-    <div class="da"><button class="btn btn-cancel" id="genCancel">取消</button><button class="btn btn-primary raised" id="genGo">產生步驟，前往監控</button></div>
   </div>
 </div>
 <!-- 確認（380） -->
@@ -515,24 +502,26 @@
     return boxFor(g, n) ? "已儲存" : "這一格沒追到，可再框一次";
   }
   /* 引導列：六步的狀態只看現有資料（影片、已儲存段數、模型、步驟）；該按的按鈕加 .pulse 閃一圈 */
-  /* 順序（2026-11-04 使用者定案）：影片 → 框物品 → 動作（可跳過）→ 訓練 → 產生步驟 → 監控。動作不進模型，訓練後改動作不用重訓 */
+  /* 順序（2026-11-04 使用者定案）：影片 → 框物品 → 動作（可跳過）→ 訓練 → 監控（2026-11-06：訓練完自動產生步驟，訓練鍵變「前往監控」）。動作不進模型，訓練後改動作不用重訓 */
   const GUIDE = [["videocam", "影片", "先有一段示範影片", false], ["crop_free", "框物品", "每樣物品：從這裡開始 → 拉結尾 → 框做完的樣子（連旁邊的盒子）→ 儲存", false],
     ["back_hand", "動作", "有要看手的步驟才標，沒有就跳過：先有被碰的物品，再拉動作的範圍、儲存", true],
-    ["model_training", "訓練", "物品和動作都存好，按「開始訓練」。動作不進模型，之後改動作不用重訓", false],
-    ["playlist_add_check", "產生步驟", "物品和動作排成步驟清單，前往監控", false], ["monitor", "監控", "到監控畫面換線、啟動", false]];
+    ["model_training", "訓練", "物品和動作都存好，按「開始訓練」。訓練完自動排好步驟。動作不進模型，之後改動作不用重訓", false],
+    ["monitor", "監控", "按「前往監控」，到監控畫面換線、啟動", false]];
+  /* 模型可以用了（有模型、框選和桌面範圍在訓練後沒改）；只有動作、沒有物品時不用模型 */
+  function modelReady() { return !!info && (info.seeds.order.length ? !!info.has_model && !info.seeds.model_stale : info.seeds.hand_steps.length > 0); }
   function guideState() {
-    if (!info) return { done: [false, false, false, false, false, false], cur: -1 };
-    const c = info.segments || {}; const hasObj = (c.object_segments || 0) > 0; const hasAct = (c.action_segments || 0) > 0;
+    if (!info) return { done: [false, false, false, false, false], cur: -1 };
+    const c = info.segments || {}; const hasObj = (c.object_segments || 0) > 0 || info.seeds.seeds.length > 0; const hasAct = (c.action_segments || 0) > 0;
     const running = $("trainStage").dataset.running === "1";
-    const done = [!!info.has_video, hasObj, hasAct, !!info.has_model, !!(info.steps && info.steps.length), false];
-    let cur = done.findIndex((d) => !d); if (cur < 0) cur = 5;
+    const done = [!!info.has_video, hasObj, hasAct, modelReady(), false];
+    let cur = done.findIndex((d) => !d); if (cur < 0) cur = 4;
     if (cur === 2 && (done[3] || running)) cur = done.findIndex((d, i) => !d && i > 2);   // 動作可跳過：已經在訓練或訓練完，就不停在動作
     return { done, cur };
   }
   function pulseTarget() {
     if (!info || !info.has_video) return null;
     const c = info.segments || {}; const mine = names().filter((m) => m.kind === newKind);
-    if (info.has_model && !(info.steps && info.steps.length)) return "btnGen";             // 訓練好了：產生步驟
+    if (modelReady() && !allSegs().some((x) => !x.saved) && $("trainStage").dataset.running !== "1") return "btnTrain";   // 模型好了：前往監控
     if (!mine.length) return newKind === "object" ? "btnAddName" : (!(c.action_segments > 0) && !$("kindAct").disabled && !info.has_model ? "btnAddName" : null);
     const nd = curName(); if (!nd) return null;
     if (!segsOf(nd.name).length) return "btnStart";
@@ -540,7 +529,7 @@
     if (sg && !isAct(nd) && !sg.box) return "stage";
     if (sg && !sg.saved) return "btnSave";
     const allSaved = allSegs().length && !allSegs().some((x) => !x.saved); const running = $("trainStage").dataset.running === "1";
-    if (info.has_model || running || !allSaved) return null;
+    if (modelReady() || running || !allSaved) return null;
     if (newKind === "object" && !(c.action_segments > 0)) return "kindAct";               // 物品存好：先去標動作（沒有就直接按開始訓練）
     return "btnTrain";                                                                    // 動作也存好（或沒有動作）：訓練
   }
@@ -645,12 +634,15 @@
     $("cnt").textContent = `已存 物品 ${c.object_segments} 段・動作 ${c.action_segments} 段` + (legacy ? `・舊版 ${legacy} 格` : "");
     $("cnt").title = `物品 ${c.object_frames} 格會拿去訓練` + (legacy ? `；舊版框選 ${legacy} 格不在時間軸上，訓練時一樣會用到` : "");
     const running = $("trainStage").dataset.running === "1";
-    $("btnTrain").disabled = !(info && info.has_video && info.seeds.seeds.length) || running;
-    const stale = info && info.seeds.model_stale;          // 訓練後桌面範圍改了：訓練鍵亮起來
-    $("btnTrain").textContent = stale ? "重新訓練（桌面範圍改了）" : "開始訓練（約 20～60 分鐘）";
+    // 一顆鍵：模型可以用 → 前往監控（順便照最新的物品／動作排步驟）；不然 → 訓練（訓練完自動排步驟）
+    const ready = modelReady(), stale = info && info.has_model && info.seeds.model_stale;
+    $("btnTrain").dataset.go = ready && !running ? "1" : "";
+    $("btnTrain").disabled = running || !(info && info.has_video && (ready || info.seeds.seeds.length));
+    $("btnTrain").textContent = running ? "訓練中…" : ready ? "前往監控" : stale ? `重新訓練（${stale.replace("，要重新訓練", "")}）` : "開始訓練（約 20～60 分鐘）";
+    $("btnTrain").title = ready ? "照目前的物品、動作排好步驟，到監控畫面" : "物品、動作都存好再按。訓練完自動排好步驟，就可以監控；之後改動作不用重訓。";
     $("btnTrain").classList.toggle("attn", !!stale && !running);
-    $("staleHint").hidden = !stale; $("staleHint").textContent = stale ? stale + "，不然監控時看到的東西大小跟訓練時不一樣" : "";
-    $("btnGen").disabled = !(info && (info.has_model || (!info.seeds.order.length && info.seeds.hand_steps.length)));
+    $("staleHint").hidden = !stale; $("staleHint").textContent = stale ? (stale.startsWith("桌面") ? stale + "，不然監控時看到的東西大小跟訓練時不一樣" : stale + "，新框的才會被認得") : "";
+    $("btnRetrain").hidden = !(ready && info.seeds.seeds.length);
     $("btnRegion").disabled = !(info && info.has_video);
     $("btnRegionAuto").hidden = !(info && info.has_video && info.seeds.region_mode === "manual");
   }
@@ -744,7 +736,7 @@
   $("btnRegionAuto").onclick = async () => { if (!info || !info.has_video) return; const r = await segApi({ action: "set_region", rect: null }); if (r) say("桌面範圍改回自動算（橘框），會跟著框選更新。" + (info.seeds.model_stale ? "模型要重新訓練。" : "")); };
   document.addEventListener("keydown", (e) => {
     const tag = e.target.tagName; if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") { if (e.key === "Escape") e.target.blur(); return; }
-    if (!$("newDlg").hidden || !$("cfDlg").hidden || !$("genDlg").hidden) { if (e.key === "Escape") { $("newDlg").hidden = true; $("genDlg").hidden = true; $("cfCancel").click(); } return; }
+    if (!$("newDlg").hidden || !$("cfDlg").hidden) { if (e.key === "Escape") { $("newDlg").hidden = true; $("cfCancel").click(); } return; }
     if (!info || !info.has_video) return;
     let ok = true; const k = e.key;
     if (k === " ") togglePlay();
@@ -790,7 +782,7 @@
   async function refreshInfo() { if (!proj) return; const d = await api("/api/project?name=" + enc(proj)); if (!d.error) { info = d; N = info.frame_count || 0; indexSeeds(); render(); } }
   $("project").onchange = () => { openProject($("project").value); history.replaceState(null, "", $("project").value ? "/label?project=" + enc($("project").value) : "/label"); };
 
-  // ---- 訓練／產生步驟
+  // ---- 訓練／前往監控
   async function pollTrain() {
     clearTimeout(trainTimer); const s = await api("/api/train/state"); const mine = s.project === proj;
     $("trainStage").dataset.running = s.running ? "1" : "0";
@@ -799,43 +791,36 @@
       $("trainStage").textContent = (s.stage || "") + (s.elapsed != null ? `　已用 ${s.elapsed} 秒` : "");
       $("trainBar").style.width = (s.total ? Math.round(100 * s.done / s.total) : (s.running ? 100 : 0)) + "%";
       $("trainLog").textContent = (s.lines || []).join("\n") + (s.error ? "\n失敗：" + s.error : "") + (s.finished ? "\n" + (s.stage || "訓練完成") + "。" : "");
-      if (s.finished && info && !info.has_model) refreshInfo();
+      if (s.finished && info && !modelReady()) refreshInfo();
     } else if (s.running) { $("trainWrap").hidden = true; $("trainStage").textContent = `伺服器正在訓練另一個專案「${s.project}」，請等它完成`; }
     else { $("trainStage").textContent = ""; $("trainWrap").hidden = true; $("trainLog").hidden = true; }
     // 訓練完：一行「這次比上次 變好／差不多／變差」＋看結果；這一頁看著它跑完的，自動跳出結果視窗
-    const acts = { next: { label: "產生步驟，前往監控", run: () => $("btnGen").click() }, onChange: (r) => { refreshInfo(); TrainResult.summary($("trainRes"), r, proj, acts); $("trainStage").textContent = r.stage || ""; } };
+    const acts = { next: { label: "前往監控", run: () => goMonitor() }, onChange: (r) => { refreshInfo(); TrainResult.summary($("trainRes"), r, proj, acts); $("trainStage").textContent = r.stage || ""; } };
     TrainResult.summary($("trainRes"), s, proj, acts);
     if (mine && s.running) sawTraining = true;
     if (mine && s.finished && sawTraining) { sawTraining = false; refreshInfo(); TrainResult.open(s, proj, acts); }   // 重拿專案資訊：動作重判的警示要馬上出現
     renderFooter(); renderGuide();
     if (s.running) trainTimer = setTimeout(pollTrain, 1500);
   }
-  $("btnTrain").onclick = async () => {
+  $("btnTrain").onclick = () => ($("btnTrain").dataset.go ? goMonitor() : startTrain());
+  $("btnRetrain").onclick = () => startTrain();
+  async function goMonitor() {
+    $("btnTrain").disabled = true;
+    const d = await api("/api/steps/generate", { project: proj }); $("btnTrain").disabled = false;
+    if (!d.ok) { say(d.error, true); return; }
+    toast("步驟：" + d.steps.join("、")); setTimeout(() => { location.href = "/?from=label&project=" + enc(proj); }, 800);
+  }
+  async function startTrain() {
     const un = allSegs().filter((s) => !s.saved).length;
     if (un && !(await confirmBox(`還有 ${un} 段沒儲存，沒儲存的不會拿去訓練。要直接開始訓練嗎？`, "開始訓練"))) return;
     const d = await api("/api/train/start", { project: proj }); if (!d.ok) { say(d.error, true); return; }
-    say("開始訓練，進度在右下角；訓練中可以離開這個頁面，回來再看。"); pollTrain();
-  };
-  /* 產生步驟：先看順序再確認。順序＝每個名稱已儲存第 1 段的開始時間（同一格先物品後動作），跟後端 training.order_steps_by_segments 一樣；不在這裡換產線 */
+    say("開始訓練，進度在右下角；訓練中可以離開這個頁面，回來再看。訓練完會自動排好步驟。"); pollTrain();
+  }
+  /* 步驟順序＝每個名稱已儲存第 1 段的開始時間（同一格先物品後動作），跟後端 training.order_steps_by_segments 一樣 */
   function stepOrder() {
     const first = {}; for (const m of names()) { const s = segsOf(m.name).filter((x) => x.saved); if (s.length) first[m.name] = s[0].start; }
     return names().filter((m) => first[m.name] != null).sort((a, b) => first[a.name] - first[b.name] || (a.kind === "action") - (b.kind === "action"));
   }
-  $("btnGen").onclick = () => {
-    const ol = $("genList"); ol.innerHTML = ""; const order = stepOrder();
-    for (const m of order) { const li = el("li"); li.textContent = m.name + (m.kind === "action" ? `（動作：手碰到 ${m.touch || "？"}）` : "（物品）"); ol.appendChild(li); }
-    const legacy = (info.seeds.order || []).filter((n) => !order.some((m) => m.name === n));
-    $("genLegacy").hidden = !legacy.length; $("genLegacy").textContent = legacy.length ? `另有舊版框選的物品：${legacy.join("、")}，排在最後。` : "";
-    $("genDlg").hidden = false;
-  };
-  $("genCancel").onclick = () => { $("genDlg").hidden = true; };
-  $("genGo").onclick = async () => {
-    $("genGo").disabled = true;
-    const d = await api("/api/steps/generate", { project: proj }); $("genGo").disabled = false; $("genDlg").hidden = true;
-    if (!d.ok) { say(d.error, true); return; }
-    toast("已產生步驟：" + d.steps.join("、")); setTimeout(() => { location.href = "/?from=label&project=" + enc(proj); }, 800);
-  };
-
   // ---- 新增專案／錄製／上傳
   $("btnNew").onclick = () => { $("newProj").value = ""; $("newErr").hidden = true; $("newDlg").hidden = false; $("newProj").focus(); };
   $("newCancel").onclick = () => { $("newDlg").hidden = true; };

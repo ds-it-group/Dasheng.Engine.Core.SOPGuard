@@ -115,6 +115,12 @@ class TrainJob:
             self.project_name = target; self.stage = "準備中"; self.done_n = self.total_n = 0; self.validation = None; self.installed = None
             self.lines = []; self.error = None; self.finished = False; self.stats = None; self.started_at = time.perf_counter(); self.package = None
             self.compare = None; self.candidate = False; self._held_out = []; self.action_check = None
+        try:                                          # 開始訓練時的物品框選：訓練中又改了框，換上後仍會提醒要重訓
+            fp = items.seeds_fingerprint(items.ItemSeeds(load_project(target).dir_path))
+        except Exception:
+            fp = None
+        with self._lock:
+            self._seeds_fp = fp
 
     def _run_material(self, target: str, train: list[dict], hold: list[dict], epochs: int, recolor_classes: list[str], where: str) -> None:
         import json as _json
@@ -341,7 +347,16 @@ class TrainJob:
                               "scores": [{k: r[k] for k in ("name", "n", "hit", "fp", "empty_n")} for r in cmp["rows"]]}}
         elif self._held_out:
             extra = {"exam": {"video": (cmp or {}).get("video"), "held_out": list(self._held_out)}}
-        items.save_model_info(load_project(target), extra)     # 記下換上時的桌面範圍（＋考卷成績）
+        if getattr(self, "_seeds_fp", None):
+            extra = {**(extra or {}), "seeds_fp": self._seeds_fp}
+        items.save_model_info(load_project(target), extra)     # 記下換上時的桌面範圍、物品框選指紋（＋考卷成績）
+        # 換上就直接產生步驟（保留使用者改過的必要／停留秒數），不用再按一次「產生步驟」
+        try:
+            if items.ItemSeeds(tgt.dir_path).order:
+                training.apply_item_steps(load_project(target), items.ItemSeeds(tgt.dir_path).order)
+        except Exception as e:
+            with self._lock:
+                self.lines.append(f"產生步驟失敗：{type(e).__name__}: {e}")
         # 換上新模型後，用新模型的框把已存的動作再判一次（模型認不到被碰的物品，監控時那一步就判不到）
         try:
             import action_recheck

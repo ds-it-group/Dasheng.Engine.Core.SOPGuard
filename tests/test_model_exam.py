@@ -151,6 +151,17 @@ def test_train_job_keeps_old_model_when_worse_then_force(tmp_path, monkeypatch):
     assert me.held_out_items(p) == ["貼紙"]
 
 
+def test_install_records_fingerprint_and_makes_steps(tmp_path, monkeypatch):
+    """換上新模型：記下開始訓練時的框選指紋、直接產生步驟（不用再按「產生步驟」）。"""
+    import label_service
+    made = []
+    monkeypatch.setattr(label_service.training, "apply_item_steps", lambda proj, order: made.append(list(order)) or list(order))
+    job, p, md = _job_env(tmp_path, monkeypatch, _sc({"貼紙": 16}, {"貼紙": 0}), _sc({"貼紙": 19}, {"貼紙": 0}))
+    job._validate_install("p", os.path.join(md, "candidate.pt"), [])
+    info = json.load(open(os.path.join(md, "model_info.json"), encoding="utf-8"))
+    assert info["seeds_fp"] == ir.seeds_fingerprint(ir.ItemSeeds(p.dir_path)) and made == [["貼紙"]]
+
+
 def test_train_job_installs_when_better(tmp_path, monkeypatch):
     job, p, md = _job_env(tmp_path, monkeypatch, _sc({"貼紙": 16}, {"貼紙": 0}), _sc({"貼紙": 19}, {"貼紙": 0}))
     job._validate_install("p", os.path.join(md, "candidate.pt"), [])

@@ -974,9 +974,20 @@ def model_stale_reason(project, seeds: "ItemSeeds | None" = None) -> str | None:
     cur = seeds.effective_region(project.resolution)
     old = info.get("region")
     old = [int(v) for v in old] if isinstance(old, list) and len(old) == 4 else None
-    if old == cur:
-        return None
-    return "桌面範圍改了，要重新訓練"
+    if old != cur:
+        return "桌面範圍改了，要重新訓練"
+    fp = info.get("seeds_fp")                 # 舊模型沒記：不提醒
+    if fp and fp != seeds_fingerprint(seeds):
+        return "物品框選改了，要重新訓練"
+    return None
+
+
+def seeds_fingerprint(seeds: "ItemSeeds") -> str:
+    """物品框選（框、空桌參考格、物品順序）的指紋；動作（hand_steps）不進模型，不算。訓練開始時記下，換上模型時寫進 model_info。"""
+    import hashlib
+    rows = sorted((s.name, int(s.frame), [int(v) for v in s.rect]) for s in seeds.seeds)
+    raw = json.dumps([rows, sorted(int(r) for r in seeds.refs), sorted(int(r) for r in seeds.closed), sorted(seeds.order)], ensure_ascii=False)
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def model_path(project) -> str:
