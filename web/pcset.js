@@ -16,7 +16,7 @@
       <div class="dc">
         <div class="row2">
           <div class="fld w140"><label for="pcName">產線名稱 *</label><input id="pcName" placeholder="例如 包裝 1 線"></div>
-          <div class="fld w100"><label for="pcFactory">廠別</label><input id="pcFactory" placeholder="例如 BYI"></div>
+          <div class="fld w100"><label for="pcFactory">廠別</label><select id="pcFactory"><option value="">（不接）</option><option>BYI</option><option>GGV</option></select></div>
           <div class="fld w140"><label>站別（電腦名稱，自動帶）</label><div class="ro n" id="pcStation"></div></div>
         </div>
         <div class="fld" style="width:100%"><label for="pcCamera">相機（編號 0、1… 或 rtsp 網址；密碼只存在這台電腦、畫面上遮成 ***）</label><input id="pcCamera" placeholder="rtsp://帳號:密碼@相機位址:554/stream1"></div>
@@ -36,7 +36,7 @@
   async function current() { const d = await api("/api/lines"); return { line: (d.lines || [])[0] || null, station: d.station || ((d.lines || [])[0] || {}).station || "" }; }
   async function loadEip(keep) {
     const f = $("pcFactory").value.trim(), sel = $("pcEip"), msg = $("pcMsg");
-    if (!f) { msg.textContent = "填了廠別才讀得到 EIP 產線"; return; }
+    if (!f) { msg.textContent = "選了廠別才讀得到 EIP 產線"; return; }
     msg.textContent = "讀取 EIP 產線清單中…";
     const tp = $("pcType"), tname = tp.selectedOptions[0] ? tp.selectedOptions[0].textContent : "";
     const d = await api("/api/eip/lines?factory=" + encodeURIComponent(f) + "&type=" + encodeURIComponent(tp.value));

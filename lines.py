@@ -16,6 +16,7 @@ import packing_methods as pkg
 from project_store import app_base_dir, load_project, rect_inside
 
 LINES_FILE = "lines.json"
+FACTORIES = ("BYI", "GGV")                  # 廠別只能選這兩個（11-06 使用者裁示）；空白＝沒接 EIP
 SWITCH_LOG = os.path.join("logs", "line_switch.csv")
 _lock = threading.Lock()
 
@@ -158,7 +159,10 @@ def save_line(data: dict) -> Line:
             n += 1
         cur = Line(id=f"L{n}", name=name); lines.append(cur)
     cur.name = name; cur.camera = cam; cur.table_region = reg
-    cur.factory = str(data.get("factory", cur.factory)).strip()
+    fac = str(data.get("factory", cur.factory) or "").strip().upper()
+    if fac and fac not in FACTORIES:
+        raise ValueError("廠別只能選 " + "、".join(FACTORIES))
+    cur.factory = fac
     cur.enabled = bool(data.get("enabled", cur.enabled))
     if "eip_department_id" in data:
         v = data.get("eip_department_id")

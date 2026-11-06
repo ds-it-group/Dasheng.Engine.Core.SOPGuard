@@ -68,6 +68,9 @@ def test_line_keeps_process_type(tmp_path, monkeypatch):
     assert ls.Line(id="L1", name="包裝 1 線").eip_department_type == 170                 # 預設成型
     l = ls.save_line({"name": "針車 1 線", "factory": "BYI", "eip_department_type": 160, "eip_department_id": 77, "eip_department_name": "針車 1 線"})
     assert l.eip_department_type == 160 and next(x for x in ls.load_lines() if x.id == l.id).eip_department_type == 160
+    assert ls.save_line({"id": l.id, "factory": "ggv"}).factory == "GGV"                  # 廠別只能 BYI／GGV（大小寫不拘）
+    with pytest.raises(ValueError, match="BYI"):
+        ls.save_line({"id": l.id, "factory": "BYH"})
 
 
 def test_group_orders_by_style():
