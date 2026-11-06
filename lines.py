@@ -1,4 +1,4 @@
-﻿"""產線設定（lines.json，只留在這台電腦：相機網址可能含密碼）與換線紀錄（logs/line_switch.csv）。
+"""產線設定（lines.json，只留在這台電腦：相機網址可能含密碼）與換線紀錄（logs/line_switch.csv）。
 
 一條產線記：相機、桌面範圍（跟著相機位置走，所以放產線不放包裝方式）、目前用哪個包裝方式（專案）、配色、換線時間。
 """
@@ -33,6 +33,7 @@ class Line:
     enabled: bool = True
     eip_department_id: int | None = None    # EIP 產線（部門檔 DepartmentID）；None＝沒接 EIP。廠別用上面的 factory
     eip_department_name: str = ""           # 顯示用（選的時候記下來，連不上 EIP 也看得到）
+    eip_department_type: int = 170          # 製程類別（部門檔 DepartmentType）：140 組底、150 裁斷、160 針車、170 成型；產線清單照它查
     station_label: str = ""                 # 這台電腦的顯示名稱（例如 A 站），只在這台顯示；上傳用電腦名稱
 
 
@@ -72,7 +73,8 @@ def load_lines() -> list[Line]:
                         project=r.get("project") or None, color=str(r.get("color", "")), switched_at=str(r.get("switched_at", "")),
                         enabled=bool(r.get("enabled", True)),
                         eip_department_id=int(r["eip_department_id"]) if str(r.get("eip_department_id") or "").isdigit() else None,
-                        eip_department_name=str(r.get("eip_department_name", "") or ""), station_label=str(r.get("station_label", "") or "")))
+                        eip_department_name=str(r.get("eip_department_name", "") or ""),
+                        eip_department_type=int(r["eip_department_type"]) if str(r.get("eip_department_type") or "").isdigit() else 170, station_label=str(r.get("station_label", "") or "")))
     return out
 
 
@@ -164,6 +166,9 @@ def save_line(data: dict) -> Line:
         cur.eip_department_name = str(data.get("eip_department_name", "") or "").strip() if cur.eip_department_id else ""
         if cur.eip_department_id and not cur.factory:
             raise ValueError("接 EIP 要先填廠別")
+    if "eip_department_type" in data:
+        v = str(data.get("eip_department_type") or "")
+        cur.eip_department_type = int(v) if v.isdigit() else 170
     if "station_label" in data:
         cur.station_label = str(data.get("station_label") or "").strip()
     save_lines(lines)

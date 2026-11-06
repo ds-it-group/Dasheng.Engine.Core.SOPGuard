@@ -186,7 +186,9 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/eip/lines":
                 import eip_client
                 try:
-                    self._json({"ok": True, "lines": eip_client.departments(self._query().get("factory", ""))})
+                    q = self._query(); t = q.get("type", "")
+                    self._json({"ok": True, "types": [{"id": k, "name": n} for k, n in eip_client.DEPT_TYPES],
+                                "lines": eip_client.departments(q.get("factory", ""), int(t) if t.isdigit() else eip_client.DEPT_TYPE_ASSEMBLY)})
                 except (OSError, ValueError) as e:
                     self._json({"ok": False, "lines": [], "error": str(getattr(e, "reason", e))})
             elif path == "/api/eip/today":

@@ -55,6 +55,19 @@ def test_api_base_and_departments():
     rows = eip.departments("BYI", opener=_opener({"GetDepartmentsByDepartmentType/BYI/170": [
         {"departmentID": 1493, "departmentCode": "A03", "departmentNameTC": "成型 3 線"}, {"departmentCode": "x"}]}, calls))
     assert rows == [{"id": 1493, "code": "A03", "name": "成型 3 線"}] and calls[0][0] == "GET"
+    rows = eip.departments("BYI", 160, opener=_opener({"GetDepartmentsByDepartmentType/BYI/160": [      # 製程類別：針車
+        {"departmentID": 77, "departmentCode": "S01", "departmentNameTC": "針車 1 線", "departmentType": 160, "isVendor": False, "endAt": "2999-12-31T00:00:00"},
+        {"departmentID": 90, "departmentCode": "V1", "departmentNameTC": "外包廠", "departmentType": 0, "isVendor": True},             # 廠商不算產線
+        {"departmentID": 91, "departmentCode": "S09", "departmentNameTC": "針車 9 線", "departmentType": 160, "endAt": "2020-01-01T00:00:00"}]}, calls))   # 已停用
+    assert rows == [{"id": 77, "code": "S01", "name": "針車 1 線"}]
+
+
+def test_line_keeps_process_type(tmp_path, monkeypatch):
+    import lines as ls
+    monkeypatch.setattr(ls, "_path", lambda: str(tmp_path / "lines.json"))
+    assert ls.Line(id="L1", name="包裝 1 線").eip_department_type == 170                 # 預設成型
+    l = ls.save_line({"name": "針車 1 線", "factory": "BYI", "eip_department_type": 160, "eip_department_id": 77, "eip_department_name": "針車 1 線"})
+    assert l.eip_department_type == 160 and next(x for x in ls.load_lines() if x.id == l.id).eip_department_type == 160
 
 
 def test_group_orders_by_style():

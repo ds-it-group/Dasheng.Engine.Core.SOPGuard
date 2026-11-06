@@ -1,7 +1,7 @@
 """讀 EIP 看板已經開放、不用登入的 API（電視看板在用的那幾支）：產線清單、今天這條線的轉數表（型體、數量、時段）、整線報工。只讀，不寫回。
 
 - EIP 網址存在這台電腦的 eip_api.txt（一行，跟手持 APP 連的同一台主機），不進 git。
-- 產線清單：GET /api/MES/Organization/GetDepartmentsByDepartmentType/{廠別}/170（成型線；包裝站當成型線，待和 MES 確認）
+- 產線清單：GET /api/MES/Organization/GetDepartmentsByDepartmentType/{廠別}/{製程類別}（後端查 org.Departments；製程類別預設 170 成型）
 - 今天的轉數表：POST /api/MES/DashboardOrder/GetDashboardOrdersForPanel  {factoryCode, departmentID, timeZone}
   一張訂單一筆：OrderCode、SpecificationCode（型體，尾碼就是配色；逗號隔開＝多個型體）、TotalQuantity、TimeStart
 - 整線報工：POST /api/MES/DashboardOrder/GetDashboardOrderDetailsForPanel（同上參數）各時段 Quantity、CompletedQuantity 加總
@@ -23,6 +23,8 @@ from project_store import app_base_dir
 
 API_FILE = "eip_api.txt"
 DEPT_TYPE_ASSEMBLY = 170
+# 製程類別＝部門檔的 DepartmentType；名稱照資料庫選項檔（cmn.OptionDts，OptionID 7：Department.DepartmentType）
+DEPT_TYPES = [(140, "組底"), (150, "裁斷"), (160, "針車"), (170, "成型")]
 TIMEOUT_SEC = 5.0
 CACHE_SEC = 25.0
 _lock = threading.Lock()
@@ -73,16 +75,24 @@ def _request(path: str, body: dict | None = None, opener=None):
         return json.loads(r.read().decode("utf-8") or "null")
 
 
-def departments(factory: str, opener=None) -> list[dict]:
-    """這個廠的成型產線：[{id, code, name}]。"""
+def departments(factory: str, dept_type: int = DEPT_TYPE_ASSEMBLY, opener=None) -> list[dict]:
+    """這個廠某個製程類別的實際產線（部門檔）：[{id, code, name}]。"""
     factory = (factory or "").strip()
     if not factory:
         raise ValueError("先填廠別")
-    rows = _request(f"/api/MES/Organization/GetDepartmentsByDepartmentType/{urllib.parse.quote(factory)}/{DEPT_TYPE_ASSEMBLY}", opener=opener) or []
+    rows = _request(f"/api/MES/Organization/GetDepartmentsByDepartmentType/{urllib.parse.quote(factory)}/{int(dept_type)}", opener=opener) or []
     out = []
+    today = time.strftime("%Y-%m-%d")
     for r in rows:
         did = _get(r, "departmentID")
         if did is None:
+            continue
+        # 後端會把外包廠商（DepartmentType 0＋IsVendor）一起回，也不擋已停用的；只留這個製程類別、還在用的實際產線
+        typ = _get(r, "departmentType")
+        if _get(r, "isVendor") is True or (typ is not None and int(typ) != int(dept_type)):
+            continue
+        end = str(_get(r, "endAt", default="") or "")[:10]
+        if end and end < today:
             continue
         code = str(_get(r, "departmentCode", default="") or "")
         out.append({"id": int(did), "code": code, "name": str(_get(r, "departmentNameTC", "departmentName", default="") or code)})
