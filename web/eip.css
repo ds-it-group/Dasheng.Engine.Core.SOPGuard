@@ -37,6 +37,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .side a.on .ico { color: var(--primary); }
 body.compact .side { flex-basis: 56px; }
 body.compact .side .grp, body.compact .side .txt { display: none; }
+/* 收合側欄的三條線在側欄最上面（11-06：三頁都不要上方標題列） */
+.side .brand #btnCompact { margin-left: auto; flex: none; width: 32px; height: 32px; border: 0; border-radius: 4px; background: none; color: var(--ink-2); cursor: pointer; display: grid; place-items: center; }
+.side .brand #btnCompact:hover { background: var(--hover); color: var(--primary); }
+body.compact .side .brand { padding: 0 12px; } body.compact .side .brand .logo { display: none; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar { height: 56px; flex: none; background: var(--primary); color: #fff; display: flex; align-items: center; gap: 12px; padding: 0 16px; box-shadow: 0 2px 4px -1px rgba(0,0,0,.2); }
 .topbar h1 { font-size: 20px; font-weight: 400; margin: 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

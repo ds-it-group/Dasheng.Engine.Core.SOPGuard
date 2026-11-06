@@ -111,7 +111,7 @@
 <body>
 <div class="shell">
   <aside class="side">
-    <div class="brand"><span class="logo">S</span><span class="txt">SOP-Guard</span></div>
+    <div class="brand"><span class="logo">S</span><span class="txt">SOP-Guard</span><button id="btnCompact" title="收起／展開側欄" aria-label="收起／展開側欄"><span class="mi">menu</span></button></div>
     <nav>
       <div class="grp">現場</div>
       <a href="/"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
@@ -121,8 +121,6 @@
     </nav>
   </aside>
   <div class="main">
-    <header class="topbar"><h1>標記物品</h1><button id="btnCompact" title="收起／展開側欄" aria-label="收起／展開側欄"><span class="mi">menu</span></button></header>
-    <div class="crumb"><b>SOP-Guard</b><span>/</span><span>標記物品</span><span id="crumbProj"></span></div>
     <section class="view">
       <div class="query">
         <div class="fld w200"><label for="project">專案（包裝方式）</label><select id="project"></select></div>
@@ -770,7 +768,7 @@
   async function openProject(name) {
     if (playing) togglePlay();
     proj = name; sel = null; segSel = null; undoStack = []; draft = null; regionMode = false; n = 0; zoom = 1; applyZoom();
-    $("crumbProj").textContent = name ? "／" + name : ""; $("lnkMethod").href = name ? "/methods?project=" + enc(name) : "/methods";
+    $("lnkMethod").href = name ? "/methods?project=" + enc(name) : "/methods";
     $("lnkTrainAdv").href = name ? "/methods?project=" + enc(name) + "&train=1" : "/methods";
     if (!name) { info = null; $("setup").hidden = true; $("stage").hidden = true; $("vidInfo").textContent = ""; render(); return; }
     info = await api("/api/project?name=" + enc(name));
