@@ -170,9 +170,12 @@ def test_web_lines_and_methods_routes(tmp_path, monkeypatch):
     th = threading.Thread(target=srv.serve_forever, daemon=True); th.start()
     base = f"http://127.0.0.1:{srv.server_address[1]}"
     try:
-        for page in ("/lines", "/methods", "/eip.css"):
+        for page in ("/methods", "/eip.css", "/pcset.js"):
             with urllib.request.urlopen(base + page, timeout=5) as r:
                 assert r.status == 200
+        for old, to in (("/lines", "/?pcset=1"), ("/new?style=X", "/label?new=1&style=X")):      # 11-06 併掉的頁面轉走
+            with urllib.request.urlopen(base + old, timeout=5) as r:
+                assert r.status == 200 and r.url == base + to
         st, d = _post(base + "/api/lines/save", {"line": {"name": "包裝 9 線", "camera": "0"}}); assert st == 200 and d["line"]["name"] == "包裝 9 線"
         lid = d["line"]["id"]
         st, d = _post(base + "/api/lines/switch", {"line": lid, "project": "a", "color": "黑白"})

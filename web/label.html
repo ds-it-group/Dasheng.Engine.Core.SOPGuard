@@ -6,6 +6,7 @@
 <title>SOP-Guard 標記物品</title>
 <link rel="stylesheet" href="/eip.css">
 <script src="/eip.js"></script>
+<script src="/pcset.js"></script>
 <script src="/train_result.js"></script>
 <style>
   /* 標記頁（時間軸版）：左＝影格＋框選、右＝名稱清單、下＝這個名稱的時間軸。整頁固定在視窗內，影格依剩餘空間縮放 */
@@ -115,8 +116,6 @@
       <div class="grp">現場</div>
       <a href="/"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
       <div class="grp">設定</div>
-      <a href="/new"><span class="mi ico">add_circle_outline</span><span class="txt">新增包裝方式</span></a>
-      <a href="/lines"><span class="mi ico">view_week</span><span class="txt">產線設定</span></a>
       <a href="/methods"><span class="mi ico">inventory</span><span class="txt">包裝方式設定</span></a>
       <a href="/label" class="on"><span class="mi ico">crop_free</span><span class="txt">標記物品</span></a>
     </nav>
@@ -132,7 +131,7 @@
         <div class="menuwrap">
           <button class="btn btn-secondary raised" data-menu="opMenu" aria-haspopup="true">操作 <span class="mi">expand_more</span></button>
           <div class="menu" id="opMenu" hidden>
-            <button id="btnNew">新增專案</button>
+            <button id="btnNew">新增包裝方式</button>
             <button id="btnRegion" title="平常不用：程式會用全部框過的物品自動算。只有要特別放大或縮小看的範圍才自己框">桌面範圍：自己框（進階）</button>
             <button id="btnRegionAuto" hidden>桌面範圍：改回自動算</button>
             <button id="btnRetrain" hidden title="框選沒改也可以再訓練一次">重新訓練</button>
@@ -214,7 +213,7 @@
               <button class="btn btn-cancel" id="btnPlay" aria-label="播放" title="播放／暫停（空白鍵）"><span class="mi" id="playIco">play_arrow</span></button>
               <button class="btn btn-cancel" id="fwd1f" aria-label="往後 1 格" title="往後 1 格（→）"><span class="mi">chevron_right</span></button>
               <button class="btn btn-cancel" id="fwd1s" aria-label="往後 1 秒" title="往後 1 秒（Shift＋→、L 播放）"><span class="mi">fast_forward</span></button>
-              <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--ink-2)"><input id="timeIn" aria-label="目前時間，可輸入後按 Enter 跳過去" title="可以打 12.4、0:12.4 或 00:12.4"> / <span id="durText">00:00.0</span></label>
+              <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--ink-2);margin-right:46px"><input id="timeIn" aria-label="目前時間，可輸入後按 Enter 跳過去" title="可以打 12.4、0:12.4 或 00:12.4"> / <span id="durText">00:00.0</span></label>
             </div>
           </div>
         </div>
@@ -223,12 +222,18 @@
   </div>
 </div>
 
-<!-- 新增專案（openSmall） -->
+<!-- 新增包裝方式（11-06 原「新增包裝方式」頁併進來）：型體＋地區建專案（名稱「型體_地區」），建好在這一頁上傳或錄示範影片 -->
 <div class="scrim" id="newDlg" hidden>
   <div class="dialog xs" role="dialog" aria-modal="true" aria-labelledby="newTitle">
-    <div class="dt"><span class="mi mark">rate_review</span><h4 id="newTitle">新增專案</h4></div>
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="newTitle">新增包裝方式</h4></div>
     <div class="dc">
-      <div class="fld" style="width:100%"><label for="newProj">專案名稱（之後到「包裝方式設定」設型體與地區）</label><input id="newProj"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div class="fld w140"><label for="newStyle">型體 *</label><input id="newStyle" placeholder="例如 310222 01"></div>
+        <div class="fld w140"><label for="newRegion">地區 *</label><input id="newRegion" list="regionList" placeholder="例如 歐洲"></div>
+        <div class="fld w140"><label for="newStyleName">型體名稱</label><input id="newStyleName"></div>
+        <div class="fld w140"><label for="newCustomer">客戶</label><input id="newCustomer" list="custList"></div>
+        <datalist id="regionList"></datalist><datalist id="custList"></datalist>
+      </div>
       <div class="note danger" id="newErr" hidden></div>
     </div>
     <div class="da"><button class="btn btn-cancel" id="newCancel">取消</button><button class="btn btn-primary raised" id="newOk">建立</button></div>
@@ -822,14 +827,23 @@
     return names().filter((m) => first[m.name] != null).sort((a, b) => first[a.name] - first[b.name] || (a.kind === "action") - (b.kind === "action"));
   }
   // ---- 新增專案／錄製／上傳
-  $("btnNew").onclick = () => { $("newProj").value = ""; $("newErr").hidden = true; $("newDlg").hidden = false; $("newProj").focus(); };
+  async function openNew(style) {
+    for (const id of ["newStyle", "newRegion", "newStyleName", "newCustomer"]) $(id).value = "";
+    $("newStyle").value = style || ""; $("newErr").hidden = true; $("newDlg").hidden = false; $(style ? "newRegion" : "newStyle").focus();
+    const d = await api("/api/methods");                    // 地區、客戶：用過的當選項
+    for (const [id, k] of [["regionList", "region"], ["custList", "customer"]]) {
+      $(id).innerHTML = ""; for (const v of [...new Set((d.methods || []).map((m) => m[k]).filter(Boolean))]) { const o = el("option"); o.value = v; $(id).appendChild(o); }
+    }
+  }
+  $("btnNew").onclick = () => openNew("");
   $("newCancel").onclick = () => { $("newDlg").hidden = true; };
   $("newOk").onclick = async () => {
-    const name = $("newProj").value.trim(); if (!name) { $("newErr").textContent = "請輸入專案名稱"; $("newErr").hidden = false; return; }
-    const d = await api("/api/project/create", { name }); if (!d.ok) { $("newErr").textContent = d.error; $("newErr").hidden = false; return; }
+    const style = $("newStyle").value.trim(), region = $("newRegion").value.trim();
+    if (!style || !region) { $("newErr").textContent = "型體和地區都要填"; $("newErr").hidden = false; return; }
+    const d = await api("/api/wizard/create", { style, region, style_name: $("newStyleName").value.trim(), customer: $("newCustomer").value.trim() }); if (!d.ok) { $("newErr").textContent = d.error; $("newErr").hidden = false; return; }
     $("newDlg").hidden = true; await loadProjects(d.name); openProject(d.name);
   };
-  $("newProj").onkeydown = (ev) => { ev.stopPropagation(); if (ev.key === "Enter") $("newOk").click(); };
+  for (const id of ["newStyle", "newRegion", "newStyleName", "newCustomer"]) $(id).onkeydown = (ev) => { ev.stopPropagation(); if (ev.key === "Enter") $("newOk").click(); };
   async function pollRec() {
     clearTimeout(recTimer); const s = await api("/api/record/state");
     $("recInfo").textContent = s.error ? "錯誤：" + s.error : (s.info || "") + (s.recording ? `　錄製中 ${s.frames} 格` : "");
@@ -858,6 +872,7 @@
 
   loadProjects().then(async () => {
     const u = new URLSearchParams(location.search);
+    if (u.get("new") === "1") { render(); openNew(u.get("style") || ""); return; }      // 監控畫面「新增包裝方式 ›」、舊的 /new 網址
     if (!u.get("project")) { render(); return; }
     $("project").value = u.get("project"); await openProject(u.get("project"));
     if (info && info.has_video && u.get("queue")) {

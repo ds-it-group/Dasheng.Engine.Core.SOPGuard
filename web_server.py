@@ -119,6 +119,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200); self.send_header("Content-Type", ctype); self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
 
+    def _redirect(self, to: str) -> None:
+        self.send_response(302); self.send_header("Location", to); self.send_header("Content-Length", "0"); self.end_headers()
+
     def _read_json(self) -> dict | None:
         n = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(n) if n else b""
@@ -141,10 +144,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._file(os.path.join(WEB_DIR, "index.html"), "text/html; charset=utf-8")
             elif path in ("/label", "/label.html"):
                 self._file(os.path.join(WEB_DIR, "label.html"), "text/html; charset=utf-8")
-            elif path in ("/lines", "/methods"):
-                self._file(os.path.join(WEB_DIR, path.strip("/") + ".html"), "text/html; charset=utf-8")
-            elif path == "/new":
-                self._file(os.path.join(WEB_DIR, "wizard.html"), "text/html; charset=utf-8")
+            elif path == "/methods":
+                self._file(os.path.join(WEB_DIR, "methods.html"), "text/html; charset=utf-8")
+            elif path in ("/new", "/lines"):        # 舊頁面（11-06 併掉）：新增包裝方式 → 標記物品；產線設定 → 每頁右下角的設定鍵
+                q = self.path.split("?", 1)[1] if "?" in self.path else ""
+                self._redirect("/label?new=1" + ("&" + q if q else "") if path == "/new" else "/?pcset=1")
             elif path == "/api/wizard/state":
                 import packing_methods as pkg
                 self._json(pkg.wizard_state(self._query().get("name", "")))
@@ -154,7 +158,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._file(os.path.join(WEB_DIR, "eip.css"), "text/css; charset=utf-8")
             elif path == "/eip.js":
                 self._file(os.path.join(WEB_DIR, "eip.js"), "application/javascript; charset=utf-8")
-            elif path in ("/train_result.js", "/share.js"):
+            elif path in ("/train_result.js", "/share.js", "/pcset.js"):
                 self._file(os.path.join(WEB_DIR, path[1:]), "application/javascript; charset=utf-8")
             elif path == "/fonts/MaterialIcons-Regular.ttf":
                 self._file(os.path.join(WEB_DIR, "fonts", "MaterialIcons-Regular.ttf"), "font/ttf")
@@ -162,7 +166,8 @@ class Handler(BaseHTTPRequestHandler):
                 import lines as line_store
                 ls = line_store.load_lines()
                 self._json({"lines": [line_store.line_public(l) for l in ls],
-                            "running_line": getattr(self.service, "line_id", None) if self.service.running else None})
+                            "running_line": getattr(self.service, "line_id", None) if self.service.running else None,
+                            "station": line_store.computer_name()})
             elif path == "/api/methods":
                 import lines as line_store
                 import packing_methods as pkg

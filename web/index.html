@@ -6,6 +6,7 @@
 <title>SOP-Guard 監控</title>
 <link rel="stylesheet" href="/eip.css">
 <script src="/eip.js"></script>
+<script src="/pcset.js"></script>
 <style>
   /* 監控畫面：特殊版型，沿用共用骨架（側欄／topbar／麵包屑／查詢列／顏色註記列），中央改監控版面 */
   .pk { flex: none; margin: 8px 8px 0; }
@@ -22,8 +23,7 @@
   .pk .ttl .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; }
   .pk .ttl .err { margin-left: 10px; }
   .pk .ttl .menuwrap { margin-left: 12px; }
-  /* 產線、影像來源直接在卡片「產線」那格選（11-06 使用者裁示：不要自己一行） */
-  .pk select.vsel { display: block; width: 100%; max-width: 100%; height: auto; padding: 0 18px 0 0; border: 0; background: transparent; font: inherit; font-size: 22px; font-weight: 700; color: var(--ink); cursor: pointer; }
+  /* 影像來源直接在卡片「產線」那格選（11-06 使用者裁示：不要自己一行）；一台電腦一條線，產線在右下角設定鍵設 */
   .pk select.ssel { height: auto; padding: 0 14px 0 0; border: 0; background: transparent; font: inherit; font-size: 12px; color: var(--primary); cursor: pointer; }
   .pk select:disabled { cursor: default; color: inherit; opacity: 1; }
   /* 畫面上只有一個型體方塊（使用者裁示 11-05：同時間只有一個模型在辨識、一個型體顯示）：卡片裡「型體」那格可以點，
@@ -115,8 +115,6 @@
       <div class="grp">現場</div>
       <a href="/" class="on"><span class="mi ico">videocam</span><span class="txt">監控畫面</span></a>
       <div class="grp">設定</div>
-      <a href="/new"><span class="mi ico">add_circle_outline</span><span class="txt">新增包裝方式</span></a>
-      <a href="/lines"><span class="mi ico">view_week</span><span class="txt">產線設定</span></a>
       <a href="/methods"><span class="mi ico">inventory</span><span class="txt">包裝方式設定</span></a>
       <a href="/label"><span class="mi ico">crop_free</span><span class="txt">標記物品</span></a>
     </nav>
@@ -138,12 +136,12 @@
             <button id="mShot">存截圖</button>
             <button id="mDay">今日統計</button>
             <a id="mLabel" href="/label">標記物品</a>
-            <a href="/lines">產線設定</a>
+            <button id="mPc">這台電腦的產線設定</button>
           </div>
         </div>
         </div>
         <div class="row">
-          <div class="kv"><div class="k">產線</div><select class="v vsel" id="selLine" aria-label="產線"></select>
+          <div class="kv"><div class="k">產線</div><select id="selLine" hidden></select><div class="v" id="pkLine">–</div>
             <div class="s"><select class="ssel" id="selSrc" aria-label="影像來源"><option value="camera">相機</option><option value="demo">示範影片</option></select> <span id="pkCam"></span></div></div>
           <div class="kv pick" id="pkPick" tabindex="0" role="button" title="點了選今天要做的型體和它要用的模型"><div class="k">型體 <span class="hintk">點我換</span></div><div class="v big" id="pkStyle">–</div><div class="s" id="pkStyleInfo"></div></div>
           <div class="kv"><div class="k">地區</div><div class="v big" id="pkRegion">–</div><div class="s" id="pkCode"></div></div>
@@ -275,6 +273,7 @@
   const curLine = () => lines.find((l) => l.id === $("selLine").value);
   function renderLine() {
     const l = curLine(); const pk = l && l.packaging;
+    $("pkLine").textContent = l ? l.name : "還沒設定"; $("pkLine").title = l ? "" : "按右下角的設定鍵設定這台電腦的產線";
     $("pkCam").textContent = l ? ($("selSrc").value === "demo" ? "" : l.has_camera ? l.camera : "還沒設定相機") : "";
     $("pkWhen").textContent = l && l.switched_at ? l.switched_at + " 換線" : (l ? "還沒指定包裝方式" : "");
     $("pkStyle").textContent = pk ? (pk.style || pk.name) : "–";
@@ -293,6 +292,9 @@
   }
   function fromLabel() { const q = new URLSearchParams(location.search); return q.get("from") === "label" ? q.get("project") : null; }
   $("selSrc").onchange = () => renderLine();
+  $("mPc").onclick = () => PcSet.open();
+  document.addEventListener("pcset:saved", () => { loadLines(); pollEip(true); pollDaily(); });   // 右下角改了這台電腦的產線
+  if (new URLSearchParams(location.search).get("pcset") === "1") setTimeout(() => PcSet.open(), 300);   // 舊的 /lines 網址轉過來
   $("selLine").onchange = () => { renderLine(); history.replaceState(null, "", "/?line=" + encodeURIComponent($("selLine").value)); pollEip(true); pollDaily(); };
 
   function setStream(on) {
@@ -398,7 +400,7 @@
   $("mStart").onclick = async () => {
     $("err").textContent = "";
     if (running) { await api("/api/stop", {}); streamOn = false; return; }
-    const l = curLine(); if (!l) { toast("請先到「產線設定」新增產線", true); return; }
+    const l = curLine(); if (!l) { PcSet.open(); return; }
     const d = await api("/api/start", { line: l.id, source: $("selSrc").value });
     if (!d.ok) { $("err").textContent = d.error || "啟動失敗"; toast(d.error || "啟動失敗", true); }
     streamOn = false;
@@ -411,7 +413,7 @@
   const withPk = () => methods.filter((m) => !m.error && m.steps > 0 && m.model_trained_at && m.enabled !== false);
   let swSel = null;
   async function openSwitch(preset) {
-    const l = curLine(); if (!l) { toast("請先到「產線設定」新增產線", true); return; }
+    const l = curLine(); if (!l) { PcSet.open(); return; }
     const d = await api("/api/methods"); methods = d.methods || [];
     const pk = l.packaging;
     $("dlgTitle").textContent = "換包裝方式　" + l.name;
@@ -503,7 +505,7 @@
   /* 點型體方塊：彈出 EIP 今天要做的型體，一個型體一塊；塊裡是這個型體在本機的模型（地區），點哪個就切到哪個。
      沒接 EIP 的線：直接開「換包裝方式」搜尋視窗 */
   async function openPop() {
-    const l = curLine(); if (!l) { toast("請先到「產線設定」新增產線", true); return; }
+    const l = curLine(); if (!l) { PcSet.open(); return; }
     if (!eip || !eip.configured) { closePop(); openSwitch(); return; }
     if (!methods.length) { const d = await api("/api/methods"); methods = d.methods || []; }
     const pop = $("eipPop"); pop.innerHTML = ""; const pk = l.packaging, cs = pk ? pk.style : "";
@@ -521,7 +523,7 @@
       t.appendChild(el("div", "hint", `${o.qty.toLocaleString()} 雙` + (dayDone != null ? `・本站完成 ${dayDone.toLocaleString()} 輪` : "")));
       if (!ms.length) {
         t.appendChild(el("div", "hint", "還沒有包裝方式，要先標記、訓練"));
-        const a = el("a", null, "新增包裝方式 ›"); a.href = "/new?style=" + encodeURIComponent(o.style); t.appendChild(a); grid.appendChild(t); continue;
+        const a = el("a", null, "新增包裝方式 ›"); a.href = "/label?new=1&style=" + encodeURIComponent(o.style); t.appendChild(a); grid.appendChild(t); continue;
       }
       const r1 = el("div", "row"); r1.appendChild(el("span", "lbl", ms.length > 1 ? `模型（${ms.length} 個地區，點哪個就切到哪個）` : "模型（點了就切換）"));
       for (const m of ms) {
