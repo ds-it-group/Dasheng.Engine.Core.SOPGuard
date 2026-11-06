@@ -744,6 +744,18 @@ window.I18N_DICT = {
 "\"{0}\" is being monitored on the line. Stop it on the Monitor screen first, then load",
 "\"{0}\" sedang dipantau di lini. Hentikan dulu di layar pantau, lalu muat"
 ],
+"「{0}」正在監控、訓練或錄影，不能刪除": [
+"\"{0}\" is being monitored, trained or recorded and cannot be deleted",
+"\"{0}\" sedang dipantau, dilatih, atau direkam, tidak bisa dihapus"
+],
+"「{0}」沒有停用，不能刪除": [
+"\"{0}\" is not disabled and cannot be deleted",
+"\"{0}\" belum dinonaktifkan, tidak bisa dihapus"
+],
+"「{0}」產線 {1} 正在用，不能刪除": [
+"\"{0}\" is in use by line {1} and cannot be deleted",
+"\"{0}\" sedang dipakai lini {1}, tidak bisa dihapus"
+],
 "「{0}」的停留秒數不是數字": [
 "Dwell seconds for \"{0}\" is not a number",
 "Detik tahan untuk \"{0}\" bukan angka"
@@ -751,6 +763,10 @@ window.I18N_DICT = {
 "「{0}」的停留秒數要在 0.1～10 秒": [
 "Dwell seconds for \"{0}\" must be 0.1–10 s",
 "Detik tahan untuk \"{0}\" harus 0.1–10 detik"
+],
+"「{0}」的模型被 {1} 參考，不能刪除": [
+"The model of \"{0}\" is used by {1}, so it cannot be deleted",
+"Model \"{0}\" dipakai oleh {1}, tidak bisa dihapus"
 ],
 "「{0}」的目前版本改成 {1}": [
 "Current version of \"{0}\" changed to {1}",
@@ -972,6 +988,14 @@ window.I18N_DICT = {
 "Disable",
 "Nonaktifkan"
 ],
+"停用的包裝方式": [
+"Disabled packing methods",
+"Metode kemas nonaktif"
+],
+"停用的包裝方式（啟用／刪除）": [
+"Disabled packing methods (enable / delete)",
+"Metode kemas nonaktif (aktifkan / hapus)"
+],
 "停留秒數": [
 "Hold time (s)",
 "Lama diam (detik)"
@@ -1031,6 +1055,10 @@ window.I18N_DICT = {
 "全部": [
 "All",
 "Semua"
+],
+"共 {0} 個": [
+"{0} in total",
+"Total {0}"
 ],
 "共 {0} 次": [
 "{0} times total",
@@ -1096,6 +1124,10 @@ window.I18N_DICT = {
 "Checking which item the hand touches…",
 "Mengecek barang mana yang disentuh tangan…"
 ],
+"刪了不能復原": [
+"This cannot be undone",
+"Tidak bisa dibatalkan"
+],
 "刪除": [
 "Delete",
 "Hapus"
@@ -1103,6 +1135,14 @@ window.I18N_DICT = {
 "刪除「{0}」第 {1} 段（{2} – {3}）？": [
 "Delete \"{0}\" segment {1} ({2} – {3})?",
 "Hapus \"{0}\" segmen {1} ({2} – {3})?"
+],
+"刪除勾選的": [
+"Delete selected",
+"Hapus yang dipilih"
+],
+"刪除勾選的（{0}）": [
+"Delete selected ({0})",
+"Hapus yang dipilih ({0})"
 ],
 "刪除名稱「{0}」？": [
 "Delete name \"{0}\"?",
@@ -1115,6 +1155,10 @@ window.I18N_DICT = {
 "刪除這個名稱（還沒有段落才能刪）": [
 "Delete this name (only when it has no segments)",
 "Hapus nama ini (hanya bisa jika belum ada segmen)"
+],
+"刪除＝把這台電腦上的專案資料夾（設定、步驟、框、影片、模型）整個刪掉，不能復原。共用硬碟上傳過的版本不會被刪。產線正在用、或別的包裝方式參考它的模型時不能刪。": [
+"Delete = remove the whole project folder on this computer (settings, steps, boxes, video, model). This cannot be undone. Versions uploaded to the shared drive are not deleted. A method cannot be deleted while a line is using it or another packing method uses its model.",
+"Hapus = menghapus seluruh folder proyek di komputer ini (pengaturan, langkah, kotak, video, model). Tidak bisa dibatalkan. Versi yang sudah diunggah ke drive bersama tidak ikut terhapus. Tidak bisa dihapus selama lini masih memakainya atau metode kemas lain memakai modelnya."
 ],
 "到包裝方式設定": [
 "Go to Packing method settings",
@@ -1171,6 +1215,10 @@ window.I18N_DICT = {
 "動作：手碰到「{0}」": [
 "Action: hand touches \"{0}\"",
 "Gerakan: tangan menyentuh \"{0}\""
+],
+"勾選": [
+"Select",
+"Pilih"
 ],
 "勾選的片段裡沒有任何框": [
 "The selected clips have no boxes",
@@ -1355,6 +1403,10 @@ window.I18N_DICT = {
 "啟用": [
 "Enable",
 "Aktifkan"
+],
+"啟用（回到清單）": [
+"Enable (back to the list)",
+"Aktifkan (kembali ke daftar)"
 ],
 "圓圈數字＝步驟順序，照影片裡第一次出現的先後": [
 "Circled numbers = step order, by first appearance in the video",
@@ -1548,6 +1600,10 @@ window.I18N_DICT = {
 "Stopped",
 "Berhenti"
 ],
+"已停用「{0}」：收到「操作 → 停用的包裝方式」，可以在那裡啟用或刪除": [
+"Disabled \"{0}\": moved to \"Actions → Disabled packing methods\", where you can enable or delete it",
+"\"{0}\" dinonaktifkan: dipindah ke \"Aksi → Metode kemas nonaktif\", di sana bisa diaktifkan atau dihapus"
+],
 "已儲存": [
 "Saved",
 "Tersimpan"
@@ -1563,6 +1619,10 @@ window.I18N_DICT = {
 "已切到 {0}": [
 "Switched to {0}",
 "Pindah ke {0}"
+],
+"已刪除 {0} 個包裝方式": [
+"Deleted {0} packing method(s)",
+"{0} metode kemas dihapus"
 ],
 "已刪除 {0} 格錯框": [
 "Deleted {0} wrong box frames",
@@ -1587,6 +1647,10 @@ window.I18N_DICT = {
 "已取消": [
 "Cancelled",
 "Dibatalkan"
+],
+"已啟用「{0}」": [
+"Enabled \"{0}\"",
+"\"{0}\" diaktifkan"
 ],
 "已存 物品 {0} 段・動作 {1} 段": [
 "Saved: items {0} segments・actions {1} segments",
@@ -1875,6 +1939,10 @@ window.I18N_DICT = {
 "找不到 {0}，無法找盒子": [
 "Cannot find {0}, cannot find boxes",
 "{0} tidak ditemukan, tidak bisa mencari kotak"
+],
+"找不到「{0}」": [
+"\"{0}\" not found",
+"\"{0}\" tidak ditemukan"
 ],
 "找不到參考來源「{0}」": [
 "Reference source \"{0}\" not found",
@@ -2584,6 +2652,10 @@ window.I18N_DICT = {
 "Nothing previous to compare",
 "Tidak ada hasil sebelumnya untuk dibandingkan"
 ],
+"沒有停用的包裝方式": [
+"No disabled packing methods",
+"Tidak ada metode kemas nonaktif"
+],
 "沒有可以復原的動作": [
 "Nothing to undo",
 "Tidak ada yang bisa dibatalkan"
@@ -2812,6 +2884,10 @@ window.I18N_DICT = {
 "Line name \"{0}\" is duplicated",
 "Nama lini \"{0}\" sudah ada"
 ],
+"產線在用": [
+"Used by line",
+"Dipakai lini"
+],
 "產線的桌面範圍 {0} 超出這個包裝方式的畫面大小 {1}": [
 "Line desk area {0} is outside this packing method's frame size {1}",
 "Area meja lini {0} melebihi ukuran layar metode kemas ini {1}"
@@ -3015,6 +3091,10 @@ window.I18N_DICT = {
 "確認": [
 "Confirm",
 "Konfirmasi"
+],
+"確認刪除": [
+"Confirm delete",
+"Konfirmasi hapus"
 ],
 "確認換線": [
 "Confirm line change",
@@ -3272,6 +3352,10 @@ window.I18N_DICT = {
 "Box to delete does not exist, please refresh and try again",
 "Kotak yang mau dihapus tidak ada, refresh lalu coba lagi"
 ],
+"要刪除這 {0} 個包裝方式嗎": [
+"Delete these {0} packing method(s)",
+"Hapus {0} metode kemas ini"
+],
 "要在這一段的範圍裡畫框": [
 "Draw the box inside this segment's range",
 "Gambar kotak di dalam rentang segmen ini"
@@ -3423,6 +3507,10 @@ window.I18N_DICT = {
 "請先選影片檔": [
 "Please select a video file first",
 "Pilih file video dulu"
+],
+"請勾選要刪除的包裝方式": [
+"Select the packing methods to delete",
+"Pilih metode kemas yang akan dihapus"
 ],
 "請回時間軸多標幾段（影片太短就重錄一段 60 秒左右、每個動作做 3 次以上）。": [
 "Go back to the timeline and label more segments (if the video is too short, record about 60 s again and do each action 3+ times).",

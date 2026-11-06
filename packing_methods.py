@@ -135,6 +135,37 @@ def set_packaging(project_name: str, data: dict) -> dict:
     return method_row(p)
 
 
+def delete_methods(names: list[str], lines_by_project: dict | None = None, busy: tuple = ()) -> list[str]:
+    """刪掉停用的包裝方式（整個專案資料夾，不能復原；共用硬碟上的版本不動）。
+    只能刪停用的；產線正在用、別的包裝方式參考它的模型、正在監控／訓練／錄影的不能刪。先全部檢查過才動手，有一個不行就全部不刪。"""
+    names = [str(n) for n in dict.fromkeys(names or [])]
+    if not names:
+        raise ValueError("請勾選要刪除的包裝方式")
+    used = lines_by_project or {}
+    refs = {}
+    for n in list_projects():
+        p = _try_load(n)
+        if p is not None and p.packaging and p.packaging.model_source:
+            refs.setdefault(p.packaging.model_source, []).append(n)
+    for n in names:
+        validate_project_name(n)
+        p = _try_load(n)
+        if p is None:
+            raise ValueError(f"找不到「{n}」")
+        if p.packaging is None or p.packaging.enabled:
+            raise ValueError(f"「{n}」沒有停用，不能刪除")
+        if used.get(n):
+            raise ValueError(f"「{n}」產線 {'、'.join(used[n])} 正在用，不能刪除")
+        if n in busy:
+            raise ValueError(f"「{n}」正在監控、訓練或錄影，不能刪除")
+        other = [r for r in refs.get(n, []) if r not in names]
+        if other:
+            raise ValueError(f"「{n}」的模型被 {'、'.join(other)} 參考，不能刪除")
+    for n in names:
+        shutil.rmtree(os.path.join(projects_dir(), n))
+    return names
+
+
 def set_color(project_name: str, color: str, status: str, note: str = "") -> dict:
     p = load_project(project_name)
     if p.packaging is None:

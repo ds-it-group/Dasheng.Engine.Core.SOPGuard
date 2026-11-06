@@ -45,7 +45,8 @@ def project_rows() -> list[dict]:
         try:
             p = load_project(name)
             rows.append({"name": name, "steps": len(p.steps), "mode": p.mode if p.steps else None,
-                         "has_demo": os.path.isfile(p.video_path), "ok": True})
+                         "has_demo": os.path.isfile(p.video_path), "ok": True,
+                         "enabled": p.packaging.enabled if p.packaging else True})
         except Exception as e:
             rows.append({"name": name, "steps": 0, "mode": None, "has_demo": False, "ok": False, "error": str(e)})
     return rows
@@ -381,6 +382,13 @@ class Handler(BaseHTTPRequestHandler):
             return {"line": line_store.line_public(l), "restarted": restart}
         if path == "/api/method/packaging":
             return {"method": pkg.set_packaging(name, body.get("packaging") or {})}
+        if path == "/api/method/delete":
+            busy = list(self._running_projects())
+            for job in ("train", "autolabel", "analysis", "record"):
+                st = getattr(self.label, job, None) if self.label is not None else None
+                if st is not None and getattr(st, "running", False) and getattr(st, "project_name", None):
+                    busy.append(st.project_name)
+            return {"deleted": pkg.delete_methods(body.get("names") or [], line_store.lines_by_project(), tuple(busy))}
         if path == "/api/method/steps":
             return {"method": pkg.update_steps(name, body.get("steps") or [])}
         if path == "/api/method/color":

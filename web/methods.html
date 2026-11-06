@@ -57,11 +57,11 @@
           <div class="menu" id="opMenu" hidden>
             <a id="mLabel" href="/label">包裝設定（訓練）</a>
             <a id="mShare" href="#">共用硬碟（載入／上傳專案）</a>
+            <a id="mOff" href="#">停用的包裝方式（啟用／刪除）</a>
           </div>
         </div>
       </div>
       <div class="legend">
-        <span><i style="background:var(--st-danger)"></i>停用</span>
         <span><i style="background:var(--st-warn)"></i>辨識模型還沒訓練，或還沒設定型體地區</span>
         <span><i style="background:var(--ed-bg); box-shadow: inset 0 0 0 1px var(--ed-line)"></i>可編輯欄位（改了直接存）</span>
       </div>
@@ -112,6 +112,26 @@
       <div class="note danger" id="pErr" hidden></div>
     </div>
     <div class="da"><button class="btn btn-cancel" id="pCancel">取消</button><button class="btn btn-primary raised" id="pSave">儲存</button></div>
+  </div>
+</div>
+
+<!-- 停用的包裝方式（2026-11-06 使用者裁示：停用的不顯示在清單，收在這裡；可以啟用或刪除） -->
+<div class="scrim" id="offDlg" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="offTitle" style="width:min(760px, calc(100vw - 32px))">
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="offTitle">停用的包裝方式</h4><span class="sum n" id="offSum"></span></div>
+    <div class="dc">
+      <div class="gridwrap" style="max-height:50vh"><table class="grid" id="offGrid"></table></div>
+      <div class="note warn">刪除＝把這台電腦上的專案資料夾（設定、步驟、框、影片、模型）整個刪掉，不能復原。共用硬碟上傳過的版本不會被刪。產線正在用、或別的包裝方式參考它的模型時不能刪。</div>
+      <div class="note danger" id="offErr" hidden></div>
+    </div>
+    <div class="da"><button class="btn btn-cancel" id="offCancel">關閉</button><button class="btn btn-danger raised" id="offDel" disabled>刪除勾選的</button></div>
+  </div>
+</div>
+<div class="scrim" id="cfDlg" hidden style="z-index:60">
+  <div class="dialog xs" role="dialog" aria-modal="true" aria-labelledby="cfTitle">
+    <div class="dt"><span class="mi mark">rate_review</span><h4 id="cfTitle">確認刪除</h4></div>
+    <div class="dc"><div id="cfMsg" style="white-space:pre-line"></div></div>
+    <div class="da"><button class="btn btn-cancel" id="cfCancel">取消</button><button class="btn btn-danger raised" id="cfOk">刪除</button></div>
   </div>
 </div>
 
@@ -272,8 +292,9 @@
     $("regionList").innerHTML = ""; for (const v of [...new Set(methods.map((m) => m.region).filter(Boolean))]) { const o = el("option"); o.value = v; $("regionList").appendChild(o); }
     $("custList").innerHTML = ""; for (const v of [...new Set(methods.map((m) => m.customer).filter(Boolean))]) { const o = el("option"); o.value = v; $("custList").appendChild(o); }
     renderMethods();
-    const want = keep || sel || new URLSearchParams(location.search).get("project");
-    if (want && methods.some((m) => m.name === want)) await select(want, true); else if (!sel && methods.length) await select(methods[0].name, true);
+    const want = keep || sel || new URLSearchParams(location.search).get("project"), vis = methods.filter(shownInList);
+    if (want && vis.some((m) => m.name === want)) await select(want, true); else if (vis.length) await select(vis[0].name, true); else clearDetail();
+    if (!$("offDlg").hidden) renderOff();
   }
   function renderMethods() {
     const t = $("mGrid"); t.innerHTML = "";
@@ -281,7 +302,7 @@
     head(t, cols, 2, 6, renderMethods);
     const tb = el("tbody"), key = $("qKey").value.trim(), reg = $("qRegion").value, cust = $("qCust").value;
     let shown = 0;
-    for (const m of methods) {
+    for (const m of methods.filter(shownInList)) {
       const v = [m.has_packaging ? m.style : "（未設定）", m.region || "", m.style_name || "", m.customer || "", m.name, String(m.steps || 0)];
       if (key && !((m.style || "").includes(key) || (m.style_name || "").includes(key) || m.name.includes(key))) continue;
       if (reg && reg !== "全部" && m.region !== reg) continue;
@@ -299,7 +320,9 @@
       box.appendChild(EIP.iconBtn("edit", "c-edit", m.has_packaging ? "編輯型體地區" : "設定型體地區", (e) => { e.stopPropagation(); openPk(m, false); }));
       if (m.has_packaging) {
         box.appendChild(EIP.iconBtn(m.enabled ? "block" : "restore", m.enabled ? "c-del" : "c-edit", m.enabled ? "停用" : "啟用", async (e) => {
-          e.stopPropagation(); const d = await api("/api/method/packaging", { name: m.name, packaging: { enabled: !m.enabled } }); if (!d.ok) toast(d.error, true); else load(m.name); }));
+          e.stopPropagation(); const d = await api("/api/method/packaging", { name: m.name, packaging: { enabled: !m.enabled } }); if (!d.ok) { toast(d.error, true); return; }
+          if (m.enabled) { if (sel === m.name) sel = null; toast(`已停用「${m.name}」：收到「操作 → 停用的包裝方式」，可以在那裡啟用或刪除`); }
+          load(m.enabled ? null : m.name); }));
       }
       op.appendChild(box); tr.appendChild(op);
       tr.onclick = () => { if (m.name !== sel) select(m.name); };
@@ -309,6 +332,55 @@
     if (!shown) { const tr = el("tr", "empty"), td = el("td", null, methods.length ? "沒有符合條件的包裝方式" : "還沒有任何專案：到「新增包裝方式」，或「操作 → 共用硬碟」載入"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
     t.appendChild(tb); EIP.resizable(t, "methods");
   }
+  function shownInList(m) { return !(m.has_packaging && m.enabled === false); }      // 停用的不顯示，收在「操作 → 停用的包裝方式」
+  function clearDetail() {
+    sel = null; detail = null; history.replaceState(null, "", "/methods"); $("mLabel").href = "/label";
+    $("mTitle").textContent = "請在左邊選一個包裝方式"; $("mMeta").innerHTML = ""; $("needBar").hidden = true;
+    $("sGrid").innerHTML = ""; $("modelLine").innerHTML = "";
+  }
+
+  // ---- 停用的包裝方式：啟用、刪除
+  const offPick = new Set();
+  function renderOff() {
+    const off = methods.filter((m) => !shownInList(m)), t = $("offGrid"); t.innerHTML = "";
+    for (const n of [...offPick]) if (!off.some((m) => m.name === n)) offPick.delete(n);
+    const cols = [["", 36, "c"], ["型體", 100], ["地區", 90], ["型體名稱", 150], ["包裝方式", 150], ["產線在用", 100], ["操作", 60, "c"]];
+    head(t, cols, 3, 0, null);
+    const tb = el("tbody");
+    for (const m of off) {
+      const tr = el("tr", offPick.has(m.name) ? "sel" : ""), cb = el("input"), td0 = el("td", "c");
+      cb.type = "checkbox"; cb.checked = offPick.has(m.name); cb.setAttribute("aria-label", "勾選 " + m.name);
+      cb.onchange = () => { cb.checked ? offPick.add(m.name) : offPick.delete(m.name); renderOff(); };
+      td0.appendChild(cb); tr.appendChild(td0);
+      [m.style, m.region || "", m.style_name || "", m.name, (m.lines || []).join("、") || "–"].forEach((x) => tr.appendChild(el("td", null, x)));
+      const op = el("td", "c"), box = el("span", "ops");
+      box.appendChild(EIP.iconBtn("restore", "c-edit", "啟用（回到清單）", async () => {
+        const d = await api("/api/method/packaging", { name: m.name, packaging: { enabled: true } });
+        if (!d.ok) { toast(d.error, true); return; } toast(`已啟用「${m.name}」`); load(m.name); }));
+      op.appendChild(box); tr.appendChild(op); tb.appendChild(tr);
+    }
+    if (!off.length) { const tr = el("tr", "empty"), td = el("td", null, "沒有停用的包裝方式"); td.colSpan = cols.length; tr.appendChild(td); tb.appendChild(tr); }
+    t.appendChild(tb);
+    $("offSum").textContent = off.length ? `共 ${off.length} 個` : "";
+    $("offDel").disabled = !offPick.size; $("offDel").textContent = offPick.size ? `刪除勾選的（${offPick.size}）` : "刪除勾選的";
+  }
+  function confirmBox(text) {
+    return new Promise((resolve) => {
+      $("cfMsg").textContent = text; $("cfDlg").hidden = false;
+      $("cfOk").onclick = () => { $("cfDlg").hidden = true; resolve(true); };
+      $("cfCancel").onclick = () => { $("cfDlg").hidden = true; resolve(false); };
+    });
+  }
+  $("mOff").onclick = (e) => { e.preventDefault(); $("opMenu").hidden = true; offPick.clear(); $("offErr").hidden = true; $("offDlg").hidden = false; renderOff(); };
+  $("offCancel").onclick = () => { $("offDlg").hidden = true; };
+  $("offDel").onclick = async () => {
+    const names = [...offPick];
+    if (!names.length || !await confirmBox(`要刪除這 ${names.length} 個包裝方式嗎？刪了不能復原。\n${names.join("\n")}`)) return;
+    const d = await api("/api/method/delete", { names });
+    if (!d.ok) { $("offErr").textContent = d.error; $("offErr").hidden = false; return; }
+    $("offErr").hidden = true; offPick.clear(); toast(`已刪除 ${d.deleted.length} 個包裝方式`); load();
+  };
+
   // 共用硬碟的狀態（shared_store）：清單上標「共用硬碟有新版」、辨識模型分頁顯示版本並給上傳／更新鈕
   let shareMap = {};
   window.sopgShareRefresh = (d) => { shareMap = {}; for (const r of (d && d.local) || []) shareMap[r.name] = r; renderMethods(); if (detail) renderModel(); };

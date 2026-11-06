@@ -144,3 +144,25 @@ def test_legacy_style_kept_until_changed(base):
     assert project_store.load_project("old").packaging.style == "123456"
     with pytest.raises(ValueError, match="310222 01"):
         pkg.set_packaging("old", {"style": "12345", "region": "日本"})
+
+
+def test_delete_only_disabled_and_unused(base):
+    """停用的包裝方式可以刪；沒停用、產線在用、被參考模型、正在跑的都不行，而且有一個不行就全部不刪。"""
+    _proj(base, "on", {"style": "111111 01", "region": "歐洲"})
+    _proj(base, "off", {"style": "222222 01", "region": "歐洲", "enabled": False}, model=True)
+    _proj(base, "off2", {"style": "333333 01", "region": "歐洲", "enabled": False})
+    _proj(base, "ref", {"style": "444444 01", "region": "歐洲", "model_source": "off"})
+    _proj(base, "bare")                                                        # 沒設定型體地區
+    with pytest.raises(ValueError, match="請勾選"):
+        pkg.delete_methods([])
+    for names, kw, msg in ((["on"], {}, "沒有停用"), (["bare"], {}, "沒有停用"), (["nope"], {}, "找不到"),
+                           (["off2"], {"lines_by_project": {"off2": ["包裝 1 線"]}}, "正在用"),
+                           (["off2"], {"busy": ("off2",)}, "正在監控"),
+                           (["off2", "off"], {}, "被 ref 參考")):
+        with pytest.raises(ValueError, match=msg):
+            pkg.delete_methods(names, **kw)
+    assert (base / "off2").is_dir()                                            # 有一個不行 → off2 也沒被刪
+    assert pkg.delete_methods(["off2"]) == ["off2"] and not (base / "off2").exists()
+    pkg.set_packaging("ref", {"model_source": None})
+    assert pkg.delete_methods(["off"]) == ["off"]
+    assert sorted(project_store.list_projects()) == ["bare", "on", "ref"]

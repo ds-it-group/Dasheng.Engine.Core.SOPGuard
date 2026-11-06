@@ -764,7 +764,8 @@
   // ---- 專案
   async function loadProjects(keep) {
     const d = await api("/api/projects"); const s = $("project"); s.innerHTML = "<option value=''>（選專案）</option>";
-    for (const p of d.projects) { const o = el("option"); o.value = p.name; o.textContent = p.name + (p.has_demo ? "" : "（沒有影片）"); s.appendChild(o); }
+    for (const p of d.projects) { if (p.enabled === false && p.name !== keep && p.name !== proj) continue;   // 停用的不列（收在包裝明細「操作 → 停用的包裝方式」）
+      const o = el("option"); o.value = p.name; o.textContent = p.name + (p.has_demo ? "" : "（沒有影片）"); s.appendChild(o); }
     if (keep) s.value = keep;
   }
   async function openProject(name) {
@@ -871,7 +872,7 @@
   }
   $("qPrev").onclick = () => gotoQ(qi - 1); $("qNext").onclick = () => gotoQ(qi + 1);
 
-  loadProjects().then(async () => {
+  loadProjects(new URLSearchParams(location.search).get("project") || "").then(async () => {
     const u = new URLSearchParams(location.search);
     if (u.get("new") === "1") { render(); openNew(u.get("style") || ""); return; }      // 監控畫面「新增包裝方式 ›」、舊的 /new 網址
     if (!u.get("project")) { render(); return; }
