@@ -410,6 +410,14 @@ class Handler(BaseHTTPRequestHandler):
             return {"deleted": pkg.delete_methods(body.get("names") or [], line_store.lines_by_project(), tuple(busy))}
         if path == "/api/method/steps":
             return {"method": pkg.update_steps(name, body.get("steps") or [])}
+        if path == "/api/method/cycle_end":
+            row = pkg.set_cycle_end(name, body)
+            restart = name in self._running_projects()
+            if restart:                 # 監控啟動時就讀好設定了：正在監控這個包裝方式就重新啟動（這一輪作廢、不結算），跟換線一樣
+                src_kind, lid = getattr(self.service, "source_kind", "demo"), getattr(self.service, "line_id", None)
+                self.service.stop()
+                self.service.start(name, src_kind, line_id=lid)
+            return {"method": row, "restarted": restart}
         if path == "/api/method/color":
             return {"method": pkg.set_color(name, str(body.get("color", "")), str(body.get("status", "")), str(body.get("note", "")))}
         raise ValueError("沒有這個動作")

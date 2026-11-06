@@ -498,6 +498,8 @@ def apply_item_steps(project: Project, names: list[str], dwell_sec: float = 0.5)
     if project.cycle_end is None or project.cycle_end.type != "steps_done":   # 手動改成「步驟都做到就結算」的專案保留
         project.cycle_end = Step(step_index=-1, step_name="cycle_end", dwell_time_sec=0.5, timeout_sec=1.0, type="object_absent",
                                  object=project.state_anchor or "box")
+    elif project.cycle_end.label and project.cycle_end.label not in [s.step_name for s in steps]:
+        project.cycle_end.label = None             # 指定的最後一步重新產生後不見了：改回「都做到才結算」
     if project.cycle_min_sec <= 0:
         project.cycle_min_sec = 5.0
     if project.state_every_n_frames > 5:

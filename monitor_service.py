@@ -29,6 +29,7 @@ DISPLAY_FPS = 25          # 相機來源：顯示執行緒的上限（相機每�
 
 DOING_HOLD_SEC = 0.6      # 步驟累積秒數停止增加後，「正在做」標示再留多久（偵測會閃，避免一閃一閃）
 MAX_HISTORY = 30          # 網頁「最近幾輪」保留的輪數
+END_STUCK_SEC = 20.0      # 必要步驟都做完了，結束條件（盒子拿走）這麼久還不成立 → 提示改「必要步驟都做到就結算」
 LOW_FPS = 3.0             # 辨識速度低於這個值就在網頁提示
 
 
@@ -172,6 +173,7 @@ class MonitorService:
         self.line_id: str | None = None
         self.line_name: str | None = None
         self.color = ""
+        self.end_stuck = False           # 這次監控看過「步驟都做完了，盒子拿走一直不成立」：提示到包裝明細改結束方式
         self.trial = False               # 配色沒驗證過：照樣判、照樣顯示，但不計入錯誤率、不響警報
         self.model_info: dict | None = None
         self.started_at: str | None = None
@@ -191,6 +193,7 @@ class MonitorService:
         """line_id 有給：用那條產線目前的包裝方式、相機、桌面範圍與配色（project_name 忽略）。"""
         if self.running:
             raise ValueError("監控已在執行中，請先停止")
+        self.end_stuck = False
         line = None
         if line_id:
             import lines as line_store
@@ -382,6 +385,13 @@ class MonitorService:
             warnings.append(f"辨識速度只有 {fps:.1f} fps，判斷可能會延遲")
         if cyc["elapsed"] is not None and timeout and cyc["elapsed"] > 0.75 * timeout and not snap["alert_active"]:
             warnings.append(f"這一輪已經 {cyc['elapsed']:.0f} 秒，超過 {timeout:.0f} 秒會報超時")
+        if (p is not None and fsm.mode == "checklist" and fsm.cycle_active and req_total and req_done == req_total
+                and (p.cycle_end is None or p.cycle_end.type == "object_absent") and cyc["elapsed"] is not None and cyc["done_at"]
+                and cyc["elapsed"] - max(cyc["done_at"].values()) > END_STUCK_SEC):
+            self.end_stuck = True
+        if self.end_stuck and p is not None and (p.cycle_end is None or p.cycle_end.type == "object_absent"):
+            warnings.append("步驟都做完了，但「盒子拿走」一直沒成立（可能旁邊還有別的紙箱），這一輪結算不了。"
+                            "可到「包裝明細 → 一輪怎麼結束」改成「必要步驟都做到就結算」")
         if cyc["hand_age"] is not None and cyc["hand_age"] > 30:
             warnings.append(f"已經 {cyc['hand_age']:.0f} 秒沒看到手（作業員不在，或鏡頭被擋住）")
         with self._lock:

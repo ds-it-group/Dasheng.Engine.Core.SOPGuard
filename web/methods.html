@@ -29,6 +29,15 @@
   .addcolor { display: inline-flex; gap: 8px; align-items: flex-end; }
   .placeholder { flex: 1; display: grid; place-items: center; color: var(--ink-3); background: var(--card); border: 1px solid var(--line); }
   .tgt td.ed input { min-width: 90px; }
+  /* 一輪怎麼結束：步驟清單下面 */
+  .endcfg { flex: none; background: var(--card); border: 1px solid var(--line); border-top: 0; padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; font-size: 13px; }
+  .endcfg .et { width: 100%; color: var(--primary); font-weight: 700; font-size: 14px; }
+  .endcfg label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .endcfg .esub { width: 100%; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 6px 0 0 22px; }
+  .endcfg select, .endcfg input[type=number] { height: 28px; border: 1px solid var(--ed-line, var(--line)); background: var(--ed-bg, #fff); border-radius: 2px; padding: 0 6px; }
+  .endcfg input[type=number] { width: 64px; text-align: right; }
+  .endcfg .eh { color: var(--ink-2); font-size: 12px; }
+  .endcfg #endHint:empty { display: none; }
   @media (max-width: 1100px) { .split { flex-direction: column; } .split > .left { flex: none; } .gridwrap { max-height: 60vh; } }
 </style>
 </head>
@@ -74,6 +83,19 @@
           <div class="pane" id="tab-steps">
             <div class="note info" style="border:1px solid var(--line); border-top:0; border-radius:0">順序照示範影片第一次出現的先後（包裝設定頁的段落）。要改順序：到「包裝設定（訓練）」調段落再按「前往監控」。停留秒數、必要改了直接存。</div>
             <div class="gridwrap"><table class="grid" id="sGrid"></table></div>
+            <!-- 一輪怎麼結束：盒子拿走（object_absent）或必要步驟都做到（steps_done）。旁邊還有別的紙箱的產線，盒子一直「在」，要選後者 -->
+            <div class="endcfg" id="endCfg">
+              <div class="et">一輪怎麼結束</div>
+              <label><input type="radio" name="endMode" value="box"> 盒子拿走就結算</label>
+              <label><input type="radio" name="endMode" value="steps"> 必要步驟都做到就結算</label>
+              <div class="esub" id="endSteps">
+                <label>最後一步 <select id="endLast"></select></label>
+                <span class="eh">做到這一步就結算，前面有漏就報漏做</span>
+                <label>沒動作 <input id="endIdle" class="n" type="number" min="2" max="60" step="1"> 秒也結算</label>
+                <span class="eh">漏了步驟、又一直沒動作時用；結算後要等工作區清空才開始下一輪</span>
+              </div>
+              <div class="eh" id="endHint"></div>
+            </div>
           </div>
           <div class="pane" id="tab-model" hidden>
             <div class="mcard"><div class="mline n" id="modelLine"></div></div>
@@ -407,7 +429,7 @@
     if (need) $("needText").textContent = !d.has_packaging ? "這個專案還沒設定型體地區。按左邊鉛筆圖示設定。"
       : !d.model_trained_at ? "這個專案還沒有辨識模型。到「包裝設定（訓練）」框選物品後按「開始訓練」。"
       : "這個專案還沒有步驟。到「包裝設定（訓練）」訓練，訓練完會自動排好。";
-    renderSteps(); renderModel();
+    renderSteps(); renderEnd(); renderModel();
   }
 
   // ---- 右：步驟清單（順序從標記頁的段落來，這裡不排、不新增、不刪；停留秒數、必要改了直接存）
@@ -435,6 +457,28 @@
     if (!d.ok) { toast(d.error, true); select(detail.name); return; }
     toast("已存：" + what); select(detail.name);
   }
+
+  // ---- 右：一輪怎麼結束（存在專案的 cycle_end；正在監控這個包裝方式會重新啟動才生效）
+  function renderEnd() {
+    const c = detail.cycle_end_cfg || { mode: "box" };
+    document.querySelectorAll("input[name=endMode]").forEach((r) => { r.checked = r.value === c.mode; r.disabled = !detail.steps; });
+    const sl = $("endLast"); sl.innerHTML = "";
+    sl.appendChild(new Option("不指定（都做到才結算）", ""));
+    for (const s of stepsEdit) sl.appendChild(new Option(s.name, s.name));
+    sl.value = c.last || ""; $("endIdle").value = c.idle_sec || 6;
+    $("endSteps").hidden = c.mode !== "steps";
+    $("endHint").textContent = c.mode === "other" ? `目前是舊的結束方式（${c.type}），選一個就會換掉` :
+      c.mode === "box" ? "桌上只有一個盒子時用。旁邊還有別的紙箱的話，盒子一直看得到、這一輪結算不了，請改成「必要步驟都做到」" : "";
+  }
+  async function saveEnd(what) {
+    if (!detail) return;
+    const mode = (document.querySelector("input[name=endMode]:checked") || {}).value;
+    const d = await api("/api/method/cycle_end", { name: detail.name, mode, last: $("endLast").value, idle_sec: $("endIdle").value });
+    if (!d.ok) { toast(d.error, true); select(detail.name); return; }
+    toast("已存：" + what + (d.restarted ? "（監控已重新啟動）" : "")); select(detail.name);
+  }
+  document.querySelectorAll("input[name=endMode]").forEach((r) => { r.onchange = () => saveEnd("一輪怎麼結束"); });
+  $("endLast").onchange = () => saveEnd("最後一步"); $("endIdle").onchange = () => saveEnd("沒動作幾秒結算");
 
   // ---- 右：辨識模型（只看，配色驗證可標記；模型一律用本型體地區自己訓練的）
   function renderModel() {

@@ -166,3 +166,27 @@ def test_delete_only_disabled_and_unused(base):
     pkg.set_packaging("ref", {"model_source": None})
     assert pkg.delete_methods(["off"]) == ["off"]
     assert sorted(project_store.list_projects()) == ["bare", "on", "ref"]
+
+def test_cycle_end_setting(base):
+    """包裝明細的「一輪怎麼結束」：盒子拿走／必要步驟都做到（含最後一步、沒動作秒數），改名跟著改、刪掉就清掉。"""
+    _proj(base, "a", {"style": "310222 01", "region": "歐洲"}, model=True)
+    assert pkg.method_detail("a")["cycle_end_cfg"]["mode"] == "box"            # 沒設過：當成盒子拿走
+    row = pkg.set_cycle_end("a", {"mode": "steps", "last": "貼紙", "idle_sec": 8})
+    assert row["cycle_end_cfg"] == {"mode": "steps", "last": "貼紙", "idle_sec": 8.0}
+    p = project_store.load_project("a")
+    assert p.cycle_end.type == "steps_done" and p.cycle_end.label == "貼紙" and p.cycle_arm_clear_sec == pkg.END_STEPS_ARM
+    with pytest.raises(ValueError, match="沒有「不存在」"):
+        pkg.set_cycle_end("a", {"mode": "steps", "last": "不存在"})
+    with pytest.raises(ValueError, match="2～60"):
+        pkg.set_cycle_end("a", {"mode": "steps", "idle_sec": 0.5})
+    with pytest.raises(ValueError, match="結束方式"):
+        pkg.set_cycle_end("a", {"mode": "lol"})
+    # 步驟改名：最後一步跟著改；刪掉：改回都做到才結算
+    pkg.update_steps("a", [{"index": 0, "name": "藍盒", "label": "藍盒", "dwell": 0.5}, {"index": 1, "name": "盒端貼紙", "label": "貼紙", "dwell": 0.5}])
+    assert project_store.load_project("a").cycle_end.label == "盒端貼紙"
+    pkg.update_steps("a", [{"index": 0, "name": "藍盒", "label": "藍盒", "dwell": 0.5}])
+    p = project_store.load_project("a")
+    assert p.cycle_end.type == "steps_done" and p.cycle_end.label is None
+    pkg.set_cycle_end("a", {"mode": "box"})
+    p = project_store.load_project("a")
+    assert p.cycle_end.type == "object_absent" and p.cycle_end.object == "box" and p.cycle_arm_clear_sec == pkg.END_BOX_ARM

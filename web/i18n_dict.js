@@ -816,6 +816,14 @@ window.I18N_DICT = {
 "\"{0}\" still has segments. Delete the segments before deleting the name",
 "\"{0}\" masih punya segmen. Hapus segmennya dulu baru hapus nama"
 ],
+"「沒動作幾秒也結算」要在 {0}～{1} 秒": [
+"\"No activity for … s\" must be {0}–{1} s",
+"\"Tanpa aktivitas selama … dtk\" harus {0}–{1} dtk"
+],
+"「沒動作幾秒也結算」要填數字": [
+"\"No activity for … s\" must be a number",
+"\"Tanpa aktivitas selama … dtk\" harus berupa angka"
+],
 "・手碰 {0}": [
 "・Hand touch {0}",
 "・Sentuhan tangan {0}"
@@ -831,6 +839,10 @@ window.I18N_DICT = {
 "・舊版 {0} 格": [
 "・Old version {0} frames",
 "・Versi lama {0} frame"
+],
+"一輪怎麼結束": [
+"How a cycle ends",
+"Cara satu siklus berakhir"
 ],
 "上一處": [
 "Previous",
@@ -903,6 +915,10 @@ window.I18N_DICT = {
 "下一處": [
 "Next",
 "Berikutnya"
+],
+"不指定（都做到才結算）": [
+"Not set (close when all are done)",
+"Tidak diatur (selesai bila semua dikerjakan)"
 ],
 "不用任何標註：分析示範影片裡每一輪都重複的動作，列出候選步驟讓你挑": [
 "No labels needed: finds actions repeated in every cycle of the demo video and lists them as candidate steps for you to pick",
@@ -1035,6 +1051,10 @@ window.I18N_DICT = {
 "候選步驟": [
 "Candidate steps",
 "Kandidat langkah"
+],
+"做到這一步就結算，前面有漏就報漏做": [
+"Close as soon as this step is done; report any skipped earlier steps",
+"Selesai begitu langkah ini dikerjakan; laporkan langkah sebelumnya yang terlewat"
 ],
 "做完的樣子，例如 盒端貼紙": [
 "What it looks like when done, e.g. box-end sticker",
@@ -1804,6 +1824,10 @@ window.I18N_DICT = {
 "Saved: ",
 "Tersimpan: "
 ],
+"已存：{0}（監控已重新啟動）": [
+"Saved: {0} (monitoring restarted)",
+"Tersimpan: {0} (pemantauan dimulai ulang)"
+],
 "已復原上一步": [
 "Undid last step",
 "Langkah terakhir dibatalkan"
@@ -2027,6 +2051,10 @@ window.I18N_DICT = {
 "必要步驟 {0}/{1}": [
 "Required steps {0}/{1}",
 "Langkah wajib {0}/{1}"
+],
+"必要步驟都做到就結算": [
+"Close when all required steps are done",
+"Selesai saat semua langkah wajib selesai"
 ],
 "怎麼判": [
 "How it's judged",
@@ -2396,6 +2424,10 @@ window.I18N_DICT = {
 "Max frames to process, 0 = all",
 "Maksimal frame diproses, 0 = semua"
 ],
+"最後一步": [
+"Last step",
+"Langkah terakhir"
+],
 "最快 {0} 秒、最慢 {1} 秒、上一輪 {2} 秒": [
 "Fastest {0} s, slowest {1} s, last cycle {2} s",
 "Tercepat {0} detik, terlama {1} detik, siklus terakhir {2} detik"
@@ -2559,6 +2591,10 @@ window.I18N_DICT = {
 "框（手／自動）": [
 "Boxes (manual/auto)",
 "Kotak (manual/otomatis)"
+],
+"桌上只有一個盒子時用。旁邊還有別的紙箱的話，盒子一直看得到、這一輪結算不了，請改成「必要步驟都做到」": [
+"Use when there is only one box on the desk. If other cartons are nearby, the box is always visible and the cycle never closes; switch to \"all required steps done\"",
+"Pakai bila hanya ada satu kotak di meja. Bila ada karton lain di dekatnya, kotak selalu terlihat dan siklus tidak pernah selesai; ganti ke \"semua langkah wajib selesai\""
 ],
 "桌上看到": [
 "Seen on desk",
@@ -2776,6 +2812,10 @@ window.I18N_DICT = {
 "Step overtime: {0}",
 "Langkah lewat waktu: {0}"
 ],
+"步驟都做完了，但「盒子拿走」一直沒成立（可能旁邊還有別的紙箱），這一輪結算不了。可到「包裝明細 → 一輪怎麼結束」改成「必要步驟都做到就結算」": [
+"All steps are done, but \"box taken away\" never happens (maybe other cartons are nearby), so this cycle cannot close. Go to \"Packing details → How a cycle ends\" and choose \"Close when all required steps are done\"",
+"Semua langkah sudah selesai, tetapi \"kotak diangkat\" tidak pernah terjadi (mungkin ada karton lain di dekatnya), jadi siklus ini tidak bisa selesai. Buka \"Detail pengemasan → Cara satu siklus berakhir\" dan pilih \"Selesai saat semua langkah wajib selesai\""
+],
 "步驟都做完了，等這一輪結束": [
 "　All steps done, waiting for this cycle to end",
 "　Semua langkah selesai, tunggu siklus ini berakhir"
@@ -2840,6 +2880,14 @@ window.I18N_DICT = {
 "Compare",
 "Bandingkan"
 ],
+"沒動作": [
+"No activity for",
+"Tanpa aktivitas selama"
+],
+"沒動作幾秒結算": [
+"seconds of no activity before closing",
+"detik tanpa aktivitas sebelum selesai"
+],
 "沒接 EIP，只存本機": [
 "No EIP connection, saved locally only",
 "Tidak terhubung EIP, hanya disimpan di PC ini"
@@ -2851,6 +2899,10 @@ window.I18N_DICT = {
 "沒有": [
 "None",
 "Tidak ada"
+],
+"沒有「{0}」這一步": [
+"There is no step \"{0}\"",
+"Tidak ada langkah \"{0}\""
 ],
 "沒有「{0}」這個名稱": [
 "No name \"{0}\"",
@@ -2987,6 +3039,10 @@ window.I18N_DICT = {
 "滾輪縮放、Shift＋滾輪左右移；點一下跳到那個時間；拖拉方塊兩邊改頭尾": [
 "Scroll to zoom, Shift＋scroll to move left/right; click to jump to that time; drag block edges to change start/end",
 "Gulir untuk zoom, Shift＋gulir untuk geser kiri/kanan; klik untuk lompat ke waktu itu; tarik sisi blok untuk ubah awal/akhir"
+],
+"漏了步驟、又一直沒動作時用；結算後要等工作區清空才開始下一輪": [
+"Used when a step is missed and nothing happens; after closing, the next cycle starts only once the work area is clear",
+"Dipakai bila ada langkah terlewat dan tidak ada aktivitas; setelah selesai, siklus berikutnya mulai setelah area kerja kosong"
 ],
 "漏做": [
 "Missed",
@@ -3192,6 +3248,10 @@ window.I18N_DICT = {
 "Box not seen for {0} s (treated as removed after {1} s)",
 "Kotak tidak terlihat {0} detik (dianggap diambil setelah {1} detik)"
 ],
+"盒子拿走就結算": [
+"Close when the box is taken away",
+"Selesai saat kotak diangkat"
+],
 "盒子暫時沒偵測到": [
 "Box temporarily not detected",
 "Kotak sementara tidak terdeteksi"
@@ -3235,6 +3295,10 @@ window.I18N_DICT = {
 "目前在做：<b>{0}</b>": [
 "Now doing: <b>{0}</b>",
 "Sedang dikerjakan: <b>{0}</b>"
+],
+"目前是舊的結束方式（{0}），選一個就會換掉": [
+"Currently an old end rule ({0}); choosing one replaces it",
+"Saat ini aturan akhir lama ({0}); memilih salah satu akan menggantinya"
 ],
 "目前時間，可輸入後按 Enter 跳過去": [
 "Current time, type and press Enter to jump",
@@ -3343,6 +3407,10 @@ window.I18N_DICT = {
 "秒": [
 "s",
 "detik"
+],
+"秒也結算": [
+"s also closes it",
+"dtk juga menutupnya"
 ],
 "程式一開、每 10 分鐘、停止監控、換線時上傳；還沒傳成功的日子一起補送。操作 → 今日統計 可以看內容": [
 "Uploaded when the program starts, every 10 minutes, on stop monitoring and on line change; days not yet uploaded are sent together. See Actions → Today's stats for details",
@@ -3511,6 +3579,10 @@ window.I18N_DICT = {
 "結束": [
 "End",
 "Selesai"
+],
+"結束方式只能選「盒子拿走」或「必要步驟都做到」": [
+"The end rule must be \"box taken away\" or \"all required steps done\"",
+"Aturan akhir hanya boleh \"kotak diangkat\" atau \"semua langkah wajib selesai\""
 ],
 "結束條件成立 {0}/{1} 秒後結算這一輪": [
 "Close this cycle {0}/{1} s after the end condition is met",

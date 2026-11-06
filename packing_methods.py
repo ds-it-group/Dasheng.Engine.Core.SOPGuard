@@ -238,9 +238,58 @@ def update_steps(project_name: str, rows: list[dict]) -> dict:
         raise ValueError("步驟名稱不能重複")
     for i, s in enumerate(new_steps):
         s.step_index = i
+    if p.cycle_end is not None and p.cycle_end.type == "steps_done" and p.cycle_end.label:
+        renamed = {old[r.get("index")].step_name: str(r.get("name", "")).strip() for r in rows if r.get("index") in old}
+        last = renamed.get(p.cycle_end.label, p.cycle_end.label)
+        p.cycle_end.label = last if last in {s.step_name for s in new_steps} else None    # 最後一步被刪了：改回「都做到才結算」
     p.steps = new_steps
     save_project(p)
     return method_row(p)
+
+
+END_BOX_HOLD = 0.5          # 盒子拿走：沿用 training.apply_item_steps 的去抖秒數與清空秒數
+END_BOX_ARM = 0.2
+END_STEPS_ARM = 1.0         # 步驟都做到：結算後工作區要清空這麼久才開下一輪（同一雙鞋卡在畫面上不會一直重複計數）
+END_IDLE_RANGE = (2.0, 60.0)
+
+
+def cycle_end_row(p) -> dict:
+    """給包裝明細看的「一輪怎麼結束」：mode＝box（盒子拿走）／steps（必要步驟都做到）／other（手勢等舊設定，畫面只顯示）。"""
+    e = p.cycle_end
+    if e is not None and e.type == "steps_done":
+        return {"mode": "steps", "last": e.label or "", "idle_sec": e.dwell_time_sec}
+    if e is None or e.type == "object_absent":
+        return {"mode": "box", "last": "", "idle_sec": None}
+    return {"mode": "other", "last": "", "idle_sec": None, "type": e.type}
+
+
+def set_cycle_end(project_name: str, data: dict) -> dict:
+    """包裝明細改「一輪怎麼結束」。box：盒子（state_anchor）拿走 0.5 秒就結算；steps：必要步驟都做到、或做到 last 那一步就結算，
+    idle_sec 秒都沒看到任何步驟也結算（報漏做）。之後重新訓練、產生步驟都會保留（training.apply_item_steps）。"""
+    p = load_project(project_name)
+    mode = str(data.get("mode", ""))
+    if mode == "box":
+        from training import ensure_state_anchor
+        ensure_state_anchor(p)                     # 盒子拿走要有「盒子」錨點；沒有就補（跟訓練時一樣）
+        p.cycle_end = Step(step_index=-1, step_name="cycle_end", dwell_time_sec=END_BOX_HOLD, timeout_sec=1.0, type="object_absent",
+                           object=p.state_anchor or "box")
+        p.cycle_arm_clear_sec = END_BOX_ARM
+    elif mode == "steps":
+        try:
+            idle = float(data.get("idle_sec", 6.0))
+        except (TypeError, ValueError):
+            raise ValueError("「沒動作幾秒也結算」要填數字")
+        if not END_IDLE_RANGE[0] <= idle <= END_IDLE_RANGE[1]:
+            raise ValueError(f"「沒動作幾秒也結算」要在 {END_IDLE_RANGE[0]:g}～{END_IDLE_RANGE[1]:g} 秒")
+        last = str(data.get("last", "") or "").strip() or None
+        if last is not None and last not in [st.step_name for st in p.steps]:
+            raise ValueError(f"沒有「{last}」這一步")
+        p.cycle_end = Step(step_index=-1, step_name="cycle_end", dwell_time_sec=idle, timeout_sec=1.0, type="steps_done", label=last)
+        p.cycle_arm_clear_sec = END_STEPS_ARM
+    else:
+        raise ValueError("結束方式只能選「盒子拿走」或「必要步驟都做到」")
+    save_project(p)
+    return method_detail(project_name)
 
 
 def wizard_name(style: str, region: str) -> str:
@@ -268,6 +317,7 @@ def method_detail(project_name: str, lines_by_project: dict | None = None) -> di
                          "start_t": round(starts[s.step_name] / fps, 1) if s.step_name in starts else None} for s in p.steps]
     row["model_items"] = model_items(p)
     row["cycle_end"] = p.cycle_end.type if p.cycle_end else None
+    row["cycle_end_cfg"] = cycle_end_row(p)
     row["state_fixed"] = p.state_fixed
     row["resolution"] = list(p.resolution)
     return row
