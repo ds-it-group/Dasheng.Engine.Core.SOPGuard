@@ -668,6 +668,10 @@ window.I18N_DICT = {
 "{0}: empty-desk false alarms {1} frames → {2} frames ({3} → {4})",
 "{0}: alarm palsu meja kosong {1} frame → {2} frame ({3} → {4})"
 ],
+"‹ 回到上一步：框物品": [
+"‹ Back: Box items",
+"‹ Kembali: Beri kotak barang"
+],
 "①②③＝順序": [
 "①②③ = order",
 "①②③ = urutan"
@@ -856,6 +860,10 @@ window.I18N_DICT = {
 "Limit {0} s",
 "Batas {0} detik"
 ],
+"下一步：標動作 ›": [
+"Next: Mark actions ›",
+"Berikutnya: Tandai gerakan ›"
+],
 "下一處": [
 "Next",
 "Berikutnya"
@@ -1035,6 +1043,10 @@ window.I18N_DICT = {
 "先填廠別": [
 "Enter the Factory first",
 "Isi Pabrik dulu"
+],
+"先存好至少一段物品，才能標動作": [
+"Save at least one item segment before marking actions",
+"Simpan minimal satu segmen barang dulu sebelum menandai gerakan"
 ],
 "先有一段示範影片": [
 "A demo video is needed first",
@@ -2852,6 +2864,10 @@ window.I18N_DICT = {
 "Item boxes changed, please train again",
 "Kotak barang berubah, perlu dilatih ulang"
 ],
+"物品都存好了，下一步標動作（沒有要看手的步驟，下一步直接按開始訓練）": [
+"Items are saved. Next, mark actions (if no step needs the hands, just press Start training on the next step)",
+"Barang sudah disimpan. Berikutnya tandai gerakan (kalau tidak ada langkah yang perlu tangan, di langkah berikutnya langsung tekan Mulai latih)"
+],
 "物品：拉時間範圍，再畫一個框": [
 "Items: drag a time range, then draw a box",
 "Barang: tarik rentang waktu, lalu gambar kotak"
@@ -3163,6 +3179,14 @@ window.I18N_DICT = {
 "第 1 段開始": [
 "Segment 1 start",
 "Mulai segmen 1"
+],
+"第 2 步：框物品": [
+"Step 2: Box items",
+"Langkah 2: Beri kotak barang"
+],
+"第 3 步：標動作（沒有就跳過）": [
+"Step 3: Mark actions (skip if none)",
+"Langkah 3: Tandai gerakan (lewati kalau tidak ada)"
 ],
 "第 {0} 格": [
 "Frame {0}",
