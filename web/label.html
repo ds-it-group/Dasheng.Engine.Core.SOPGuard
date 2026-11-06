@@ -54,6 +54,11 @@
   .gs.done { color: var(--ink); } .gs.done .gb { border-color: var(--teal); background: var(--teal); color: #fff; }
   .gs.cur { color: var(--primary); font-weight: 700; } .gs.cur .gb { border-color: var(--primary); background: var(--primary); color: #fff; }
   .gs.opt .gb { border-style: dashed; }   /* 可選的步驟：虛線圈 */
+  .refmk { position: absolute; top: 18px; bottom: 0; width: 3px; margin-left: -1px; background: #607d8b; cursor: pointer; z-index: 2; }
+  .refmk.on { background: var(--primary); width: 5px; margin-left: -2px; }
+  .refrow { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line-soft); cursor: pointer; font-size: 13px; }
+  .refrow:hover { background: var(--line-soft, #f0f2f5); } .refrow.on { background: var(--primary-wash); box-shadow: inset 4px 0 0 var(--primary); }
+  .refrow .t { flex: 1; }
   .gs.click { cursor: pointer; border-radius: 16px; } .gs.click:hover { background: var(--line-soft, #f0f2f5); }
   .gs.here { background: var(--primary-wash); box-shadow: inset 0 0 0 1px var(--primary); }   /* 右邊名稱清單現在在做的這一步 */
   .gx { flex: 1; height: 2px; background: var(--line-soft); min-width: 12px; }
@@ -182,6 +187,11 @@
           <div id="objTip" style="display:flex;align-items:center;gap:6px;padding:4px 10px 6px;font-size:12px;color:var(--ink-2)" title="貼好的貼紙連盒邊一起框、放好的鞋子連盒蓋一起框。只框東西本身，它還在旁邊沒做完時也會被算成做完。"><span class="mi" style="font-size:16px;color:var(--accent, #d58a00)">lightbulb</span>框做完的樣子，連旁邊的盒子一起框</div>
           <div id="actTip" hidden style="display:flex;align-items:center;gap:6px;padding:4px 10px 6px;font-size:12px;color:var(--ink-2)" title="例如「檢查鞋舌」：先到「物品」把鞋舌框成一個物品，再拉這個動作的範圍。手同時碰到鞋子和鞋舌時，系統取框比較小的鞋舌。鞋舌這個物品步驟可以到「包裝明細」關掉必要，重新排步驟也會照舊。"><span class="mi" style="font-size:16px;color:var(--accent, #d58a00)">lightbulb</span>手要碰的是小地方（例如鞋舌）：先把它框成物品</div>
           <div class="list" id="nameList"></div>
+          <!-- 空桌面（2026-11-06 使用者裁示：當成框物品之前的前置步驟）：訓練時當背景圖，模型才學得到「桌上沒東西」 -->
+          <div class="list" id="refPane" hidden>
+            <div style="display:flex;align-items:flex-start;gap:6px;padding:8px 10px;font-size:12.5px;color:var(--ink-2)"><span class="mi" style="font-size:16px;color:var(--accent, #d58a00)">lightbulb</span><span>找桌上什麼都沒有的畫面（盒子、鞋子都還沒放上來），按下方「這一格標成空桌面」。建議在不同時間標 2～3 格，模型比較不會把空桌面認成物品。</span></div>
+            <div id="refList"></div>
+          </div>
           <div class="foot">
             <div id="cnt"></div>
             <button class="btn btn-primary raised" id="btnNextStep" title="物品都存好了，下一步標動作（沒有要看手的步驟，下一步直接按開始訓練）">下一步：標動作 ›</button>
@@ -198,6 +208,7 @@
           <div class="row1">
             <span class="sw" id="curSw"></span><span id="curName" style="font-weight:500">（還沒選名稱）</span><span class="tag" id="curTag" hidden>動作</span>
             <button class="btn btn-primary raised" id="btnStart" title="在目前時間新增一段（1 秒），再拉方塊右邊到結束的地方"><span class="mi">start</span>從這裡開始</button>
+            <button class="btn btn-primary raised" id="btnMarkRef" hidden title="這一格桌上什麼都沒有（盒子、鞋子都還沒放上來）"><span class="mi">check_box_outline_blank</span>這一格標成空桌面</button>
             <button class="btn btn-cancel" id="btnSave" disabled>儲存這一段</button>
             <span class="spacer"></span>
             <button class="btn btn-cancel" id="zoomOut" aria-label="縮小時間軸"><span class="mi">remove</span></button>
@@ -288,7 +299,7 @@
     if (t) msgTimer = setTimeout(() => { msgText = ""; updateHint(); }, warn ? 7000 : 5000);
     if (t && (!info || !info.has_video)) toast(t, warn);
   }
-  function updateHint() { const h = $("hint"); h.textContent = msgText || hintText(); h.title = msgText ? msgFull : ""; h.className = "hint" + (msgText && msgWarn ? " warn" : ""); renderGuide(); }
+  function updateHint() { $("btnMarkRef").disabled = refs().includes(n); const h = $("hint"); h.textContent = msgText || hintText(); h.title = msgText ? msgFull : ""; h.className = "hint" + (msgText && msgWarn ? " warn" : ""); renderGuide(); }
   /* 規範 §3.13：刪除確認用燈箱，不用瀏覽器的 confirm() */
   function confirmBox(text, okText) {
     return new Promise((resolve) => {
@@ -302,7 +313,8 @@
   const names = () => (info && info.segments ? info.segments.names : []);
   const allSegs = () => (info && info.segments ? info.segments.segments : []);
   const segsOf = (name) => allSegs().filter((s) => s.name === name).sort((a, b) => a.start - b.start);
-  const curName = () => names().find((x) => x.name === sel) || null;
+  const curName = () => (newKind === "empty" ? null : names().find((x) => x.name === sel) || null);
+  const refs = () => (info && info.seeds ? info.seeds.refs || [] : []);
   const isAct = (nd) => !!nd && nd.kind === "action";
   const segById = (id) => allSegs().find((s) => s.id === id) || null;
   const curSeg = () => (segSel == null ? null : segById(segSel));
@@ -475,13 +487,21 @@
       const hr = el("span", "hd"); hr.style.right = 0; hr.onpointerdown = segDown(g, "r");
       b.onpointerdown = segDown(g, "m"); b.append(hl, lab, hr); track.appendChild(b);
     });
+    if (newKind === "empty") for (const f of refs()) {             // 空桌面這一步：時間軸上標出已標的格，點了跳過去
+      if (f < v0 || f > v1) continue;
+      const m = el("div", "refmk" + (f === n ? " on" : "")); m.style.left = pct(f) + "%"; m.title = `空桌面 ${fmt(f)}`;
+      m.onpointerdown = (e) => { e.stopPropagation(); seek(f, false); renderTL(); }; track.appendChild(m);
+    }
     track.appendChild(el("div", "ph")); renderPlayhead();
     ovbar.innerHTML = "";
+    if (newKind === "empty") for (const f of refs()) { const o = el("div", "os"); o.style.left = (f / N * 100) + "%"; o.style.width = "0.4%"; o.style.background = "#607d8b"; ovbar.appendChild(o); }
     if (nd) for (const g of segsOf(nd.name)) { const o = el("div", "os"); o.style.left = (g.start / N * 100) + "%"; o.style.width = Math.max(0.3, (g.end - g.start + 1) / N * 100) + "%"; o.style.background = nd.color + (g.saved ? "" : "66"); ovbar.appendChild(o); }
     const win = el("div", "win"); win.style.left = (v0 / N * 100) + "%"; win.style.width = (span / N * 100) + "%"; ovbar.appendChild(win);
     $("zoomSlide").value = N > minSpan() ? Math.round(Math.log(N / span) / Math.log(N / minSpan()) * 100) : 0;
-    $("curSw").style.background = nd ? nd.color : "transparent"; $("curName").textContent = nd ? nd.name : "（右邊點一個名稱）"; $("curTag").hidden = !isAct(nd);
+    const emp = newKind === "empty";
+    $("curSw").style.background = nd ? nd.color : emp ? "#607d8b" : "transparent"; $("curName").textContent = emp ? "空桌面" : nd ? nd.name : "（右邊點一個名稱）"; $("curTag").hidden = !isAct(nd);
     const g = curSeg(); $("btnSave").disabled = !g || !nd; $("btnStart").disabled = !nd;
+    $("btnStart").hidden = $("btnSave").hidden = emp; $("btnMarkRef").hidden = !emp; $("btnMarkRef").disabled = refs().includes(n);
   }
 
   // ---- 畫面上的框
@@ -501,6 +521,7 @@
     ov.style.cursor = nd && !isAct(nd) && segAt(n) ? "crosshair" : "default";
   }
   function hintText() {
+    if (newKind === "empty") return refs().includes(n) ? "這一格已標成空桌面" : (refs().length ? `已標 ${refs().length} 格空桌面；標好按右下「下一步」` : "找一格桌上沒東西的畫面，按「這一格標成空桌面」");
     const nd = curName(); if (!nd) return names().some((m) => m.kind === newKind) ? "右邊點一個名稱" : (newKind === "action" ? "右邊先新增動作" : "右邊先新增物品");
     const g = segAt(n); if (!g) return "按「從這裡開始」";
     if (isAct(nd)) return g.saved ? `手碰：${g.touch || nd.touch || "？"}` : "拉好範圍，按「儲存這一段」";
@@ -509,26 +530,29 @@
     return boxFor(g, n) ? "已儲存" : "這一格沒追到，可再框一次";
   }
   /* 引導列：六步的狀態只看現有資料（影片、已儲存段數、模型、步驟）；該按的按鈕加 .pulse 閃一圈 */
-  /* 順序（2026-11-04 使用者定案）：影片 → 框物品 → 動作（可跳過）→ 訓練 → 監控（2026-11-06：訓練完自動產生步驟，訓練鍵變「前往監控」）。動作不進模型，訓練後改動作不用重訓 */
-  const GUIDE = [["videocam", "影片", "先有一段示範影片", false], ["crop_free", "框物品", "每樣物品：從這裡開始 → 拉結尾 → 框做完的樣子（連旁邊的盒子）→ 儲存", false],
+  /* 順序（2026-11-04 使用者定案）：影片 → 框物品 → 動作（可跳過）→ 訓練 → 監控（2026-11-06：訓練完自動產生步驟，訓練鍵變「前往監控」）。動作不進模型，訓練後改動作不用重訓
+     2026-11-06 使用者裁示：框物品前加「空桌面」前置步驟（至少標 1 格才能往下） */
+  const GUIDE = [["videocam", "影片", "先有一段示範影片", false],
+    ["check_box_outline_blank", "空桌面", "找桌上什麼都沒有的畫面標起來（建議 2～3 格），模型才學得到「桌上沒東西」", false], ["crop_free", "框物品", "每樣物品：從這裡開始 → 拉結尾 → 框做完的樣子（連旁邊的盒子）→ 儲存", false],
     ["back_hand", "動作", "有要看手的步驟才標，沒有就跳過：先有被碰的物品，再拉動作的範圍、儲存", true],
     ["model_training", "訓練", "物品和動作都存好，按「開始訓練」。訓練完自動排好步驟。動作不進模型，之後改動作不用重訓", false],
     ["monitor", "監控", "按「前往監控」，到監控畫面換線、啟動", false]];
   /* 模型可以用了（有模型、框選和桌面範圍在訓練後沒改）；只有動作、沒有物品時不用模型 */
   function modelReady() { return !!info && (info.seeds.order.length ? !!info.has_model && !info.seeds.model_stale : info.seeds.hand_steps.length > 0); }
   function guideState() {
-    if (!info) return { done: [false, false, false, false, false], cur: -1 };
+    if (!info) return { done: [false, false, false, false, false, false], cur: -1 };
     const c = info.segments || {}; const hasObj = (c.object_segments || 0) > 0 || info.seeds.seeds.length > 0; const hasAct = (c.action_segments || 0) > 0;
     const running = $("trainStage").dataset.running === "1";
-    const done = [!!info.has_video, hasObj, hasAct, modelReady(), false];
-    let cur = done.findIndex((d) => !d); if (cur < 0) cur = 4;
-    if (cur === 2 && (done[3] || running)) cur = done.findIndex((d, i) => !d && i > 2);   // 動作可跳過：已經在訓練或訓練完，就不停在動作
+    const done = [!!info.has_video, refs().length > 0, hasObj, hasAct, modelReady(), false];
+    let cur = done.findIndex((d) => !d); if (cur < 0) cur = 5;
+    if (cur === 3 && (done[4] || running)) cur = done.findIndex((d, i) => !d && i > 3);   // 動作可跳過：已經在訓練或訓練完，就不停在動作
     return { done, cur };
   }
   function pulseTarget() {
     if (!info || !info.has_video) return null;
     const c = info.segments || {}; const mine = names().filter((m) => m.kind === newKind);
     if (modelReady() && !allSegs().some((x) => !x.saved) && $("trainStage").dataset.running !== "1") return "btnTrain";   // 模型好了：前往監控
+    if (newKind === "empty") return refs().length ? "btnNextStep" : "btnMarkRef";
     if (!mine.length) return newKind === "object" ? "btnAddName" : (!(c.action_segments > 0) && !$("kindAct").disabled && !info.has_model ? "btnAddName" : null);
     const nd = curName(); if (!nd) return null;
     if (!segsOf(nd.name).length) return "btnStart";
@@ -545,8 +569,8 @@
     const { done, cur } = guideState(); box.innerHTML = "";
     GUIDE.forEach(([ic, lb, tip, opt], i) => {
       const s = el("div", "gs" + (done[i] ? " done" : i === cur ? " cur" : opt ? " opt" : "")); s.title = tip;
-      if (i === 1 || i === 2) {                    // 框物品、動作：點了切到那一步（右邊名稱清單只顯示那一步的）
-        const k = i === 1 ? "object" : "action"; s.classList.add("click"); if (info && info.has_video && newKind === k) s.classList.add("here");
+      if (i >= 1 && i <= 3) {                      // 空桌面、框物品、動作：點了切到那一步（右邊清單只顯示那一步的）
+        const k = ["", "empty", "object", "action"][i]; s.classList.add("click"); if (info && info.has_video && newKind === k) s.classList.add("here");
         s.onclick = () => { if (info && info.has_video) setKind(k); };
       }
       const b = el("span", "gb"); b.appendChild(EIP.mi(done[i] ? "check" : ic)); s.appendChild(b);
@@ -560,6 +584,7 @@
   ov.addEventListener("pointerdown", (e) => {
     if (!info || !info.has_video || e.button !== 0) return;
     if (playing) togglePlay();
+    if (newKind === "empty") { say("空桌面不用畫框，按下方「這一格標成空桌面」"); return; }
     const nd = curName(); if (!nd) { say("先在右邊點一個名稱（或新增一個）", true); return; }
     if (isAct(nd)) { say(`「${nd.name}」是動作，不用畫框，只要在時間軸上拉範圍。`); return; }
     const g = segAt(n); if (!g) { say("這個時間點不在任何一段裡。先按「從這裡開始」新增一段，再畫框。", true); return; }
@@ -586,6 +611,7 @@
     const cnt = info.segments || {}; const nObj = names().filter((m) => m.kind === "object").length, nAct = names().length - nObj;
     $("cntObj").textContent = nObj ? `(${nObj})` : ""; $("cntAct").textContent = nAct ? `(${nAct})` : "";
     $("kindAct").disabled = !((cnt.object_segments || 0) > 0) && !nAct;                // 動作要先有已存的物品（舊專案已有動作就照樣能看）
+    if (newKind === "empty") { renderRefs(); return; }
     const shown = names().filter((m) => m.kind === newKind);
     if (!shown.length) { const e0 = el("div", "none2"); e0.textContent = newKind === "action" ? "還沒有動作" : "還沒有物品"; ul.appendChild(e0); }
     for (const m of shown) {
@@ -634,11 +660,32 @@
     if (g.end - g.start + 1 < span && (g.start < v0 || g.end + 1 > v1)) setView(g.start - span * 0.1, span);
     seek(g.start, true); renderTL(); renderNames();
   }
+  function renderRefs() {
+    const box = $("refList"); box.innerHTML = "";
+    if (!refs().length) { const e0 = el("div", "none2"); e0.textContent = "還沒有空桌面"; box.appendChild(e0); return; }
+    refs().forEach((f, i) => {
+      const row = el("div", "refrow" + (f === n ? " on" : "")); row.onclick = () => { seek(f, true); render(); };
+      const t = el("span", "t"); t.textContent = `空桌面 ${i + 1}　${fmt(f)}`; row.appendChild(t);
+      row.appendChild(EIP.iconBtn("delete", "c-del", "取消這一格", async (e) => {
+        e.stopPropagation(); const d = await api("/api/seeds", { project: proj, action: "remove_ref", frame: f });
+        if (!d.ok) { say(d.error, true); return; } info.seeds = d.seeds; render(); }));
+      box.appendChild(row);
+    });
+  }
+  $("btnMarkRef").onclick = async () => {
+    if (!info || !info.has_video) return;
+    // 段落是「做完的樣子」：在已存物品段落裡的格子桌上一定有東西，不能當空桌面
+    const hit = allSegs().find((g) => g.saved && n >= g.start && n <= g.end && !isAct(names().find((m) => m.name === g.name)));
+    if (hit) { say(`這一格在「${hit.name}」的段落裡，桌上有東西；換一格什麼都沒有的`, true); return; }
+    const d = await api("/api/seeds", { project: proj, action: "add_ref", frame: n });
+    if (!d.ok) { say(d.error, true); return; }
+    info.seeds = d.seeds; render(); say(refs().length >= 2 ? `已標 ${refs().length} 格空桌面` : "標好了。建議在別的時間再標 1～2 格");
+  };
   function renderFooter() {
     const c = info && info.segments ? info.segments : { object_segments: 0, object_frames: 0, action_segments: 0 };
     const groups = new Set(allSegs().map((s) => s.group).filter(Boolean));
     const legacy = info ? info.seeds.seeds.filter((x) => !groups.has(x.group)).length : 0;
-    $("cnt").textContent = `已存 物品 ${c.object_segments} 段・動作 ${c.action_segments} 段` + (legacy ? `・舊版 ${legacy} 格` : "");
+    $("cnt").textContent = `已存 空桌面 ${refs().length} 格・物品 ${c.object_segments} 段・動作 ${c.action_segments} 段` + (legacy ? `・舊版 ${legacy} 格` : "");
     $("cnt").title = `物品 ${c.object_frames} 格會拿去訓練` + (legacy ? `；舊版框選 ${legacy} 格不在時間軸上，訓練時一樣會用到` : "");
     const running = $("trainStage").dataset.running === "1";
     // 一顆鍵：模型可以用 → 前往監控（順便照最新的物品／動作排步驟）；不然 → 訓練（訓練完自動排步驟）
@@ -651,11 +698,14 @@
     $("staleHint").hidden = !stale; $("staleHint").textContent = stale ? (stale.startsWith("桌面") ? stale + "，不然監控時看到的東西大小跟訓練時不一樣" : stale + "，新框的才會被認得") : "";
     $("btnRetrain").hidden = !(ready && info.seeds.seeds.length);
     // 物品、動作分兩步：第 2 步只看物品，按「下一步」到第 3 步標動作、訓練；模型好了兩步都直接給「前往監控」
-    const act = newKind === "action";
-    $("namesTitle").textContent = act ? "第 3 步：標動作（沒有就跳過）" : "第 2 步：框物品";
-    $("btnNextStep").hidden = act; $("btnNextStep").disabled = $("kindAct").disabled;
-    $("btnNextStep").title = $("kindAct").disabled ? "先存好至少一段物品，才能標動作" : "物品都存好了，下一步標動作（沒有要看手的步驟，下一步直接按開始訓練）";
-    $("btnPrevStep").hidden = !act;
+    const act = newKind === "action", emp = newKind === "empty";
+    $("namesTitle").textContent = emp ? "第 2 步：標空桌面" : act ? "第 4 步：標動作（沒有就跳過）" : "第 3 步：框物品";
+    $("btnNextStep").hidden = act;
+    $("btnNextStep").textContent = emp ? "下一步：框物品 ›" : "下一步：標動作 ›";
+    $("btnNextStep").disabled = emp ? !refs().length : $("kindAct").disabled;
+    $("btnNextStep").title = emp ? (refs().length ? "空桌面標好了，下一步框物品" : "先標至少一格空桌面")
+      : $("kindAct").disabled ? "先存好至少一段物品，才能標動作" : "物品都存好了，下一步標動作（沒有要看手的步驟，下一步直接按開始訓練）";
+    $("btnPrevStep").hidden = emp; $("btnPrevStep").textContent = act ? "‹ 回到上一步：框物品" : "‹ 回到上一步：空桌面";
     $("btnTrain").hidden = !act && !(ready && !running);
   }
   function render() { renderNames(); renderTL(); renderFooter(); draw(); updateHint(); }
@@ -668,10 +718,14 @@
   }
   const pushUndo = (op) => { undoStack.push(op); if (undoStack.length > 50) undoStack.shift(); };
   $("kindObj").onclick = () => setKind("object"); $("kindAct").onclick = () => setKind("action");
-  $("btnNextStep").onclick = () => setKind("action"); $("btnPrevStep").onclick = () => setKind("object");
-  function setKind(k) {
-    if (k === "action" && $("kindAct").disabled) { say("先框好一樣物品，再標動作", true); return; }
-    newKind = k; $("kindObj").classList.toggle("on", k === "object"); $("kindAct").classList.toggle("on", k === "action");
+  $("btnNextStep").onclick = () => setKind(newKind === "empty" ? "object" : "action");
+  $("btnPrevStep").onclick = () => setKind(newKind === "action" ? "object" : "empty");
+  function setKind(k, force) {
+    if (!force && k === "action" && $("kindAct").disabled) { say("先框好一樣物品，再標動作", true); return; }
+    newKind = k; const emp = k === "empty";
+    if (emp) { $("objTip").hidden = true; $("actTip").hidden = true; }
+    $("nameList").hidden = emp; $("refPane").hidden = !emp; $("newName").parentElement.hidden = emp;
+    if (emp) { sel = null; segSel = null; if (info) render(); return; } $("kindObj").classList.toggle("on", k === "object"); $("kindAct").classList.toggle("on", k === "action");
     $("kindObj").setAttribute("aria-selected", k === "object"); $("kindAct").setAttribute("aria-selected", k === "action");
     $("newName").placeholder = k === "action" ? "新動作，例如 檢查鞋舌" : "做完的樣子，例如 盒端貼紙"; $("objTip").hidden = k === "action"; $("actTip").hidden = k !== "action";
     const cur = curName();
@@ -786,10 +840,12 @@
     N = info.frame_count || 0; fps = Math.max(1, info.fps || 30); v0 = 0; v1 = N;
     $("vidInfo").textContent = info.has_video ? `影片 ${info.resolution[0]}×${info.resolution[1]}，${fmt(N)}，${fps.toFixed(0)} fps` : "";
     $("durText").textContent = fmt(N);
-    indexSeeds(); newKind = "object"; $("kindObj").classList.add("on"); $("kindAct").classList.remove("on"); $("newName").placeholder = "做完的樣子，例如 盒端貼紙"; $("objTip").hidden = false;
+    indexSeeds();
     const first = names().find((m) => m.kind === "object") || names()[0]; sel = first ? first.name : null;
-    if (first && first.kind === "action") { newKind = "action"; $("kindAct").classList.add("on"); $("kindObj").classList.remove("on"); }
-    render(); if (info.has_video) seek(0, false);
+    // 新專案（還沒空桌面、也還沒框物品）從「空桌面」開始；已經框過的照舊停在物品（或只有動作的停在動作）
+    const noObj = !info.seeds.seeds.length && !((info.segments || {}).object_segments > 0);
+    setKind(info.has_video && !refs().length && noObj ? "empty" : first && first.kind === "action" ? "action" : "object", true);
+    if (info.has_video) seek(0, false);
   }
   document.addEventListener("i18n:change", () => draw());
   async function refreshInfo() { if (!proj) return; const d = await api("/api/project?name=" + enc(proj)); if (!d.error) { info = d; N = info.frame_count || 0; indexSeeds(); render(); } }

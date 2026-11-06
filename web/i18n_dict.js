@@ -672,6 +672,10 @@ window.I18N_DICT = {
 "‹ Back: Box items",
 "‹ Kembali: Beri kotak barang"
 ],
+"‹ 回到上一步：空桌面": [
+"‹ Back: Empty desk",
+"‹ Kembali: Meja kosong"
+],
 "①②③＝順序": [
 "①②③ = order",
 "①②③ = urutan"
@@ -859,6 +863,10 @@ window.I18N_DICT = {
 "上限 {0} 秒": [
 "Limit {0} s",
 "Batas {0} detik"
+],
+"下一步：框物品 ›": [
+"Next: Box items ›",
+"Berikutnya: Beri kotak barang ›"
 ],
 "下一步：標動作 ›": [
 "Next: Mark actions ›",
@@ -1055,6 +1063,10 @@ window.I18N_DICT = {
 "先框好一樣物品，再標動作": [
 "Box an item first, then label actions",
 "Beri kotak satu barang dulu, baru tandai gerakan"
+],
+"先標至少一格空桌面": [
+"Mark at least one empty-desk frame first",
+"Tandai minimal satu bingkai meja kosong dulu"
 ],
 "先輸入名稱再按新增": [
 "Enter a name first, then click Add",
@@ -1307,6 +1319,10 @@ window.I18N_DICT = {
 "取消分析": [
 "Cancel analysis",
 "Batal analisis"
+],
+"取消這一格": [
+"Remove this frame",
+"Hapus bingkai ini"
 ],
 "只列有框選的": [
 "Only show boxed ones",
@@ -1672,6 +1688,10 @@ window.I18N_DICT = {
 "Saved: items {0} segments・actions {1} segments・old boxes {2} frames",
 "Tersimpan: barang {0} segmen・gerakan {1} segmen・kotak lama {2} frame"
 ],
+"已存 空桌面 {0} 格・物品 {1} 段・動作 {2} 段": [
+"Saved: empty desk {0} frame(s), items {1} segment(s), actions {2} segment(s)",
+"Tersimpan: meja kosong {0} bingkai, barang {1} segmen, gerakan {2} segmen"
+],
 "已存成 {0}。但共用硬碟目前是 {1}，是你載入之後別人傳的。要把你的 {2} 設成目前版本嗎？選「先不要」就只存著，大家還是載入 {3}。": [
 "Saved as {0}. But the shared drive's current version is {1}, uploaded by someone else after you loaded. Set your {2} as the current version? Choose \"Not now\" to only keep it saved; everyone will still load {3}.",
 "Tersimpan sebagai {0}. Tapi versi aktif di drive bersama adalah {1}, diunggah orang lain setelah Anda memuat. Jadikan {2} Anda sebagai versi aktif? Pilih \"Nanti dulu\" untuk hanya menyimpan; semua orang tetap memuat {3}."
@@ -1715,6 +1735,14 @@ window.I18N_DICT = {
 "已更新配色「": [
 "Updated color \"",
 "Warna diperbarui \""
+],
+"已標 {0} 格空桌面": [
+"{0} empty-desk frame(s) marked",
+"{0} bingkai meja kosong ditandai"
+],
+"已標 {0} 格空桌面；標好按右下「下一步」": [
+"{0} empty-desk frame(s) marked; when done, press \"Next\" at the bottom right",
+"{0} bingkai meja kosong ditandai; kalau sudah, tekan \"Berikutnya\" di kanan bawah"
 ],
 "已照你的選擇換上新模型（比上次差）": [
 "Switched to the new model as you chose (worse than last time)",
@@ -1948,6 +1976,10 @@ window.I18N_DICT = {
 "Packing GPU training package…",
 "Mengemas paket latih GPU…"
 ],
+"找一格桌上沒東西的畫面，按「這一格標成空桌面」": [
+"Find a frame with nothing on the desk and press \"Mark this frame as empty desk\"",
+"Cari bingkai yang mejanya kosong, lalu tekan \"Tandai bingkai ini sebagai meja kosong\""
+],
 "找不到 {0}，無法找盒子": [
 "Cannot find {0}, cannot find boxes",
 "{0} tidak ditemukan, tidak bisa mencari kotak"
@@ -2019,6 +2051,14 @@ window.I18N_DICT = {
 "找到率（上次 → 這次）": [
 "Find rate (last → this)",
 "Tingkat temuan (sebelum → sekarang)"
+],
+"找桌上什麼都沒有的畫面標起來（建議 2～3 格），模型才學得到「桌上沒東西」": [
+"Mark frames where the desk is completely empty (2–3 recommended) so the model learns what \"nothing on the desk\" looks like",
+"Tandai bingkai yang mejanya benar-benar kosong (disarankan 2–3) supaya model belajar \"meja kosong\""
+],
+"找桌上什麼都沒有的畫面（盒子、鞋子都還沒放上來），按下方「這一格標成空桌面」。建議在不同時間標 2～3 格，模型比較不會把空桌面認成物品。": [
+"Find a frame where the desk is completely empty (no box or shoes yet) and press \"Mark this frame as empty desk\" below. Mark 2–3 frames at different times so the model is less likely to mistake an empty desk for an item.",
+"Cari bingkai yang mejanya benar-benar kosong (belum ada kotak atau sepatu), lalu tekan \"Tandai bingkai ini sebagai meja kosong\" di bawah. Tandai 2–3 bingkai di waktu berbeda supaya model tidak salah mengira meja kosong sebagai barang."
 ],
 "找盒子與手{0}：{1}/{2} 格": [
 "Finding boxes and hands{0}: {1}/{2} frames",
@@ -2435,6 +2475,10 @@ window.I18N_DICT = {
 "桌面範圍：自己框（進階）": [
 "Desk area: draw your own (advanced)",
 "Area meja: gambar sendiri (lanjutan)"
+],
+"標好了。建議在別的時間再標 1～2 格": [
+"Marked. It is best to mark 1–2 more at other times",
+"Sudah ditandai. Sebaiknya tandai 1–2 lagi di waktu lain"
 ],
 "標成已驗證": [
 "Mark as verified",
@@ -3152,6 +3196,22 @@ window.I18N_DICT = {
 "Empty-desk false alarm (last → this)",
 "Alarm palsu meja kosong (sebelum → sekarang)"
 ],
+"空桌面": [
+"Empty desk",
+"Meja kosong"
+],
+"空桌面 {0}": [
+"Empty desk {0}",
+"Meja kosong {0}"
+],
+"空桌面不用畫框，按下方「這一格標成空桌面」": [
+"No box needed for the empty desk; press \"Mark this frame as empty desk\" below",
+"Meja kosong tidak perlu kotak; tekan \"Tandai bingkai ini sebagai meja kosong\" di bawah"
+],
+"空桌面標好了，下一步框物品": [
+"Empty desk marked; next, box the items",
+"Meja kosong sudah ditandai; berikutnya beri kotak barang"
+],
 "空的裁圖": [
 "Empty crop",
 "Potongan gambar kosong"
@@ -3184,9 +3244,21 @@ window.I18N_DICT = {
 "Step 2: Box items",
 "Langkah 2: Beri kotak barang"
 ],
+"第 2 步：標空桌面": [
+"Step 2: Mark empty desk",
+"Langkah 2: Tandai meja kosong"
+],
+"第 3 步：框物品": [
+"Step 3: Box items",
+"Langkah 3: Beri kotak barang"
+],
 "第 3 步：標動作（沒有就跳過）": [
 "Step 3: Mark actions (skip if none)",
 "Langkah 3: Tandai gerakan (lewati kalau tidak ada)"
+],
+"第 4 步：標動作（沒有就跳過）": [
+"Step 4: Mark actions (skip if none)",
+"Langkah 4: Tandai gerakan (lewati kalau tidak ada)"
 ],
 "第 {0} 格": [
 "Frame {0}",
@@ -3728,6 +3800,22 @@ window.I18N_DICT = {
 "Frame by frame",
 "Per frame"
 ],
+"這一格在「{0}」的段落裡，桌上有東西；換一格什麼都沒有的": [
+"This frame is inside a \"{0}\" segment, so something is on the desk; pick a frame with nothing on it",
+"Bingkai ini ada di segmen \"{0}\", jadi ada barang di meja; pilih bingkai yang kosong"
+],
+"這一格已標成空桌面": [
+"This frame is marked as empty desk",
+"Bingkai ini sudah ditandai meja kosong"
+],
+"這一格桌上什麼都沒有（盒子、鞋子都還沒放上來）": [
+"Nothing is on the desk in this frame (no box or shoes yet)",
+"Tidak ada apa pun di meja pada bingkai ini (belum ada kotak atau sepatu)"
+],
+"這一格標成空桌面": [
+"Mark this frame as empty desk",
+"Tandai bingkai ini sebagai meja kosong"
+],
 "這一格沒追到，可再框一次": [
 "This frame was not tracked, you can box it again",
 "Frame ini tidak terlacak, bisa beri kotak lagi"
@@ -4051,6 +4139,10 @@ window.I18N_DICT = {
 "還沒有監控畫面": [
 "No monitor screen yet",
 "Belum ada layar pantau"
+],
+"還沒有空桌面": [
+"No empty-desk frames yet",
+"Belum ada bingkai meja kosong"
 ],
 "還沒有要上傳的": [
 "Nothing to upload",
